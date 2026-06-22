@@ -104,12 +104,14 @@ export function mapRow(
   let units: number | null = null;
   let visitors: number | null = null;
   let ad_cost: number | null = null;
+  let in_cart: number | null = null;
 
   if (source === "spos") {
     sales_idr = toNum(get("Total Penjualan (Pesanan Dibuat) (IDR)"));
     orders = toNum(get("Total Pembeli (Pesanan Dibuat)"));
     units = toNum(get("Produk (Pesanan Dibuat)"));
     visitors = visitorsSpos;
+    in_cart = toNum(get("Dimasukkan ke Keranjang (Produk)"));
   } else if (source === "ads") {
     sales_idr = toNum(get("Omzet Penjualan"));
     orders = toNum(get("Konversi"));
@@ -141,6 +143,7 @@ export function mapRow(
     units,
     visitors,
     ad_cost,
+    in_cart,
     is_parent: isParent,
     raw,
   };
