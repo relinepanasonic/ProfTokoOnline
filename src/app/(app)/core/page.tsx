@@ -105,10 +105,10 @@ export default function CoreListPage() {
         </Card>
       </div>
 
-      {/* Combined: Owner · Store Name · Brand */}
-      <Card icon="🔗" title="Owners · Store Names · Brands" count={links.length}>
+      {/* Combined: Owner · Brand · Store Name */}
+      <Card icon="🔗" title="Owners · Brands · Store Names" count={links.length}>
         <div style={{ fontSize: 11.5, color: "var(--muted)", marginBottom: 4 }}>
-          One owner can have many stores &amp; brands; one brand many stores. Add each combination as a row.
+          One owner can have many brands; one brand many stores. Add each combination as a row.
         </div>
         <LinkTable rows={links} onDel={delLink} />
         <LinkAdd owners={owners} stores={stores} brands={brands} onAdd={addLink} />
@@ -154,14 +154,14 @@ function LinkTable({ rows, onDel }: { rows: Link[]; onDel: (id: string) => void 
   return (
     <div style={{ maxHeight: 300, overflowY: "auto" }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 28px", gap: 8, fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", padding: "0 12px 6px" }}>
-        <span>Owner</span><span>Store Name</span><span>Brand</span><span />
+        <span>Owner</span><span>Brand</span><span>Store Name</span><span />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {rows.map((r) => (
           <div key={r.id} style={{ ...rowStyle, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 28px", gap: 8, alignItems: "center" }}>
             <span style={{ fontSize: 13 }}>{r.owner || "—"}</span>
-            <span style={{ fontSize: 13 }}>{r.store_name || "—"}</span>
             <span style={{ fontSize: 13 }}>{r.brand || "—"}</span>
+            <span style={{ fontSize: 13 }}>{r.store_name || "—"}</span>
             <DelBtn onClick={() => onDel(r.id)} />
           </div>
         ))}
@@ -176,8 +176,8 @@ function LinkAdd({ owners, stores, brands, onAdd }: { owners: string[]; stores: 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 40px", gap: 8, marginTop: "auto" }}>
       <input list="dl-owner" style={fieldStyle} placeholder="Owner…" value={o} onChange={(e) => setO(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
-      <input list="dl-store" style={fieldStyle} placeholder="Store name…" value={s} onChange={(e) => setS(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
       <input list="dl-brand" style={fieldStyle} placeholder="Brand…" value={b} onChange={(e) => setB(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+      <input list="dl-store" style={fieldStyle} placeholder="Store name…" value={s} onChange={(e) => setS(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
       <button style={plusStyle} onClick={go}>+</button>
     </div>
   );
