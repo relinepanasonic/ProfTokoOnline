@@ -56,7 +56,7 @@ export default function UploadPage() {
   const [supabase] = useState(() => createClient());
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [manual, setManual] = useState({
-    admin: "", bulan: "Juni", baseline_month: "", year: new Date().getFullYear(),
+    admin: "", bulan: "", year: new Date().getFullYear(),
     city: "", pic_client: "", store_name: "", week: "Week 1",
     tanggal_mulai: "", tanggal_berakhir: "",
   });
@@ -187,16 +187,11 @@ export default function UploadPage() {
               {admins.map((a) => <option key={a} value={a}>{a}</option>)}
             </select>
           </Field>
-          <Field label="Bulan (data month)">
+          <Field label="Bulan">
             <select value={manual.bulan} onChange={(e) => setField("bulan", e.target.value)}>
+              <option value="">Month</option>
               {MONTHS.map((m) => <option key={m}>{m}</option>)}
-            </select>
-          </Field>
-
-          <Field label="Bulan Awal (Baseline)">
-            <select value={manual.baseline_month} onChange={(e) => setField("baseline_month", e.target.value)}>
-              <option value="">None</option>
-              {MONTHS.map((m) => <option key={m}>{m}</option>)}
+              <option value="Baseline">📌 Baseline (Month Awal)</option>
             </select>
           </Field>
           <Field label="Year"><input type="number" value={manual.year} onChange={(e) => setField("year", Number(e.target.value))} /></Field>
