@@ -95,6 +95,11 @@ body{
   background:rgba(10,22,40,.6);color:var(--text);-webkit-appearance:none;outline:none;cursor:pointer}
 .filterbar select:focus,.fld select:focus,.fld input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,39,.15)}
 .filterbar option,.fld option{background:var(--navy);color:var(--text)}
+/* native date picker icon: tint the default black glyph to brand grey/white */
+input[type="date"]::-webkit-calendar-picker-indicator{
+  filter:invert(85%) sepia(6%) saturate(400%) hue-rotate(180deg) brightness(95%);
+  opacity:.85;cursor:pointer}
+input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 
 .btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-soft));color:var(--navy-deep);border:none;border-radius:10px;
   padding:10px 20px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(201,162,39,.3)}
