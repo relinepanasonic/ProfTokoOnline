@@ -167,8 +167,8 @@ export default function UsersPage() {
 
 const actBtn: React.CSSProperties = { background: "rgba(201,162,39,.15)", border: "1px solid rgba(201,162,39,.3)", color: "var(--gold)", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 12, marginRight: 6 };
 const delBtn: React.CSSProperties = { background: "rgba(255,80,80,.12)", borderColor: "rgba(255,90,90,.3)", color: "#ff9a9a" };
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.7)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 };
-const modal: React.CSSProperties = { width: "min(94vw,440px)", maxHeight: "90vh", overflowY: "auto", background: "rgba(13,26,54,.98)", border: "1px solid rgba(201,162,39,.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 70px rgba(0,0,0,.55)" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.7)", zIndex: 9998, overflowY: "auto", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px" };
+const modal: React.CSSProperties = { width: "min(94vw,440px)", background: "rgba(13,26,54,.98)", border: "1px solid rgba(201,162,39,.3)", borderRadius: 16, padding: 24, boxShadow: "0 24px 70px rgba(0,0,0,.55)", margin: "auto" };
 
 function Fld({ label, children }: { label: string; children: React.ReactNode }) {
   return <div><label style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".04em", display: "block", marginBottom: 4 }}>{label}</label>{children}</div>;
