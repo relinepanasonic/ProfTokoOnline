@@ -16,6 +16,30 @@ const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustu
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
 const SRC_LABEL: Record<string, string> = { perf: "Performa", spos: "SPOS", ads: "Ads" };
 
+// --- week-date helpers (Mon→Sun) ---
+function toISODate(d: Date): string {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+// Snap any date to the Monday of its week.
+function mondayOf(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  const dow = d.getDay();              // 0 Sun .. 6 Sat
+  const diff = dow === 0 ? -6 : 1 - dow;
+  d.setDate(d.getDate() + diff);
+  return toISODate(d);
+}
+function addDays(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+// Pretty "Senin, 05 Jan 2026" for read-only display.
+function fmtID(iso: string): string {
+  if (!iso) return "—";
+  return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+}
+
 type UploadRow = {
   id: string;
   source: DataSource;
@@ -33,8 +57,10 @@ export default function UploadPage() {
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [manual, setManual] = useState({
     admin: "", bulan: "Juni", baseline_month: "", year: new Date().getFullYear(),
-    city: "", pic_client: "", store_name: "", week: "Week 1", tanggal_mulai: "",
+    city: "", pic_client: "", store_name: "", week: "Week 1",
+    tanggal_mulai: "", tanggal_berakhir: "",
   });
+  const inputTime = new Date(); // "Tanggal Input" — now, read-only log
   const [clientId, setClientId] = useState(""); // single default workspace
 
   // Core List–driven option lists
@@ -52,6 +78,13 @@ export default function UploadPage() {
 
   function setField<K extends keyof typeof manual>(k: K, v: (typeof manual)[K]) {
     setManual((m) => ({ ...m, [k]: v }));
+  }
+
+  // Tanggal Mulai: snap to Monday + auto-set Tanggal Akhir (Sunday = +6 days).
+  function pickStart(v: string) {
+    if (!v) { setManual((m) => ({ ...m, tanggal_mulai: "", tanggal_berakhir: "" })); return; }
+    const mon = mondayOf(v);
+    setManual((m) => ({ ...m, tanggal_mulai: mon, tanggal_berakhir: addDays(mon, 6) }));
   }
 
   // Load the upload history for this workspace (filtered client-side by data dims).
@@ -109,11 +142,12 @@ export default function UploadPage() {
     if (!clientId) { setLog(["Pick a Client first."]); setBusy(false); return; }
     const chosen = SLOTS.filter((s) => files[s.source]);
     if (!chosen.length) { setLog(["Pick at least one file."]); setBusy(false); return; }
+    const manualToSend = { ...manual, tanggal_input: new Date().toISOString() };
     for (const slot of chosen) {
       const fd = new FormData();
       fd.append("file", files[slot.source]!);
       fd.append("source", slot.source);
-      fd.append("manual", JSON.stringify(manual));
+      fd.append("manual", JSON.stringify(manualToSend));
       fd.append("client_id", clientId);
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
@@ -191,7 +225,20 @@ export default function UploadPage() {
             </select>
           </Field>
 
-          <Field label="Tanggal Mulai"><input type="date" value={manual.tanggal_mulai} onChange={(e) => setField("tanggal_mulai", e.target.value)} /></Field>
+          <Field label="Tanggal Mulai (Senin)">
+            <input type="date" value={manual.tanggal_mulai} onChange={(e) => pickStart(e.target.value)} />
+            <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Auto-snaps to Monday · {fmtID(manual.tanggal_mulai)}</span>
+          </Field>
+          <Field label="Tanggal Akhir (Minggu)">
+            <input type="date" value={manual.tanggal_berakhir} readOnly disabled
+              style={{ opacity: .7, cursor: "not-allowed" }} />
+            <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>1 week after start · {fmtID(manual.tanggal_berakhir)}</span>
+          </Field>
+          <Field label="Tanggal Input (log)">
+            <input type="text" value={inputTime.toLocaleString("id-ID")} readOnly disabled
+              style={{ opacity: .7, cursor: "not-allowed" }} />
+            <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Recorded automatically</span>
+          </Field>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, margin: "20px 0 8px", padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)" }}>

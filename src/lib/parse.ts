@@ -68,8 +68,9 @@ export interface ManualFields {
   pic_client?: string;  // was "PIC Panasonic"
   store_name?: string;  // was "Dealer"
   week?: string;
-  tanggal_mulai?: string;
-  tanggal_berakhir?: string;
+  tanggal_mulai?: string;    // Monday — start of the data week
+  tanggal_berakhir?: string; // Sunday — auto = tanggal_mulai + 6 days
+  tanggal_input?: string;    // ISO timestamp when the upload was entered (log)
   tanggal?: string;
 }
 
