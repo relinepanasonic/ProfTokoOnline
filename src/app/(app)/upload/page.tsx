@@ -58,7 +58,7 @@ export default function UploadPage() {
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [manual, setManual] = useState({
     admin: "", bulan: "", year: new Date().getFullYear(),
-    city: "", pic_client: "", store_name: "", week: "Week 1",
+    city: "", pic_client: "", store_name: "", brand: "", week: "Week 1",
     tanggal_mulai: "", tanggal_berakhir: "",
   });
   const inputTime = new Date(); // "Tanggal Input" — now, read-only log
@@ -69,6 +69,7 @@ export default function UploadPage() {
   const [cities, setCities] = useState<string[]>([]);
   const [owners, setOwners] = useState<string[]>([]);
   const [stores, setStores] = useState<string[]>([]);
+  const [links, setLinks] = useState<{ owner: string | null; brand: string | null; store_name: string | null }[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
@@ -89,6 +90,17 @@ export default function UploadPage() {
       const nextWeek = manual.week === BASELINE_WEEK ? "Week 1" : manual.week;
       setManual((m) => ({ ...m, bulan: v, week: nextWeek }));
     }
+  }
+
+  // Store selected → auto-fill Owner (pic_client) and Brand from Core List store_links.
+  function pickStore(storeName: string) {
+    const link = links.find((l) => l.store_name === storeName);
+    setManual((m) => ({
+      ...m,
+      store_name: storeName,
+      pic_client: link?.owner ?? m.pic_client,
+      brand: link?.brand ?? m.brand,
+    }));
   }
 
   // Tanggal Mulai: snap to Monday + auto-set Tanggal Akhir (Sunday = +6 days).
@@ -116,18 +128,19 @@ export default function UploadPage() {
     loadUploads(clientId);
   }
 
-  // Load the per-client lists (City / Owner / Store) from Core List.
+  // Load the per-client lists (City / Owner / Store / Brand) from Core List.
   const reload = useCallback(async (cid: string) => {
-    if (!cid) { setCities([]); setOwners([]); setStores([]); return; }
+    if (!cid) { setCities([]); setOwners([]); setStores([]); setLinks([]); return; }
     const [{ data: md }, { data: sl }] = await Promise.all([
       supabase.from("master_data").select("value").eq("client_id", cid).eq("kind", "city").order("value"),
-      supabase.from("store_links").select("owner,store_name").eq("client_id", cid).order("created_at"),
+      supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("created_at"),
     ]);
     setCities(((md as { value: string }[]) || []).map((r) => r.value));
-    const links = (sl as { owner: string | null; store_name: string | null }[]) || [];
+    const linkData = (sl as { owner: string | null; brand: string | null; store_name: string | null }[]) || [];
+    setLinks(linkData);
     const uniq = (xs: (string | null)[]) => Array.from(new Set(xs.filter(Boolean) as string[])).sort();
-    setOwners(uniq(links.map((l) => l.owner)));
-    setStores(uniq(links.map((l) => l.store_name)));
+    setOwners(uniq(linkData.map((l) => l.owner)));
+    setStores(uniq(linkData.map((l) => l.store_name)));
   }, [supabase]);
 
   useEffect(() => {
@@ -220,17 +233,24 @@ export default function UploadPage() {
             </select>
           </Field>
           <Field label="Owner">
-            <select value={manual.pic_client} onChange={(e) => setField("pic_client", e.target.value)} disabled={!clientId}>
+            <select value={manual.pic_client} onChange={(e) => setManual((m) => ({ ...m, pic_client: e.target.value, store_name: "", brand: "" }))} disabled={!clientId}>
               <option value="">Select owner…</option>
               {owners.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </Field>
           <Field label="Store Name">
-            <select value={manual.store_name} onChange={(e) => setField("store_name", e.target.value)} disabled={!clientId}>
+            <select value={manual.store_name} onChange={(e) => pickStore(e.target.value)} disabled={!clientId}>
               <option value="">Select store…</option>
               {stores.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
+          {manual.brand && (
+            <Field label="Brand (auto)">
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(201,162,39,.3)", background: "rgba(201,162,39,.07)", color: "var(--gold)", fontWeight: 700, fontSize: 13 }}>
+                ✦ {manual.brand}
+              </div>
+            </Field>
+          )}
         </div>
 
         {/* 3 dates on their own row */}

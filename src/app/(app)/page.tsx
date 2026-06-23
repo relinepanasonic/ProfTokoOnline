@@ -21,6 +21,7 @@ type Summary = {
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
+type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
 const MONTH_ORDER = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const byMonth = <T extends { month: string }>(a: T[]) =>
@@ -34,7 +35,8 @@ export default function DashboardPage() {
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], cities: [], stores: [] });
-  const [sel, setSel] = useState({ year: "", month: "", city: "", store: "" });
+  const [links, setLinks] = useState<StoreLink[]>([]);
+  const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -47,8 +49,12 @@ export default function DashboardPage() {
         const { data: c } = await supabase.from("clients").select("store_label").eq("id", p.client_id).single();
         if (c?.store_label) setStoreLabel(c.store_label);
       }
-      const { data: f } = await supabase.rpc("dashboard_filters");
+      const [{ data: f }, { data: sl }] = await Promise.all([
+        supabase.rpc("dashboard_filters"),
+        supabase.from("store_links").select("owner,brand,store_name").order("owner"),
+      ]);
       if (f) setFilters(f as Filters);
+      setLinks((sl as StoreLink[]) || []);
     })();
   }, [supabase]);
 
@@ -65,6 +71,20 @@ export default function DashboardPage() {
   }, [supabase, sel]);
   useEffect(() => { load(); }, [load]);
 
+  // Derive unique owners and filter stores by selected owner.
+  const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
+  const filteredStores = sel.owner
+    ? filters.stores.filter((s) => links.some((l) => l.store_name === s && l.owner === sel.owner))
+    : filters.stores;
+
+  function pickOwner(owner: string) {
+    setSel((s) => ({ ...s, owner, store: "" }));
+  }
+  function pickStore(store: string) {
+    const link = links.find((l) => l.store_name === store);
+    setSel((s) => ({ ...s, store, owner: link?.owner || s.owner }));
+  }
+
   const k = d?.kpis;
   const roasPct = k?.roas ? Math.min((k.roas / 5) * 100, 100) : 0;
   const cartRate = k && k.traffic ? (k.in_cart / k.traffic) * 100 : 0;
@@ -73,11 +93,14 @@ export default function DashboardPage() {
     <>
       {/* Filters */}
       <div className="filterbar">
-        <Sel label="Year" value={sel.year} onChange={(v) => setSel({ ...sel, year: v })} opts={filters.years.map(String)} all="All Years" />
-        <Sel label="Month" value={sel.month} onChange={(v) => setSel({ ...sel, month: v })} opts={filters.months} all="All Months" />
-        <Sel label="City" value={sel.city} onChange={(v) => setSel({ ...sel, city: v })} opts={filters.cities} all="All Cities" />
-        <Sel label={storeLabel} value={sel.store} onChange={(v) => setSel({ ...sel, store: v })} opts={filters.stores} all={`All ${storeLabel}s`} />
-        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", city: "", store: "" })}>Reset</button>
+        <Sel label="Year" value={sel.year} onChange={(v) => setSel((s) => ({ ...s, year: v }))} opts={filters.years.map(String)} all="All Years" />
+        <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all="All Months" />
+        <Sel label="City" value={sel.city} onChange={(v) => setSel((s) => ({ ...s, city: v }))} opts={filters.cities} all="All Cities" />
+        {owners.length > 0 && (
+          <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
+        )}
+        <Sel label={storeLabel} value={sel.store} onChange={pickStore} opts={filteredStores} all={`All ${storeLabel}s`} />
+        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", city: "", store: "", owner: "" })}>Reset</button>
         {loading && <span style={{ alignSelf: "center", color: "var(--gold)", fontSize: 12 }}>Updating…</span>}
       </div>
 
