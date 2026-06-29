@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -63,7 +64,7 @@ export default function LoginPage() {
         style={{ boxShadow: "0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(201,162,39,0.1)" }}
       >
         <div className="mb-6 flex flex-col items-center gap-3">
-          <img src="/logo.svg" alt="ProfTokoOnline" style={{ width: 90, height: 90, objectFit: "contain" }} />
+          <Image src="/logo.png" alt="ProfTokoOnline" width={90} height={90} style={{ objectFit: "contain" }} priority />
           <div className="text-center">
             <h1 className="text-xl font-bold tracking-wide" style={{ color: "#e8edf8" }}>ProfTokoOnline</h1>
             <p className="mt-0.5 text-xs" style={{ color: "#7b8db0" }}>Dashboard Analytics</p>

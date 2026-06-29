@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -71,7 +72,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
-            <img src="/logo.svg" alt="logo" style={{ width: 36, height: 36, objectFit: "contain" }} />
+            <Image src="/logo.png" alt="logo" width={36} height={36} style={{ objectFit: "contain" }} />
           </div>
           <div>
             <div className="t1">Reline</div>

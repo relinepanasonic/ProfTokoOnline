@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 
 type Invite = { owner_name: string; store_name: string | null; role: string };
@@ -93,15 +94,7 @@ export default function JoinPage() {
 
         {/* Logo */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <div style={{ width: 50, height: 50, borderRadius: "50%",
-            background: "linear-gradient(135deg, #1a3461, #0a1628)",
-            border: "2px solid rgba(201,162,39,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z"
-                fill="rgba(201,162,39,0.2)" stroke="#c9a227" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M9 12l2 2 4-4" stroke="#c9a227" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
+          <Image src="/logo.png" alt="ProfTokoOnline" width={80} height={80} style={{ objectFit: "contain" }} priority />
           <div style={{ textAlign: "center" }}>
             <div style={{ fontWeight: 700, fontSize: 17, color: "#e8edf8" }}>ProfTokoOnline</div>
             <div style={{ fontSize: 12, color: "#7b8db0", marginTop: 2 }}>Create your account</div>
