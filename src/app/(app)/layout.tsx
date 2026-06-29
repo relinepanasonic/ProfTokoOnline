@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -72,10 +71,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
-            <Image src="/logo.png" alt="logo" width={36} height={36} style={{ objectFit: "contain" }} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="logo" style={{ width: 42, height: 42, objectFit: "contain", borderRadius: 8 }} />
           </div>
           <div>
-            <div className="t1">Reline</div>
+            <div className="t1">Prof Toko Online</div>
             <div className="t2">{clientName}</div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="mob-logo">
             <div className="badge">R</div>
             <div>
-              <div className="mob-title">Reline</div>
+              <div className="mob-title">Prof Toko Online</div>
               <div className="mob-sub">{clientName}</div>
             </div>
           </div>
