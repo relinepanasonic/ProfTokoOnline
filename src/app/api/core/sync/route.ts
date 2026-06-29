@@ -4,6 +4,8 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+// Rebuilds master_data (owner, brand, store kinds) and store_links from
+// existing uploads + sales_rows data. Safe to re-run — clears & rebuilds.
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -21,24 +23,18 @@ export async function POST() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Load all uploads (owner = meta.pic_client)
+  // Load uploads → build upload_id → { clientId, owner (pic_client) } map
   const { data: uploads, error: uploadsErr } = await admin
-    .from("uploads")
-    .select("id, client_id, meta");
+    .from("uploads").select("id, client_id, meta");
   if (uploadsErr || !uploads) {
     return NextResponse.json({ error: "Failed to read uploads" }, { status: 500 });
   }
-
-  // Build upload_id → { clientId, owner } map
   const uploadMap = new Map<string, { clientId: string; owner: string | null }>();
   for (const u of uploads as { id: string; client_id: string; meta: Record<string, string> | null }[]) {
-    uploadMap.set(u.id, {
-      clientId: u.client_id,
-      owner: u.meta?.pic_client || null,
-    });
+    uploadMap.set(u.id, { clientId: u.client_id, owner: u.meta?.pic_client || null });
   }
 
-  // Load sales_rows to find dominant brand per store
+  // Load sales_rows → aggregate per (client_id, store_name) to find owner + dominant brand
   const { data: sales, error: salesErr } = await admin
     .from("sales_rows")
     .select("client_id, upload_id, store_name, brand")
@@ -47,67 +43,96 @@ export async function POST() {
     return NextResponse.json({ error: "Failed to read sales_rows" }, { status: 500 });
   }
 
-  // Aggregate: per (client_id, store_name) → owner + dominant brand
-  const storeInfo = new Map<string, { clientId: string; storeName: string; owner: string | null; brandCounts: Record<string, number> }>();
+  // Per (client_id, store_name): track owner + brand vote counts
+  type Info = { clientId: string; storeName: string; owner: string | null; brandCounts: Record<string, number> };
+  const storeInfo = new Map<string, Info>();
 
   for (const row of sales as { client_id: string; upload_id: string; store_name: string | null; brand: string | null }[]) {
     if (!row.store_name) continue;
     const key = `${row.client_id}|||${row.store_name}`;
     if (!storeInfo.has(key)) {
       const um = uploadMap.get(row.upload_id);
-      storeInfo.set(key, {
-        clientId: row.client_id,
-        storeName: row.store_name,
-        owner: um?.owner || null,
-        brandCounts: {},
-      });
+      storeInfo.set(key, { clientId: row.client_id, storeName: row.store_name, owner: um?.owner || null, brandCounts: {} });
     }
     const info = storeInfo.get(key)!;
-    if (!info.owner) {
-      const um = uploadMap.get(row.upload_id);
-      if (um?.owner) info.owner = um.owner;
-    }
+    if (!info.owner) { const um = uploadMap.get(row.upload_id); if (um?.owner) info.owner = um.owner; }
     if (row.brand && row.brand !== "Others") {
       info.brandCounts[row.brand] = (info.brandCounts[row.brand] || 0) + 1;
     }
   }
 
-  // Build store_links rows (pick dominant brand per store)
-  const linksToInsert = Array.from(storeInfo.values()).map((info) => {
+  // Resolve dominant brand per store
+  type StoreEntry = { clientId: string; storeName: string; owner: string | null; brand: string | null };
+  const resolved: StoreEntry[] = [];
+  for (const info of storeInfo.values()) {
     const brand = Object.keys(info.brandCounts).length > 0
       ? Object.entries(info.brandCounts).sort((a, b) => b[1] - a[1])[0][0]
       : null;
-    return { client_id: info.clientId, owner: info.owner, brand, store_name: info.storeName };
-  });
+    resolved.push({ clientId: info.clientId, storeName: info.storeName, owner: info.owner, brand });
+  }
 
-  const affectedClients = Array.from(new Set(linksToInsert.map((l) => l.client_id)));
+  const affectedClients = Array.from(new Set(resolved.map((r) => r.clientId)));
 
-  // Replace store_links for affected clients
+  // ── rebuild store_links ──────────────────────────────────────────────────
+  // Three kinds of rows:
+  //   1. store rows:  (owner, brand, store_name) — one per store
+  //   2. brand rows:  (owner, brand, null)        — one per unique owner+brand pair
+  // This lets the Core List show the owner→brand tree even before stores are added.
+
+  const brandSet = new Map<string, Set<string>>(); // clientId → set of "owner|||brand"
+  const storeLinks: { client_id: string; owner: string | null; brand: string | null; store_name: string | null }[] = [];
+  const masterRows: { client_id: string; kind: string; value: string }[] = [];
+
+  for (const entry of resolved) {
+    // store_links: store row
+    storeLinks.push({ client_id: entry.clientId, owner: entry.owner, brand: entry.brand, store_name: entry.storeName });
+
+    // master_data: owner, brand, store
+    if (entry.owner) masterRows.push({ client_id: entry.clientId, kind: "owner", value: entry.owner });
+    if (entry.brand) masterRows.push({ client_id: entry.clientId, kind: "brand", value: entry.brand });
+    masterRows.push({ client_id: entry.clientId, kind: "store", value: entry.storeName });
+
+    // Track unique owner+brand combos for brand-level store_links rows
+    if (entry.owner && entry.brand) {
+      const ck = entry.clientId;
+      if (!brandSet.has(ck)) brandSet.set(ck, new Set());
+      brandSet.get(ck)!.add(`${entry.owner}|||${entry.brand}`);
+    }
+  }
+
+  // brand-level store_links rows (owner→brand, no store)
+  for (const [clientId, combos] of brandSet) {
+    for (const combo of combos) {
+      const [owner, brand] = combo.split("|||");
+      storeLinks.push({ client_id: clientId, owner, brand, store_name: null });
+    }
+  }
+
+  // Delete existing data for affected clients and reinsert
   for (const clientId of affectedClients) {
     await admin.from("store_links").delete().eq("client_id", clientId);
-  }
-  if (linksToInsert.length > 0) {
-    const { error: insertErr } = await admin.from("store_links").insert(linksToInsert);
-    if (insertErr) {
-      return NextResponse.json({ error: "Insert failed: " + insertErr.message }, { status: 500 });
-    }
+    // Remove owner/brand/store kinds (keep city and platform — those are user-managed)
+    await admin.from("master_data").delete().eq("client_id", clientId).in("kind", ["owner", "brand", "store"]);
   }
 
-  // Also upsert unique brands into master_data per client
-  const brandsByClient = new Map<string, Set<string>>();
-  for (const l of linksToInsert) {
-    if (!l.brand) continue;
-    if (!brandsByClient.has(l.client_id)) brandsByClient.set(l.client_id, new Set());
-    brandsByClient.get(l.client_id)!.add(l.brand);
-  }
-  for (const [clientId, brands] of brandsByClient) {
-    for (const brand of brands) {
-      await admin.from("master_data").upsert(
-        { client_id: clientId, kind: "brand", value: brand },
-        { onConflict: "client_id,kind,value", ignoreDuplicates: true }
-      );
-    }
+  if (storeLinks.length > 0) {
+    const { error: slErr } = await admin.from("store_links").insert(storeLinks);
+    if (slErr) return NextResponse.json({ error: "store_links insert: " + slErr.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, stores: linksToInsert.length, clients: affectedClients.length });
+  // Deduplicate master_data rows before inserting
+  const mdUniq = new Map<string, { client_id: string; kind: string; value: string }>();
+  for (const row of masterRows) {
+    const key = `${row.client_id}|||${row.kind}|||${row.value}`;
+    if (!mdUniq.has(key)) mdUniq.set(key, row);
+  }
+  if (mdUniq.size > 0) {
+    const { error: mdErr } = await admin.from("master_data").upsert(
+      Array.from(mdUniq.values()),
+      { onConflict: "client_id,kind,value", ignoreDuplicates: true }
+    );
+    if (mdErr) return NextResponse.json({ error: "master_data upsert: " + mdErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, stores: resolved.length, clients: affectedClients.length });
 }
