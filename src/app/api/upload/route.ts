@@ -72,7 +72,19 @@ export async function POST(req: NextRequest) {
 
   const headerIdx = findHeaderRow(matrix, HEADER_HINTS[source]);
   const headers = (matrix[headerIdx] || []).map((h) => String(h ?? "").trim());
-  const dataRows = matrix.slice(headerIdx + 1);
+  let dataRows = matrix.slice(headerIdx + 1);
+
+  // Shopee "Tinjauan Penjualan" (Performa) exports stack TWO tables in one
+  // sheet: a 1-row weekly summary, then a blank row, then a per-day breakdown
+  // with a *different* column layout. If we read past the blank row we'd parse
+  // the daily rows with the summary's headers — misreading columns AND
+  // double-counting the same sales. So for perf, keep only the first table.
+  if (source === "perf") {
+    const blankIdx = dataRows.findIndex(
+      (r) => !Array.isArray(r) || !r.some((c) => c !== "" && c != null)
+    );
+    if (blankIdx >= 0) dataRows = dataRows.slice(0, blankIdx);
+  }
 
   // 4. Build raw row objects keyed by both original header and bqCol form,
   //    then map to typed sales_rows fields.
