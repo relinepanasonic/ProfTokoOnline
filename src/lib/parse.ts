@@ -37,19 +37,25 @@ export function bqCol(h: unknown): string {
 }
 
 // Parse Indonesian-formatted / messy numeric strings to a number or null.
-// Handles "1.234.567,89" (id) and "1,234,567.89" (en) and stray currency text.
+// Handles "1.234.567,89" (id-decimal), "1.234.567" (id-integer, dots=thousands),
+// "246.800" (id-integer single dot, 3 trailing digits), and "1,234.56" (en).
 export function toNum(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return Number.isFinite(v) ? v : null;
   let s = String(v).trim().replace(/[^0-9.,-]/g, "");
   if (!s) return null;
   const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
+  const lastDot   = s.lastIndexOf(".");
+  const dotCount  = (s.match(/\./g) || []).length;
   if (lastComma > lastDot) {
-    // comma is decimal separator (id) -> drop dots, comma -> dot
+    // Indonesian with decimal: "1.234,56" — dots=thousands, comma=decimal
     s = s.replace(/\./g, "").replace(",", ".");
+  } else if (dotCount > 1 || (dotCount === 1 && lastComma === -1 && /\.\d{3}$/.test(s))) {
+    // Multiple dots ("1.667.500") OR single dot with exactly 3 trailing digits ("246.800")
+    // and no comma → Indonesian thousands separator, not decimal
+    s = s.replace(/\./g, "");
   } else {
-    // dot is decimal separator (en) -> drop commas
+    // English decimal: "1,234.56" — drop commas
     s = s.replace(/,/g, "");
   }
   const n = Number(s);
@@ -110,23 +116,25 @@ export function mapRow(
   let in_cart: number | null = null;
 
   if (source === "spos") {
-    sales_idr = toNum(get("Total Penjualan (Pesanan Dibuat) (IDR)"));
-    orders = toNum(get("Total Pembeli (Pesanan Dibuat)"));
-    units = toNum(get("Produk (Pesanan Dibuat)"));
-    visitors = visitorsSpos;
-    in_cart = toNum(get("Dimasukkan ke Keranjang (Produk)"));
+    // "Siap Dikirim" (Ready to Ship) matches the GAS dashboard — differs from "Pesanan Dibuat" (all created orders)
+    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
+    orders    = toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
+    units     = toNum(get("Produk Terjual (Pesanan Siap Dikirim)"))
+             ?? toNum(get("Produk (Pesanan Siap Dikirim)"));
+    visitors  = visitorsSpos;
+    in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)"));
   } else if (source === "ads") {
     sales_idr = toNum(get("Omzet Penjualan"));
-    orders = toNum(get("Konversi"));
-    units = toNum(get("Produk Terjual"));
-    visitors = toNum(get("Dilihat"));
-    ad_cost = toNum(get("Biaya"));
+    orders    = toNum(get("Konversi"));
+    units     = toNum(get("Produk Terjual"));
+    visitors  = toNum(get("Dilihat"));
+    ad_cost   = toNum(get("Biaya"));
   } else {
-    // perf
-    sales_idr = toNum(get("Penjualan (Pesanan Dibuat) (IDR)"));
-    orders = toNum(get("Total Pembeli (Pesanan Dibuat)"));
-    units = toNum(get("Total Produk Dipesan"));
-    visitors = toNum(get("Total Pengunjung (Kunjungan)"));
+    // perf — same "Siap Dikirim" column as SPOS
+    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
+    orders    = toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
+    units     = toNum(get("Total Produk Dipesan"));
+    visitors  = toNum(get("Total Pengunjung (Kunjungan)"));
   }
 
   return {
