@@ -8,17 +8,17 @@ import { createClient } from "@/lib/supabase/client";
 type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user";
 
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
-  { href: "/",           icon: "📊", label: "Dashboard" },
-  { href: "/upload",     icon: "⬆️", label: "Upload Data",        roles: ["superadmin", "client_admin"] },
-  { href: "/product",    icon: "📦", label: "Product Performance" },
-  { href: "/ads",        icon: "🎯", label: "Ads Performance" },
-  { href: "/store",      icon: "🏬", label: "Store Performance" },
-  { href: "/users",      icon: "👥", label: "Users",              roles: ["superadmin"] },
-  { href: "/invoice",    icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
-  { href: "/core",       icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
-  { href: "/calc",       icon: "🧮", label: "Price Calculator" },
-  { href: "/marketfee",  icon: "💰", label: "Market Place Fee" },
-  { href: "/priceall",   icon: "📋", label: "Price All User",     roles: ["superadmin"] },
+  { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager"] },
+  { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
+  { href: "/product",   icon: "📦", label: "Product Performance", roles: ["superadmin", "branch_manager"] },
+  { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager"] },
+  { href: "/store",     icon: "🏬", label: "Store Performance",   roles: ["superadmin", "branch_manager"] },
+  { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
+  { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
+  { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
+  { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
+  { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
+  { href: "/priceall",  icon: "📋", label: "Price All User",      roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -71,13 +71,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.35C17.25 22.15 21 17.25 21 12V7L12 2z" fill="rgba(201,162,39,0.2)" stroke="#c9a227" strokeWidth="1.5" strokeLinejoin="round"/>
-              <path d="M9 12l2 2 4-4" stroke="#c9a227" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+            <img src="/logo.svg" alt="logo" style={{ width: 36, height: 36, objectFit: "contain" }} />
           </div>
           <div>
-            <div className="t1">Professor Toko Online</div>
+            <div className="t1">Reline</div>
             <div className="t2">{clientName}</div>
           </div>
         </div>
@@ -98,9 +95,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Mobile header */}
         <div className="mob-header">
           <div className="mob-logo">
-            <div className="badge">PTO</div>
+            <div className="badge">R</div>
             <div>
-              <div className="mob-title">Prof Toko Online</div>
+              <div className="mob-title">Reline</div>
               <div className="mob-sub">{clientName}</div>
             </div>
           </div>
@@ -111,7 +108,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="topbar">
           <div>
             <div className="page-title">{current?.label || "Dashboard"}</div>
-            <div className="page-sub">Marketplace performance — Shopee</div>
+            <div className="page-sub">Marketplace performance overview — Shopee</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="user-badge">
