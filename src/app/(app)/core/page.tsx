@@ -12,6 +12,7 @@ export default function CoreListPage() {
   const [clientId, setClientId] = useState("");
   const [items, setItems] = useState<Item[]>([]);
   const [msg, setMsg] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async (cid: string) => {
     if (!cid) { setItems([]); return; }
@@ -35,9 +36,9 @@ export default function CoreListPage() {
   }, [supabase, reload]);
 
   const cities = items.filter((i) => i.kind === "city");
-  const dealers = items.filter((i) => i.kind === "dealer");
+  const dealers = items.filter((i) => i.kind === "store");
   const brands = items.filter((i) => i.kind === "brand");
-  const types = items.filter((i) => i.kind === "product_type");
+  const types = items.filter((i) => i.kind === "platform");
 
   // city -> its PIC, for the dealer auto-PIC
   const picOfCity = (city: string) => cities.find((c) => c.value === city)?.pic || null;
@@ -51,20 +52,43 @@ export default function CoreListPage() {
   }
   async function delItem(id: string) { await supabase.from("master_data").delete().eq("id", id); reload(clientId); }
 
+  async function syncFromUploads() {
+    setSyncing(true); setMsg("");
+    try {
+      const res = await fetch("/api/core/sync", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) { setMsg("✗ Sync failed: " + (json.error || res.statusText)); }
+      else { setMsg(`✓ Synced ${json.stores} stores across ${json.clients} client(s). Refresh to see updated Core List.`); reload(clientId); }
+    } catch (e) {
+      setMsg("✗ Sync error: " + String(e));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <>
-      {msg && <div style={{ color: "#ff9a9a", fontSize: 13, marginBottom: 12, background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>}
+      {msg && <div style={{ color: msg.startsWith("✓") ? "#86efac" : "#ff9a9a", fontSize: 13, marginBottom: 12, background: msg.startsWith("✓") ? "rgba(34,197,94,.1)" : "rgba(239,68,68,.1)", border: msg.startsWith("✓") ? "1px solid rgba(34,197,94,.2)" : "1px solid rgba(239,68,68,.2)", borderRadius: 10, padding: "8px 12px" }}>{msg}</div>}
 
-      <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0 }}>Core List</h3>
-        <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
-          The master data behind every dropdown — City, PIC, Dealer, Brand &amp; Product Type — used across Upload, Invites and filters. Add an entry here and it appears everywhere.
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+        <div>
+          <h3 style={{ margin: 0 }}>Core List</h3>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>
+            Master data behind every dropdown — City, Store, Brand — used across Upload and filters. Add entries manually or sync from existing upload data.
+          </div>
         </div>
+        <button
+          onClick={syncFromUploads}
+          disabled={syncing}
+          style={{ flexShrink: 0, padding: "9px 18px", borderRadius: 10, border: "none", cursor: syncing ? "default" : "pointer", background: "linear-gradient(135deg,var(--gold),var(--gold-soft))", color: "var(--navy-deep)", fontWeight: 700, fontSize: 13, opacity: syncing ? 0.7 : 1, whiteSpace: "nowrap" }}
+        >
+          {syncing ? "Syncing…" : "Sync from Uploads"}
+        </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.4fr 1fr 1fr", gap: 16, alignItems: "start" }}>
         {/* City & PIC */}
-        <Card icon="🏙️" title="City & PIC Panasonic" hint="1 city = 1 PIC" count={cities.length}>
+        <Card icon="🏙️" title="City & PIC" hint="1 city = 1 PIC" count={cities.length}>
           <DealerOrCityList
             rows={cities.map((c) => ({ id: c.id, main: c.value, sub: c.pic }))}
             onDel={delItem}
@@ -72,8 +96,8 @@ export default function CoreListPage() {
           <CityAdd onAdd={(city, pic) => insertRow({ kind: "city", value: city, pic: pic || null })} />
         </Card>
 
-        {/* Dealers */}
-        <Card icon="🏬" title="Dealers" count={dealers.length}>
+        {/* Stores */}
+        <Card icon="🏬" title="Stores" count={dealers.length}>
           <DealerOrCityList
             rows={dealers.map((d) => ({ id: d.id, main: d.value, sub: [d.city, d.pic].filter(Boolean).join(" — ") }))}
             onDel={delItem}
@@ -81,7 +105,7 @@ export default function CoreListPage() {
           <DealerAdd
             cities={cities.map((c) => c.value)}
             picOfCity={picOfCity}
-            onAdd={(name, city) => insertRow({ kind: "dealer", value: name, city: city || null, pic: picOfCity(city) })}
+            onAdd={(name, city) => insertRow({ kind: "store", value: name, city: city || null, pic: picOfCity(city) })}
           />
         </Card>
 
@@ -94,7 +118,7 @@ export default function CoreListPage() {
         {/* Product Types */}
         <Card icon="📦" title="Product Types" count={types.length}>
           <PlainList items={types} onDel={delItem} />
-          <SimpleAdd placeholder="Add type" onAdd={(v) => insertRow({ kind: "product_type", value: v })} />
+          <SimpleAdd placeholder="Add type" onAdd={(v) => insertRow({ kind: "platform", value: v })} />
         </Card>
       </div>
     </>
@@ -166,7 +190,7 @@ function DealerAdd({ cities, picOfCity, onAdd }: { cities: string[]; picOfCity: 
   const go = () => { if (name.trim()) { onAdd(name.trim(), city); setName(""); setCity(""); } };
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 40px", gap: 8, marginTop: "auto" }}>
-      <input style={{ ...fieldStyle, gridColumn: "1 / -1" }} placeholder="Dealer name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+      <input style={{ ...fieldStyle, gridColumn: "1 / -1" }} placeholder="Store name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
       <select style={fieldStyle} value={city} onChange={(e) => setCity(e.target.value)}>
         <option value="">Select city</option>
         {cities.map((c) => <option key={c} value={c}>{c}</option>)}
