@@ -96,7 +96,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Mobile header */}
         <div className="mob-header">
           <div className="mob-logo">
-            <div className="badge">R</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="logo" style={{ width: 36, height: 36, objectFit: "contain" }} />
             <div>
               <div className="mob-title">Prof Toko Online</div>
               <div className="mob-sub">{clientName}</div>
