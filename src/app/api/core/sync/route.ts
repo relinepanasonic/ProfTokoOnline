@@ -5,7 +5,9 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 // Rebuilds master_data (owner, brand, store kinds) and store_links from
-// existing uploads + sales_rows data. Safe to re-run — clears & rebuilds.
+// existing uploads metadata (NOT from auto-detected sales_rows.brand).
+// Business brand = uploads.meta.brand, owner = uploads.meta.pic_client,
+// store = uploads.meta.store_name. Safe to re-run — clears & rebuilds.
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,104 +25,82 @@ export async function POST() {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Load uploads → build upload_id → { clientId, owner (pic_client) } map
+  // Load all uploads — the meta.brand is the business brand the user selected,
+  // meta.pic_client is the owner, meta.store_name is the store.
   const { data: uploads, error: uploadsErr } = await admin
     .from("uploads").select("id, client_id, meta");
   if (uploadsErr || !uploads) {
     return NextResponse.json({ error: "Failed to read uploads" }, { status: 500 });
   }
-  const uploadMap = new Map<string, { clientId: string; owner: string | null }>();
-  for (const u of uploads as { id: string; client_id: string; meta: Record<string, string> | null }[]) {
-    uploadMap.set(u.id, { clientId: u.client_id, owner: u.meta?.pic_client || null });
-  }
 
-  // Load sales_rows → aggregate per (client_id, store_name) to find owner + dominant brand
-  const { data: sales, error: salesErr } = await admin
-    .from("sales_rows")
-    .select("client_id, upload_id, store_name, brand")
-    .not("store_name", "is", null);
-  if (salesErr || !sales) {
-    return NextResponse.json({ error: "Failed to read sales_rows" }, { status: 500 });
-  }
+  type UploadMeta = { pic_client?: string; store_name?: string; brand?: string };
 
-  // Per (client_id, store_name): track owner + brand vote counts
-  type Info = { clientId: string; storeName: string; owner: string | null; brandCounts: Record<string, number> };
-  const storeInfo = new Map<string, Info>();
+  // Aggregate per (client_id, store_name): unique owner + business brand from meta
+  type StoreKey = string; // `${clientId}|||${storeName}`
+  const storeInfo = new Map<StoreKey, { clientId: string; storeName: string; owner: string | null; brand: string | null }>();
 
-  for (const row of sales as { client_id: string; upload_id: string; store_name: string | null; brand: string | null }[]) {
-    if (!row.store_name) continue;
-    const key = `${row.client_id}|||${row.store_name}`;
+  for (const u of uploads as { id: string; client_id: string; meta: UploadMeta | null }[]) {
+    const meta = u.meta || {};
+    const storeName = meta.store_name;
+    if (!storeName) continue;
+    const key: StoreKey = `${u.client_id}|||${storeName}`;
     if (!storeInfo.has(key)) {
-      const um = uploadMap.get(row.upload_id);
-      storeInfo.set(key, { clientId: row.client_id, storeName: row.store_name, owner: um?.owner || null, brandCounts: {} });
-    }
-    const info = storeInfo.get(key)!;
-    if (!info.owner) { const um = uploadMap.get(row.upload_id); if (um?.owner) info.owner = um.owner; }
-    if (row.brand && row.brand !== "Others") {
-      info.brandCounts[row.brand] = (info.brandCounts[row.brand] || 0) + 1;
+      storeInfo.set(key, {
+        clientId: u.client_id,
+        storeName,
+        owner: meta.pic_client || null,
+        brand: meta.brand || null,
+      });
+    } else {
+      const info = storeInfo.get(key)!;
+      if (!info.owner && meta.pic_client) info.owner = meta.pic_client;
+      if (!info.brand && meta.brand) info.brand = meta.brand;
     }
   }
 
-  // Resolve dominant brand per store
-  type StoreEntry = { clientId: string; storeName: string; owner: string | null; brand: string | null };
-  const resolved: StoreEntry[] = [];
-  for (const info of storeInfo.values()) {
-    const brand = Object.keys(info.brandCounts).length > 0
-      ? Object.entries(info.brandCounts).sort((a, b) => b[1] - a[1])[0][0]
-      : null;
-    resolved.push({ clientId: info.clientId, storeName: info.storeName, owner: info.owner, brand });
-  }
-
+  const resolved = Array.from(storeInfo.values());
   const affectedClients = Array.from(new Set(resolved.map((r) => r.clientId)));
 
-  // ── rebuild store_links ──────────────────────────────────────────────────
-  // Three kinds of rows:
-  //   1. store rows:  (owner, brand, store_name) — one per store
-  //   2. brand rows:  (owner, brand, null)        — one per unique owner+brand pair
-  // This lets the Core List show the owner→brand tree even before stores are added.
-
-  const brandSet = new Map<string, Set<string>>(); // clientId → set of "owner|||brand"
+  // ── rebuild store_links & master_data ──────────────────────────────────
   const storeLinks: { client_id: string; owner: string | null; brand: string | null; store_name: string | null }[] = [];
   const masterRows: { client_id: string; kind: string; value: string }[] = [];
+  const brandPairs = new Map<string, Set<string>>(); // clientId → "owner|||brand"
 
   for (const entry of resolved) {
-    // store_links: store row
+    // store-level store_links row
     storeLinks.push({ client_id: entry.clientId, owner: entry.owner, brand: entry.brand, store_name: entry.storeName });
 
-    // master_data: owner, brand, store
+    // master_data rows
     if (entry.owner) masterRows.push({ client_id: entry.clientId, kind: "owner", value: entry.owner });
     if (entry.brand) masterRows.push({ client_id: entry.clientId, kind: "brand", value: entry.brand });
     masterRows.push({ client_id: entry.clientId, kind: "store", value: entry.storeName });
 
-    // Track unique owner+brand combos for brand-level store_links rows
+    // Track unique owner+brand for brand-level store_links
     if (entry.owner && entry.brand) {
-      const ck = entry.clientId;
-      if (!brandSet.has(ck)) brandSet.set(ck, new Set());
-      brandSet.get(ck)!.add(`${entry.owner}|||${entry.brand}`);
+      if (!brandPairs.has(entry.clientId)) brandPairs.set(entry.clientId, new Set());
+      brandPairs.get(entry.clientId)!.add(`${entry.owner}|||${entry.brand}`);
     }
   }
 
-  // brand-level store_links rows (owner→brand, no store)
-  for (const [clientId, combos] of brandSet) {
+  // Brand-level store_links (owner → brand, no store yet)
+  for (const [clientId, combos] of brandPairs) {
     for (const combo of combos) {
       const [owner, brand] = combo.split("|||");
       storeLinks.push({ client_id: clientId, owner, brand, store_name: null });
     }
   }
 
-  // Delete existing data for affected clients and reinsert
+  // Delete old data and reinsert
   for (const clientId of affectedClients) {
     await admin.from("store_links").delete().eq("client_id", clientId);
-    // Remove owner/brand/store kinds (keep city and platform — those are user-managed)
     await admin.from("master_data").delete().eq("client_id", clientId).in("kind", ["owner", "brand", "store"]);
   }
-
   if (storeLinks.length > 0) {
     const { error: slErr } = await admin.from("store_links").insert(storeLinks);
-    if (slErr) return NextResponse.json({ error: "store_links insert: " + slErr.message }, { status: 500 });
+    if (slErr) return NextResponse.json({ error: "store_links: " + slErr.message }, { status: 500 });
   }
 
-  // Deduplicate master_data rows before inserting
+  // Deduplicate + upsert master_data rows
   const mdUniq = new Map<string, { client_id: string; kind: string; value: string }>();
   for (const row of masterRows) {
     const key = `${row.client_id}|||${row.kind}|||${row.value}`;
@@ -131,7 +111,7 @@ export async function POST() {
       Array.from(mdUniq.values()),
       { onConflict: "client_id,kind,value", ignoreDuplicates: true }
     );
-    if (mdErr) return NextResponse.json({ error: "master_data upsert: " + mdErr.message }, { status: 500 });
+    if (mdErr) return NextResponse.json({ error: "master_data: " + mdErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, stores: resolved.length, clients: affectedClients.length });
