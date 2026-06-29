@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [supabase] = useState(() => createClient());
   const [role, setRole] = useState<Role>();
   const [name, setName] = useState("—");
-  const [clientName, setClientName] = useState("Panasonic");
+  const [clientName, setClientName] = useState("");
 
   useEffect(() => {
     (async () => {
