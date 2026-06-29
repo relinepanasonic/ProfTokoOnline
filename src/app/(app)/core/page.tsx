@@ -146,7 +146,12 @@ export default function CoreListPage() {
 
         {/* Store */}
         <Card icon="🏬" title="Store" count={stores.length}>
-          <StoreNameList stores={stores} brandOfStore={brandOfStore} onDel={(id, val) => delItem(id, "store", val)} />
+          <StoreNameList
+            stores={stores}
+            brandOfStore={brandOfStore}
+            ownerOfStore={(s) => links.find((l) => l.store_name === s)?.owner || null}
+            onDel={(id, val) => delItem(id, "store", val)}
+          />
           <StoreAdd brandsList={brands.map((b) => b.value)} onAdd={addStore} />
         </Card>
 
@@ -190,10 +195,11 @@ function NameList({ items, onDel }: { items: { id: string; value: string }[]; on
   );
 }
 
-/* ── store list — shows just the store name, no brand sub-label ── */
-function StoreNameList({ stores, brandOfStore, onDel }: {
+/* ── store list — store name big, owner · brand small + low opacity ── */
+function StoreNameList({ stores, brandOfStore, ownerOfStore, onDel }: {
   stores: { id: string; value: string }[];
   brandOfStore: (s: string) => string | null;
+  ownerOfStore: (s: string) => string | null;
   onDel: (id: string, val: string) => void;
 }) {
   if (!stores.length) return <Empty />;
@@ -201,11 +207,13 @@ function StoreNameList({ stores, brandOfStore, onDel }: {
     <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5 }}>
       {stores.map((s) => {
         const brand = brandOfStore(s.value);
+        const owner = ownerOfStore(s.value);
+        const meta = [owner, brand].filter(Boolean).join(" · ");
         return (
           <div key={s.id} style={rowStyle}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13 }}>{s.value}</div>
-              {brand && <div style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 1 }}>{brand}</div>}
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{s.value}</div>
+              {meta && <div style={{ fontSize: 10.5, opacity: 0.45, marginTop: 2 }}>{meta}</div>}
             </div>
             <DelBtn onClick={() => onDel(s.id, s.value)} />
           </div>
@@ -215,42 +223,62 @@ function StoreNameList({ stores, brandOfStore, onDel }: {
   );
 }
 
-/* ── Brand add — name input + tiny owner selector ── */
+/* ── Brand add — name input + required owner selector ── */
 function BrandAdd({ ownersList, onAdd }: { ownersList: string[]; onAdd: (brand: string, owner: string) => void }) {
   const [brand, setBrand] = useState("");
   const [owner, setOwner] = useState("");
-  const go = () => { if (brand.trim()) { onAdd(brand.trim(), owner); setBrand(""); } };
+  const [err, setErr] = useState("");
+  const go = () => {
+    if (!brand.trim()) return;
+    if (!owner) { setErr("Select an owner"); return; }
+    setErr("");
+    onAdd(brand.trim(), owner);
+    setBrand("");
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
       <div style={{ display: "flex", gap: 6 }}>
         <input style={{ ...fieldStyle, flex: 1 }} placeholder="Brand name"
-          value={brand} onChange={(e) => setBrand(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+          value={brand} onChange={(e) => { setBrand(e.target.value); setErr(""); }}
+          onKeyDown={(e) => e.key === "Enter" && go()} />
         <button style={plusStyle} onClick={go}>+</button>
       </div>
-      <select style={tinySelect} value={owner} onChange={(e) => setOwner(e.target.value)}>
-        <option value="">Link to owner (optional)</option>
+      <select style={{ ...tinySelect, borderColor: err ? "rgba(239,68,68,.5)" : undefined }}
+        value={owner} onChange={(e) => { setOwner(e.target.value); setErr(""); }}>
+        <option value="">— select owner —</option>
         {ownersList.map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
+      {err && <div style={{ fontSize: 11, color: "#ff9a9a" }}>{err}</div>}
     </div>
   );
 }
 
-/* ── Store add — name input + tiny brand selector ── */
+/* ── Store add — name input + required brand selector ── */
 function StoreAdd({ brandsList, onAdd }: { brandsList: string[]; onAdd: (name: string, brand: string) => void }) {
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
-  const go = () => { if (name.trim()) { onAdd(name.trim(), brand); setName(""); } };
+  const [err, setErr] = useState("");
+  const go = () => {
+    if (!name.trim()) return;
+    if (!brand) { setErr("Select a brand"); return; }
+    setErr("");
+    onAdd(name.trim(), brand);
+    setName("");
+  };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: "auto" }}>
       <div style={{ display: "flex", gap: 6 }}>
         <input style={{ ...fieldStyle, flex: 1 }} placeholder="Store name"
-          value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} />
+          value={name} onChange={(e) => { setName(e.target.value); setErr(""); }}
+          onKeyDown={(e) => e.key === "Enter" && go()} />
         <button style={plusStyle} onClick={go}>+</button>
       </div>
-      <select style={tinySelect} value={brand} onChange={(e) => setBrand(e.target.value)}>
-        <option value="">Link to brand (optional)</option>
+      <select style={{ ...tinySelect, borderColor: err ? "rgba(239,68,68,.5)" : undefined }}
+        value={brand} onChange={(e) => { setBrand(e.target.value); setErr(""); }}>
+        <option value="">— select brand —</option>
         {brandsList.map((b) => <option key={b} value={b}>{b}</option>)}
       </select>
+      {err && <div style={{ fontSize: 11, color: "#ff9a9a" }}>{err}</div>}
     </div>
   );
 }
