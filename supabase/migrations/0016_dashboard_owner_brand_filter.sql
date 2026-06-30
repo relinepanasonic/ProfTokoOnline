@@ -28,7 +28,10 @@ as $$
   ),
   f_real as (
     select * from f
-    where coalesce(lower(trim(month)), '') <> 'baseline'
+    -- When user explicitly picks a month (e.g. "Baseline"), show those rows as-is.
+    -- When no month is selected (All Months), exclude Baseline from the totals.
+    where p_month is not null
+       or coalesce(lower(trim(month)), '') <> 'baseline'
   )
   select jsonb_build_object(
     'kpis', (
