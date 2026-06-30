@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user";
+type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "advertiser";
 
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
-  { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager"] },
+  { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
   { href: "/product",   icon: "📦", label: "Product Performance", roles: ["superadmin", "branch_manager"] },
-  { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager"] },
+  { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/store",     icon: "🏬", label: "Store Performance",   roles: ["superadmin", "branch_manager"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
   { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
@@ -26,6 +26,7 @@ const ROLE_LABEL: Record<Role, string> = {
   client_admin: "Client Admin",
   branch_manager: "Owner",
   store_user: "Store",
+  advertiser: "Advertiser",
 };
 
 // Mobile bottom-nav: 6 most-used destinations

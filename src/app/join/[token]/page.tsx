@@ -11,6 +11,7 @@ const ROLE_LABEL: Record<string, string> = {
   branch_manager: "Owner",
   client_admin:   "Admin",
   store_user:     "Store",
+  advertiser:     "Advertiser",
 };
 
 export default function JoinPage() {

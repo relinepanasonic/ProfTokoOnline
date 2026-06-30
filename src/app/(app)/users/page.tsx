@@ -20,18 +20,21 @@ type StoreLink = { store_name: string | null };
 const INVITE_ROLES = [
   { v: "branch_manager", l: "Owner" },
   { v: "client_admin",   l: "Admin" },
+  { v: "advertiser",     l: "Advertiser" },
 ];
 const ROLE_LABEL: Record<string, string> = {
   superadmin:     "Super Admin",
   branch_manager: "Owner",
   client_admin:   "Admin",
   store_user:     "Store",
+  advertiser:     "Advertiser",
 };
 const roleColor: Record<string, string> = {
   superadmin:     "#22c55e",
   branch_manager: "#3b82f6",
   client_admin:   "#f59e0b",
   store_user:     "#a78bfa",
+  advertiser:     "#ec4899",
 };
 
 const inp: React.CSSProperties = {
