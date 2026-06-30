@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No ad-group rows found in this file." }, { status: 400 });
   }
 
+  // Grup Iklan: manual override wins, else the name parsed from the file title.
+  const grupIklan = manual.grup_iklan?.trim() || parsed.grupIklan;
+  const adsLevel = manual.ads_level || null;
+
   const admin = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -57,7 +61,8 @@ export async function POST(req: NextRequest) {
       uploaded_by: user.id,
       meta: {
         ...manual,
-        grup_iklan: parsed.grupIklan,
+        grup_iklan: grupIklan,
+        ads_level: adsLevel,
         periode_start: parsed.periodeStart,
         periode_end: parsed.periodeEnd,
       },
@@ -77,7 +82,8 @@ export async function POST(req: NextRequest) {
     store_name: manual.store_name ?? null,
     pic_client: manual.pic_client ?? null,
     brand: manual.brand ?? null,
-    grup_iklan: r.grup_iklan,
+    grup_iklan: grupIklan,
+    ads_level: adsLevel,
     level: r.level,
     item_name: r.item_name,
     kode_produk: r.kode_produk,

@@ -19,6 +19,8 @@ export interface AdGroupManual {
   pic_client?: string;  // owner
   store_name?: string;
   brand?: string;
+  grup_iklan?: string;  // optional override (else auto-detected from file title)
+  ads_level?: string;   // 'incubation' | 'hero' | 'regular' | 'low_conversion'
   admin?: string;
   tanggal_input?: string;
 }
