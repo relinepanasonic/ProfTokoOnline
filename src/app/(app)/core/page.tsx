@@ -332,9 +332,9 @@ function Dropdown({ value, options, placeholder, emptyText, error, onChange }: {
 
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
+          position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, zIndex: 50,
           background: "var(--navy, #0e1d33)", border: "1px solid var(--gold)", borderRadius: 10,
-          boxShadow: "0 12px 32px rgba(0,0,0,.55)", overflow: "hidden", maxHeight: 240, overflowY: "auto",
+          boxShadow: "0 -8px 32px rgba(0,0,0,.55)", overflow: "hidden", maxHeight: 240, overflowY: "auto",
         }}>
           {options.length === 0 ? (
             <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--muted)", textAlign: "center" }}>
