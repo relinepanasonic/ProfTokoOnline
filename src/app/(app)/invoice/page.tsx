@@ -60,7 +60,7 @@ export default function InvoicePage() {
   const [editId,   setEditId]   = useState<string|null>(null);
   const [saving,   setSaving]   = useState(false);
   const [msg,      setMsg]      = useState("");
-  const [flt, setFlt] = useState({ owner: "", package_type: "" });
+  const [flt, setFlt] = useState({ owner: "", package_name: "", month: "" });
 
   /* ── Loaders ── */
   const loadPackages = useCallback(async () => {
@@ -162,9 +162,22 @@ export default function InvoicePage() {
     return d >= 0 && d <= 30;
   });
 
-  const pkgTypes = Array.from(new Set(packages.map((p) => p.type))).sort();
-  const shown = invoices.filter((inv) => (!flt.owner || inv.owner === flt.owner) && (!flt.package_type || inv.package_type === flt.package_type));
+  const pkgNames = Array.from(new Set(invoices.map((i) => i.package_name))).sort();
   const fOwners = Array.from(new Set(invoices.map((i) => i.owner).filter(Boolean) as string[])).sort();
+  const shown = invoices.filter((inv) => {
+    if (flt.owner && inv.owner !== flt.owner) return false;
+    if (flt.package_name && inv.package_name !== flt.package_name) return false;
+    if (flt.month) {
+      const [y, mo] = flt.month.split("-").map(Number);
+      const mStart = new Date(y, mo - 1, 1);
+      const mEnd   = new Date(y, mo, 0); // last day of month
+      const iStart = new Date(inv.start_date + "T00:00:00");
+      const iEnd   = inv.end_date ? new Date(inv.end_date + "T00:00:00") : null;
+      if (iStart > mEnd) return false;           // package starts after month
+      if (iEnd && iEnd < mStart) return false;   // package ended before month
+    }
+    return true;
+  });
 
   /* ── Render ── */
   return (
@@ -264,15 +277,20 @@ export default function InvoicePage() {
                   {fOwners.map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
               </div>
-              <div className="fld" style={{ minWidth:160 }}>
-                <label>Type</label>
-                <select value={flt.package_type} onChange={(e) => setFlt((f) => ({...f, package_type:e.target.value}))}>
-                  <option value="">All types</option>
-                  {pkgTypes.map((t) => <option key={t} value={t}>{t === "subscription" ? "Subscription" : "Add-on"}</option>)}
+              <div className="fld" style={{ minWidth:180 }}>
+                <label>Package</label>
+                <select value={flt.package_name} onChange={(e) => setFlt((f) => ({...f, package_name:e.target.value}))}>
+                  <option value="">All packages</option>
+                  {pkgNames.map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              {(flt.owner || flt.package_type) && (
-                <button className="btn-ghost" onClick={() => setFlt({owner:"",package_type:""})} style={{ height:38, alignSelf:"flex-end" }}>Reset</button>
+              <div className="fld" style={{ minWidth:160 }}>
+                <label>Month</label>
+                <input type="month" value={flt.month} onChange={(e) => setFlt((f) => ({...f, month:e.target.value}))}
+                  style={{ padding:"7px 10px", borderRadius:10, border:"1px solid rgba(201,162,39,.25)", background:"rgba(10,22,40,.6)", color:"var(--text)", fontSize:13 }} />
+              </div>
+              {(flt.owner || flt.package_name || flt.month) && (
+                <button className="btn-ghost" onClick={() => setFlt({owner:"",package_name:"",month:""})} style={{ height:38, alignSelf:"flex-end" }}>Reset</button>
               )}
               <span style={{ marginLeft:"auto", alignSelf:"flex-end", fontSize:11, fontWeight:700, color:"var(--gold)", background:"rgba(201,162,39,.12)", border:"1px solid rgba(201,162,39,.25)", borderRadius:999, padding:"3px 12px" }}>
                 {shown.length} / {invoices.length}
