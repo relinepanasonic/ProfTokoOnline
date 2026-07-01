@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
+import Dropdown from "@/components/Dropdown";
 
 export const dynamic = "force-dynamic";
 
@@ -250,19 +251,23 @@ export default function UsersPage() {
                 </p>
 
                 <Fld label="Role">
-                  <select style={inp} value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value, owner_name: "" })}>
-                    {INVITE_ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
-                  </select>
+                  <Dropdown
+                    value={form.role}
+                    options={INVITE_ROLES.map((r) => ({ value: r.v, label: r.l }))}
+                    placeholder="Select role"
+                    onChange={(v) => setForm({ ...form, role: v, owner_name: "" })}
+                  />
                 </Fld>
 
                 {isOwnerRole ? (
                   <Fld label="Owner (from Core List)">
-                    <select style={inp} value={form.owner_name}
-                      onChange={(e) => setForm({ ...form, owner_name: e.target.value })}>
-                      <option value="">— select owner —</option>
-                      {distinctOwners.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <Dropdown
+                      value={form.owner_name}
+                      options={distinctOwners}
+                      placeholder="Select owner"
+                      emptyText="No owners in Core List yet"
+                      onChange={(v) => setForm({ ...form, owner_name: v })}
+                    />
                     <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
                       This login will see every Brand &amp; Store linked to this Owner in Core List.
                     </p>
