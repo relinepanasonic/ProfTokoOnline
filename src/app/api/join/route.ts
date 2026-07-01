@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
   const uid = authData.user.id;
 
   // Update profile (trigger creates the row; we patch it)
+  // For Owner (branch_manager) logins, owner_name IS the Core List Owner
+  // entity — scope_owner drives RLS so this one login sees every Brand &
+  // Store linked to that Owner (store_links.owner match).
   const { error: pe } = await db.from("profiles").upsert({
     id:           uid,
     email:        email,
@@ -73,6 +76,7 @@ export async function POST(req: NextRequest) {
     role:         inv.role,
     client_id:    inv.client_id,
     scope_store:  inv.store_name ?? null,
+    scope_owner:  inv.role === "branch_manager" ? inv.owner_name : null,
   });
 
   if (pe) {

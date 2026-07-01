@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
 
 type Profile = {
   id: string; email: string | null; display_name: string | null;
-  username: string | null; role: string; scope_store: string | null;
+  username: string | null; role: string; scope_store: string | null; scope_owner: string | null;
 };
 type Invite = {
   id: string; token: string; owner_name: string;
   store_name: string | null; role: string;
   created_at: string; expires_at: string; used_at: string | null;
 };
-type StoreLink = { store_name: string | null };
+type StoreLink = { owner: string | null; store_name: string | null };
 
 const INVITE_ROLES = [
   { v: "branch_manager", l: "Owner" },
@@ -70,7 +70,7 @@ export default function UsersPage() {
   const [stores,  setStores]  = useState<StoreLink[]>([]);
   const [token,   setToken]   = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ owner_name: "", store_name: "", role: "branch_manager", username: "" });
+  const [form, setForm] = useState({ owner_name: "", role: "branch_manager", username: "" });
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");
   const [copied, setCopied] = useState(false);
@@ -82,7 +82,7 @@ export default function UsersPage() {
 
   const reload = useCallback(async () => {
     const [{ data: p }, h] = await Promise.all([
-      supabase.from("profiles").select("id,email,display_name,username,role,scope_store").order("display_name"),
+      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner").order("display_name"),
       getAuthHeader(),
     ]);
     setRows((p as Profile[]) || []);
@@ -92,14 +92,17 @@ export default function UsersPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: sl } = await supabase.from("store_links").select("store_name").order("store_name");
+      const { data: sl } = await supabase.from("store_links").select("owner,store_name").order("owner");
       setStores((sl as StoreLink[]) || []);
       reload();
     })();
   }, [supabase, reload]);
 
+  const distinctOwners = Array.from(new Set(stores.map((s) => s.owner).filter(Boolean) as string[])).sort();
+  const isOwnerRole = form.role === "branch_manager";
+
   async function createInvite() {
-    if (!form.owner_name.trim()) { setMsg("Owner name is required"); return; }
+    if (!form.owner_name.trim()) { setMsg(isOwnerRole ? "Select an owner" : "Name is required"); return; }
     setBusy(true); setMsg(""); setToken(null);
     try {
       const h = await getAuthHeader();
@@ -141,7 +144,7 @@ export default function UsersPage() {
           <h3 style={{ margin: 0 }}>User Management</h3>
           <div className="hint">Invite owners and admins · they set their own credentials</div>
         </div>
-        <button className="btn-gold" onClick={() => { setShowForm(true); setToken(null); setMsg(""); setForm({ owner_name: "", store_name: "", role: "branch_manager", username: "" }); }}>
+        <button className="btn-gold" onClick={() => { setShowForm(true); setToken(null); setMsg(""); setForm({ owner_name: "", role: "branch_manager", username: "" }); }}>
           + Invite User
         </button>
       </div>
@@ -150,7 +153,7 @@ export default function UsersPage() {
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
-            <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Store</th><th></th></tr>
+            <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Scope</th><th></th></tr>
           </thead>
           <tbody>
             {rows.map((r) => (
@@ -165,7 +168,7 @@ export default function UsersPage() {
                     {ROLE_LABEL[r.role] || r.role}
                   </span>
                 </td>
-                <td style={{ fontSize: 12 }}>{r.scope_store || "—"}</td>
+                <td style={{ fontSize: 12 }}>{r.scope_owner || r.scope_store || "—"}</td>
                 <td>
                   <button onClick={() => deleteUser(r)}
                     style={{ padding: "4px 10px", borderRadius: 7, border: "1px solid rgba(239,68,68,0.35)", background: "rgba(239,68,68,0.1)", color: "#f87171", fontSize: 12, cursor: "pointer" }}>
@@ -246,27 +249,30 @@ export default function UsersPage() {
                   A link will be sent for the user to create their own account.
                 </p>
 
-                <Fld label="Owner Name">
-                  <input style={inp} placeholder="e.g. Yunita" value={form.owner_name}
-                    onChange={(e) => setForm({ ...form, owner_name: e.target.value })} />
-                </Fld>
-
-                <Fld label="Store Name">
-                  <select style={inp} value={form.store_name}
-                    onChange={(e) => setForm({ ...form, store_name: e.target.value })}>
-                    <option value="">— select store (optional) —</option>
-                    {stores.map((s, i) => (
-                      <option key={i} value={s.store_name || ""}>{s.store_name}</option>
-                    ))}
-                  </select>
-                </Fld>
-
                 <Fld label="Role">
                   <select style={inp} value={form.role}
-                    onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                    onChange={(e) => setForm({ ...form, role: e.target.value, owner_name: "" })}>
                     {INVITE_ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
                   </select>
                 </Fld>
+
+                {isOwnerRole ? (
+                  <Fld label="Owner (from Core List)">
+                    <select style={inp} value={form.owner_name}
+                      onChange={(e) => setForm({ ...form, owner_name: e.target.value })}>
+                      <option value="">— select owner —</option>
+                      {distinctOwners.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                    <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
+                      This login will see every Brand &amp; Store linked to this Owner in Core List.
+                    </p>
+                  </Fld>
+                ) : (
+                  <Fld label="Name">
+                    <input style={inp} placeholder="e.g. Yunita" value={form.owner_name}
+                      onChange={(e) => setForm({ ...form, owner_name: e.target.value })} />
+                  </Fld>
+                )}
 
                 <Fld label="Username (optional — user can set their own)">
                   <input style={inp} placeholder="e.g. yunita_owner"

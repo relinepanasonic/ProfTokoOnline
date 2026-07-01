@@ -295,13 +295,21 @@ function PerformanceTab({ rows, modals, loading, clientId, supabase, canUpload, 
                         <td key={p} className="num">
                           <Cell a={a} />
                           {mode === "week" && (
-                            <input
-                              defaultValue={modalMap.get(modalKey(g.store, g.grup, p)) ?? ""}
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={(e) => saveModal(g.store, g.grup, p, e.target.value)}
-                              placeholder="Modal/hari"
-                              style={modalInput}
-                            />
+                            canUpload ? (
+                              <input
+                                defaultValue={modalMap.get(modalKey(g.store, g.grup, p)) ?? ""}
+                                onClick={(e) => e.stopPropagation()}
+                                onBlur={(e) => saveModal(g.store, g.grup, p, e.target.value)}
+                                placeholder="Modal/hari"
+                                style={modalInput}
+                              />
+                            ) : (
+                              modalMap.get(modalKey(g.store, g.grup, p)) != null && (
+                                <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+                                  Modal: {modalMap.get(modalKey(g.store, g.grup, p))}
+                                </div>
+                              )
+                            )
                           )}
                         </td>
                       );

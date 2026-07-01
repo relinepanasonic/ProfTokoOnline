@@ -7,18 +7,23 @@ import { createClient } from "@/lib/supabase/client";
 
 type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "advertiser";
 
+// 4-tier permission model:
+//   superadmin      — everything
+//   client_admin    — Upload, Core List, Market Place Fee (see/edit/delete)
+//   advertiser      — Dashboard, Ads Performance (see/edit/delete)
+//   branch_manager  — Dashboard, Ads Performance, Price Calculator,
+//                     Market Place Fee (read-only, scoped to their Owner)
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
-  { href: "/product",   icon: "📦", label: "Product Performance", roles: ["superadmin", "branch_manager"] },
+  { href: "/product",   icon: "📦", label: "Product Performance", roles: ["superadmin"] },
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
-  { href: "/store",     icon: "🏬", label: "Store Performance",   roles: ["superadmin", "branch_manager"] },
+  { href: "/store",     icon: "🏬", label: "Store Performance",   roles: ["superadmin"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
   { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
   { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
-  { href: "/priceall",  icon: "📋", label: "Price All User",      roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -56,6 +61,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       }
     })();
   }, [supabase]);
+
+  // Route guard: once role is known, bounce away from any page the role
+  // isn't allowed to see (deep-links, back button, typed URLs).
+  useEffect(() => {
+    if (!role) return;
+    const entry = NAV.find((n) => n.href === path);
+    const allowed = !entry?.roles || entry.roles.includes(role);
+    if (!allowed) {
+      const fallback = NAV.find((n) => !n.roles || n.roles.includes(role));
+      router.replace(fallback?.href || "/login");
+    }
+  }, [role, path, router]);
 
   async function logout() {
     await supabase.auth.signOut();
