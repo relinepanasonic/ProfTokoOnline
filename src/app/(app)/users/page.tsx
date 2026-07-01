@@ -22,6 +22,7 @@ const INVITE_ROLES = [
   { v: "branch_manager", l: "Owner" },
   { v: "client_admin",   l: "Admin" },
   { v: "advertiser",     l: "Advertiser" },
+  { v: "superadmin",     l: "Superadmin" },
 ];
 const ROLE_LABEL: Record<string, string> = {
   superadmin:     "Super Admin",
