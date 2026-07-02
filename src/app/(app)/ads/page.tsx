@@ -18,6 +18,13 @@ type AdRow = {
 type ModalRow = { store_name: string; grup_iklan: string; year: number; month: string; week: string; modal_harian: number | null };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Mode = "week" | "month";
+type Formulation = {
+  year: number; month: string;
+  incubation_spent: number | null; incubation_roas: number | null;
+  hero_spent: number | null; hero_roas: number | null;
+  independent_spent: number | null; independent_roas: number | null;
+  low_conversion_spent: number | null; low_conversion_roas: number | null;
+};
 
 /* ── constants ── */
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -51,6 +58,23 @@ function sumAgg(rows: AdRow[]): Agg {
 }
 const roasOf = (a: Agg) => (a.biaya ? a.gmv / a.biaya : 0);
 
+/* Analisa recommendation for one product, given its group's ads_level and the
+   month's formulation thresholds. Returns null when no switch is recommended. */
+function analisa(adsLevel: string | null, roas: number, biaya: number, f: Formulation | null): { text: string; tone: "up" | "down" } | null {
+  if (!f || !adsLevel) return null;
+  const gt = (a: number, b: number | null) => b != null && a > b;
+  const lt = (a: number, b: number | null) => b != null && a < b;
+  if (adsLevel === "incubation") {
+    if (gt(roas, f.incubation_roas) && gt(biaya, f.incubation_spent)) return { text: "Switch to Hero Group", tone: "up" };
+  } else if (adsLevel === "hero") {
+    if (gt(roas, f.hero_roas) && gt(biaya, f.hero_spent)) return { text: "Switch to Independent Ads", tone: "up" };
+    if (lt(roas, f.low_conversion_roas) && gt(biaya, f.low_conversion_spent)) return { text: "Switch to Low Conversion Group", tone: "down" };
+  } else if (adsLevel === "regular") { // Regular == Independent Ads
+    if (lt(roas, f.independent_roas) && gt(biaya, f.independent_spent)) return { text: "Switch to Hero Group", tone: "down" };
+  }
+  return null;
+}
+
 /* ════════════════════════════════════════════════════════════════════ */
 export default function AdsPerformancePage() {
   const [supabase] = useState(() => createClient());
@@ -60,18 +84,21 @@ export default function AdsPerformancePage() {
 
   const [rows, setRows] = useState<AdRow[]>([]);
   const [modals, setModals] = useState<ModalRow[]>([]);
+  const [formulas, setFormulas] = useState<Formulation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async (cid: string) => {
     setLoading(true);
-    const [{ data: r }, { data: m }] = await Promise.all([
+    const [{ data: r }, { data: m }, { data: fo }] = await Promise.all([
       supabase.from("ad_groups")
         .select("upload_id,year,month,week,store_name,pic_client,brand,grup_iklan,ads_level,level,item_name,kode_produk,biaya,omzet")
         .eq("client_id", cid),
       supabase.from("ad_modals").select("store_name,grup_iklan,year,month,week,modal_harian").eq("client_id", cid),
+      supabase.from("ad_formulation").select("year,month,incubation_spent,incubation_roas,hero_spent,hero_roas,independent_spent,independent_roas,low_conversion_spent,low_conversion_roas").eq("client_id", cid),
     ]);
     setRows((r as AdRow[]) || []);
     setModals((m as ModalRow[]) || []);
+    setFormulas((fo as Formulation[]) || []);
     setLoading(false);
   }, [supabase]);
 
@@ -104,20 +131,23 @@ export default function AdsPerformancePage() {
 
       {tab === "performance" ? (
         <PerformanceTab
-          rows={rows} modals={modals} loading={loading} clientId={clientId}
+          rows={rows} modals={modals} formulas={formulas} loading={loading} clientId={clientId}
           supabase={supabase} canUpload={canUpload} canDelete={canDelete}
           reload={() => load(clientId)}
         />
       ) : (
-        <FormulationTab rows={rows} />
+        <FormulationTab
+          rows={rows} formulas={formulas} clientId={clientId}
+          supabase={supabase} canEdit={canUpload} reload={() => load(clientId)}
+        />
       )}
     </>
   );
 }
 
 /* ════════════════ Performance tab ════════════════ */
-function PerformanceTab({ rows, modals, loading, clientId, supabase, canUpload, canDelete, reload }: {
-  rows: AdRow[]; modals: ModalRow[]; loading: boolean; clientId: string;
+function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, canUpload, canDelete, reload }: {
+  rows: AdRow[]; modals: ModalRow[]; formulas: Formulation[]; loading: boolean; clientId: string;
   supabase: ReturnType<typeof createClient>; canUpload: boolean; canDelete: boolean; reload: () => void;
 }) {
   const [mode, setMode] = useState<Mode>("week");
@@ -133,6 +163,15 @@ function PerformanceTab({ rows, modals, loading, clientId, supabase, canUpload, 
   const months = useMemo(() => Array.from(new Set(rows.map((r) => r.month).filter(Boolean) as string[])).sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b)), [rows]);
   const stores = useMemo(() => Array.from(new Set(rows.map((r) => r.store_name).filter(Boolean) as string[])).sort(), [rows]);
   const grups  = useMemo(() => Array.from(new Set(rows.map((r) => r.grup_iklan).filter(Boolean) as string[])).sort(), [rows]);
+
+  // formulation thresholds for the current month (falls back to the latest
+  // month for the selected year when no month is picked, e.g. Month-vs-Month)
+  const activeFormula = useMemo(() => {
+    const y = fYear ? Number(fYear) : undefined;
+    const cands = formulas.filter((x) => (y == null || x.year === y));
+    if (fMonth) return cands.find((x) => x.month === fMonth) || null;
+    return cands.slice().sort((a, b) => MONTH_ORDER.indexOf(b.month) - MONTH_ORDER.indexOf(a.month))[0] || null;
+  }, [formulas, fYear, fMonth]);
 
   // default month to the latest available (week mode needs a month context)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -356,6 +395,7 @@ function PerformanceTab({ rows, modals, loading, clientId, supabase, canUpload, 
       {drill && (
         <DrillDown
           store={drill.store} grup={drill.grup} mode={mode} periods={periods}
+          formula={activeFormula}
           rows={rows.filter((r) => r.store_name === drill.store && r.grup_iklan === drill.grup &&
             (!fYear || String(r.year) === fYear) && (mode === "month" || !fMonth || r.month === fMonth) && (!fLevel || r.ads_level === fLevel))}
           onClose={() => setDrill(null)}
@@ -378,8 +418,8 @@ function Cell({ a, bold }: { a: Agg; bold?: boolean }) {
 }
 
 /* ════════════════ Drill-down overlay ════════════════ */
-function DrillDown({ store, grup, mode, periods, rows, onClose }: {
-  store: string; grup: string; mode: Mode; periods: string[]; rows: AdRow[]; onClose: () => void;
+function DrillDown({ store, grup, mode, periods, rows, formula, onClose }: {
+  store: string; grup: string; mode: Mode; periods: string[]; rows: AdRow[]; formula: Formulation | null; onClose: () => void;
 }) {
   const periodKey = (r: AdRow) => (mode === "week" ? r.week : r.month) || "";
   const products = useMemo(() => {
@@ -408,6 +448,11 @@ function DrillDown({ store, grup, mode, periods, rows, onClose }: {
               {store} {lm && <span style={badge(lm.c)}>{lm.l}</span>}
             </div>
             <div style={{ color: "#9ab0cc", marginTop: 4 }}>Grup Iklan: <b style={{ color: "#e8edf8" }}>{grup}</b></div>
+            {!formula && (
+              <div style={{ color: "#f59e0b", marginTop: 4, fontSize: 12 }}>
+                ⚠ No Formulation thresholds set for this month — the Analisa column stays blank. Fill them in the Formulation tab.
+              </div>
+            )}
           </div>
           <button className="btn-ghost" onClick={onClose}>✕ Close</button>
         </div>
@@ -446,16 +491,25 @@ function DrillDown({ store, grup, mode, periods, rows, onClose }: {
               </tr>
             </thead>
             <tbody>
-              {products.map((pr) => (
-                <tr key={pr.name}>
-                  <td style={{ color: "#9ab0cc", fontSize: 12 }}>{pr.kode}</td>
-                  <td style={{ maxWidth: 260, fontSize: 12.5 }}>{pr.name}</td>
-                  {/* Analisa — formula to be supplied later */}
-                  <td className="num" style={{ color: "var(--muted)" }}>—</td>
-                  {periods.map((p) => <td key={p} className="num"><Cell a={prodPer(pr.name, p)} /></td>)}
-                  <td className="num"><Cell a={prodTotal(pr.name)} bold /></td>
-                </tr>
-              ))}
+              {products.map((pr) => {
+                const t = prodTotal(pr.name);
+                const rec = analisa(rows[0]?.ads_level ?? null, roasOf(t), t.biaya, formula);
+                return (
+                  <tr key={pr.name}>
+                    <td style={{ color: "#9ab0cc", fontSize: 12 }}>{pr.kode}</td>
+                    <td style={{ maxWidth: 260, fontSize: 12.5 }}>{pr.name}</td>
+                    <td style={{ textAlign: "center" }}>
+                      {rec ? (
+                        <span style={badge(rec.tone === "up" ? "#3b82f6" : "#ef4444")}>{rec.text}</span>
+                      ) : (
+                        <span style={{ color: "var(--muted)" }}>—</span>
+                      )}
+                    </td>
+                    {periods.map((p) => <td key={p} className="num"><Cell a={prodPer(pr.name, p)} /></td>)}
+                    <td className="num"><Cell a={t} bold /></td>
+                  </tr>
+                );
+              })}
               {products.length === 0 && (
                 <tr><td colSpan={periods.length + 4} style={{ textAlign: "center", color: "var(--muted)", padding: 22 }}>No product rows</td></tr>
               )}
@@ -469,72 +523,188 @@ function DrillDown({ store, grup, mode, periods, rows, onClose }: {
 }
 
 /* ════════════════ Formulation tab ════════════════ */
-function FormulationTab({ rows }: { rows: AdRow[] }) {
+// The 4 tiers as (data ads_level value → formulation field prefix) pairs.
+// Note the data level "regular" maps to the "independent" formulation fields.
+const FORM_TIERS = [
+  { level: "incubation",     key: "incubation",     label: "Incubation",     c: "#3b82f6" },
+  { level: "hero",           key: "hero",           label: "Hero",           c: "#c9a227" },
+  { level: "regular",        key: "independent",    label: "Independent",    c: "#8b5cf6" },
+  { level: "low_conversion", key: "low_conversion", label: "Low Conversion", c: "#ef4444" },
+] as const;
+
+type FormFields = {
+  incubation_spent: string; incubation_roas: string;
+  hero_spent: string; hero_roas: string;
+  independent_spent: string; independent_roas: string;
+  low_conversion_spent: string; low_conversion_roas: string;
+};
+const emptyFields: FormFields = {
+  incubation_spent: "", incubation_roas: "", hero_spent: "", hero_roas: "",
+  independent_spent: "", independent_roas: "", low_conversion_spent: "", low_conversion_roas: "",
+};
+
+function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }: {
+  rows: AdRow[]; formulas: Formulation[]; clientId: string;
+  supabase: ReturnType<typeof createClient>; canEdit: boolean; reload: () => void;
+}) {
   const years  = useMemo(() => Array.from(new Set(rows.map((r) => r.year).filter(Boolean) as number[])).sort((a,b)=>b-a), [rows]);
   const months = useMemo(() => Array.from(new Set(rows.map((r) => r.month).filter(Boolean) as string[])).sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b)), [rows]);
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
+  const [baseline, setBaseline] = useState<number | null>(null);
+
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!year && years.length) setYear(String(years[0])); }, [years, year]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!month && months.length) setMonth(months[months.length - 1]); }, [months, month]);
 
-  const scope = useMemo(() => rows.filter((r) => r.level === "group" && (!year || String(r.year) === year) && (!month || r.month === month)), [rows, year, month]);
-  const overall = sumAgg(scope);
-  const monthlyAvgRoas = roasOf(overall);
+  const stored = useMemo(() =>
+    formulas.find((f) => String(f.year) === year && f.month === month) || null,
+  [formulas, year, month]);
 
-  const perLevel = LEVELS.map((l) => {
-    const a = sumAgg(scope.filter((r) => r.ads_level === l.v));
-    return { ...l, spent: a.biaya, roas: roasOf(a) };
-  });
+  // actual per-level spend/ROAS from uploaded data (reference)
+  const scope = useMemo(() => rows.filter((r) => r.level === "group" && String(r.year) === year && r.month === month), [rows, year, month]);
+  const actualFor = (lvl: string) => { const a = sumAgg(scope.filter((r) => r.ads_level === lvl)); return { spent: a.biaya, roas: roasOf(a) }; };
+
+  // baseline "Existing ROAS" = the main Dashboard's ROAS for this month.
+  // setState only ever happens inside the async callback (never synchronously).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!year || !month) { if (!cancelled) setBaseline(null); return; }
+      const { data } = await supabase.rpc("dashboard_summary", {
+        p_year: Number(year), p_month: month, p_city: null, p_owner: null, p_brand: null, p_store: null,
+      });
+      const roas = (data as { kpis?: { roas?: number | null } } | null)?.kpis?.roas;
+      if (!cancelled) setBaseline(roas ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [year, month, supabase]);
 
   return (
     <div className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Formulation</h3>
-          <div className="hint">Monthly ROAS by ad level · spend &amp; ROAS computed from uploaded Grup Iklan data</div>
+          <div className="hint">Set the monthly thresholds that drive the Analisa switch recommendations.</div>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <div className="fld" style={{ minWidth: 110 }}><label>Year</label>
             <select value={year} onChange={(e) => setYear(e.target.value)}>
-              {years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
+              {years.length ? years.map((y) => <option key={y} value={String(y)}>{y}</option>) : <option value="">—</option>}
             </select>
           </div>
           <div className="fld" style={{ minWidth: 130 }}><label>Month</label>
             <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {months.map((m) => <option key={m} value={m}>{m}</option>)}
+              {months.length ? months.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">—</option>}
             </select>
           </div>
         </div>
       </div>
 
-      {/* Monthly AVG ROAS */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 18 }}>
-        <StatCard label="Monthly AVG ROAS" value={roasF(monthlyAvgRoas)} sub={`${month || "—"} ${year || ""}`} accent />
-        <StatCard label="Total Ads Spent" value={rpFull(overall.biaya)} sub="all levels" />
-        <StatCard label="Total GMV" value={rpFull(overall.gmv)} sub="all levels" />
+      {/* baseline */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12, marginBottom: 18 }}>
+        <StatCard label="Existing ROAS (Dashboard)" value={baseline != null ? roasF(baseline) : "—"} sub={`Baseline · ${month || "—"} ${year || ""}`} accent />
       </div>
 
-      {/* per-level table */}
+      {/* keyed so local field state re-initialises from `stored` on month change */}
+      <ThresholdEditor
+        key={`${year}|${month}`}
+        stored={stored} canEdit={canEdit} year={year} month={month}
+        clientId={clientId} supabase={supabase} actualFor={actualFor} reload={reload}
+      />
+
+      <div className="hint" style={{ marginTop: 16, lineHeight: 1.7 }}>
+        <b style={{ color: "#cdd9f0" }}>Analisa switch rules</b> (per product, using its monthly Biaya &amp; ROAS):<br />
+        • <b>Incubation</b> → “Switch to Hero Group” when ROAS &gt; Incubation ROAS <i>and</i> Biaya &gt; Incubation Ads Spent<br />
+        • <b>Hero</b> → “Switch to Independent Ads” when ROAS &gt; Hero ROAS <i>and</i> Biaya &gt; Hero Ads Spent<br />
+        • <b>Hero</b> → “Switch to Low Conversion Group” when ROAS &lt; Low Conversion ROAS <i>and</i> Biaya &gt; Low Conversion Ads Spent<br />
+        • <b>Independent</b> → “Switch to Hero Group” when ROAS &lt; Independent ROAS <i>and</i> Biaya &gt; Independent Ads Spent
+      </div>
+    </div>
+  );
+}
+
+/* ── Threshold editor (keyed by year|month → fresh state per month) ── */
+function ThresholdEditor({ stored, canEdit, year, month, clientId, supabase, actualFor, reload }: {
+  stored: Formulation | null; canEdit: boolean; year: string; month: string;
+  clientId: string; supabase: ReturnType<typeof createClient>;
+  actualFor: (lvl: string) => { spent: number; roas: number }; reload: () => void;
+}) {
+  const s = (v: number | null | undefined) => (v == null ? "" : String(v));
+  const [fields, setFields] = useState<FormFields>(() => stored ? {
+    incubation_spent: s(stored.incubation_spent), incubation_roas: s(stored.incubation_roas),
+    hero_spent: s(stored.hero_spent), hero_roas: s(stored.hero_roas),
+    independent_spent: s(stored.independent_spent), independent_roas: s(stored.independent_roas),
+    low_conversion_spent: s(stored.low_conversion_spent), low_conversion_roas: s(stored.low_conversion_roas),
+  } : emptyFields);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const setF = (k: keyof FormFields, v: string) => setFields((f) => ({ ...f, [k]: v }));
+  const numOrNull = (v: string) => v.trim() === "" ? null : Number(v);
+
+  async function save() {
+    if (!year || !month) { setMsg("Pick a year and month first."); return; }
+    setSaving(true); setMsg("");
+    const { error } = await supabase.from("ad_formulation").upsert({
+      client_id: clientId, year: Number(year), month,
+      incubation_spent: numOrNull(fields.incubation_spent), incubation_roas: numOrNull(fields.incubation_roas),
+      hero_spent: numOrNull(fields.hero_spent), hero_roas: numOrNull(fields.hero_roas),
+      independent_spent: numOrNull(fields.independent_spent), independent_roas: numOrNull(fields.independent_roas),
+      low_conversion_spent: numOrNull(fields.low_conversion_spent), low_conversion_roas: numOrNull(fields.low_conversion_roas),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "client_id,year,month" });
+    setSaving(false);
+    if (error) { setMsg("✗ " + error.message); return; }
+    setMsg("✓ Saved"); reload();
+  }
+
+  return (
+    <>
       <div className="tbl-wrap">
         <table className="tbl" style={{ color: "#e8edf8" }}>
-          <thead><tr><th>Ads Level</th><th className="num">Ads Spent</th><th className="num">ROAS</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Ads Level</th>
+              <th className="num">Ads Spent (threshold)</th>
+              <th className="num">ROAS (threshold)</th>
+              <th className="num">Actual Spent</th>
+              <th className="num">Actual ROAS</th>
+            </tr>
+          </thead>
           <tbody>
-            {perLevel.map((l) => (
-              <tr key={l.v}>
-                <td><span style={badge(l.c)}>{l.l}</span></td>
-                <td className="num" style={{ fontWeight: 600 }}>{rpFull(l.spent)}</td>
-                <td className="num">{roasF(l.roas)}</td>
-              </tr>
-            ))}
+            {FORM_TIERS.map((t) => {
+              const act = actualFor(t.level);
+              const spentKey = `${t.key}_spent` as keyof FormFields;
+              const roasKey  = `${t.key}_roas`  as keyof FormFields;
+              return (
+                <tr key={t.key}>
+                  <td><span style={badge(t.c)}>{t.label}</span></td>
+                  <td className="num">
+                    <input type="number" value={fields[spentKey]} disabled={!canEdit}
+                      onChange={(e) => setF(spentKey, e.target.value)} placeholder="Rp" style={fInput} />
+                  </td>
+                  <td className="num">
+                    <input type="number" step="0.01" value={fields[roasKey]} disabled={!canEdit}
+                      onChange={(e) => setF(roasKey, e.target.value)} placeholder="×" style={fInput} />
+                  </td>
+                  <td className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{rpFull(act.spent)}</td>
+                  <td className="num" style={{ color: "var(--muted)", fontSize: 12 }}>{roasF(act.roas)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      <div className="hint" style={{ marginTop: 12 }}>
-        Ads Spent = Σ Biaya · ROAS = Σ GMV ÷ Σ Biaya for that level this month. Send me your exact formulas (e.g. manual Incubation spend split, Analisa column) and I&apos;ll wire them in.
-      </div>
-    </div>
+
+      {canEdit && (
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 14 }}>
+          <button className="btn-gold" onClick={save} disabled={saving} style={{ padding: "9px 28px" }}>{saving ? "Saving…" : "Save Thresholds"}</button>
+          {msg && <span style={{ fontSize: 12.5, color: msg.startsWith("✓") ? "#86efac" : "#f87171" }}>{msg}</span>}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -672,6 +842,10 @@ const modalInput: React.CSSProperties = {
   border: "1px solid rgba(201,162,39,.25)", background: "rgba(10,22,40,.7)", color: "#e8edf8", fontSize: 11, textAlign: "right",
 };
 const trashBtn: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 13, opacity: .7, padding: 0 };
+const fInput: React.CSSProperties = {
+  width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, textAlign: "right",
+  border: "1px solid rgba(201,162,39,.3)", background: "rgba(10,22,40,.7)", color: "#e8edf8", fontSize: 13,
+};
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" };
 const drawer: React.CSSProperties = { width: "min(96vw,1500px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 24, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
 const sumCell: React.CSSProperties = { background: "rgba(13,26,54,.95)", padding: "12px 14px" };
