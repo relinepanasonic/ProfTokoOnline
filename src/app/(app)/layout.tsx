@@ -24,6 +24,7 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
   { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
+  { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
