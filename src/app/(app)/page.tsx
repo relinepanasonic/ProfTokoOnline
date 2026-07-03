@@ -319,7 +319,7 @@ export default function DashboardPage() {
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
-              <th>{storeLabel}</th>
+              <th>{storeLabel}</th><th>Trend</th>
               <th className="num">Sales</th><th className="num">Traffic</th>
               <th className="num">In-Cart</th><th className="num">Cart Rate</th>
               <th className="num">Ads Cost</th><th className="num">ROAS</th>
@@ -329,12 +329,8 @@ export default function DashboardPage() {
                 const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
                 return (
                   <tr key={i}>
-                    <td>
-                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                        <span>{r.store_name}</span>
-                        <Sparkline data={r.trend} />
-                      </div>
-                    </td>
+                    <td>{r.store_name}</td>
+                    <td><Sparkline data={r.trend} /></td>
                     <td className="num">{idr(r.sales)}</td>
                     <td className="num">{num(r.traffic)}</td>
                     <td className="num">{num(r.in_cart)}</td>
@@ -349,7 +345,7 @@ export default function DashboardPage() {
                 );
               })}
               {(!d?.dealers||d.dealers.length===0) && (
-                <tr><td colSpan={7} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
+                <tr><td colSpan={8} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
               )}
             </tbody>
           </table>
@@ -596,34 +592,46 @@ function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:
   );
 }
 
-/* ── tiny inline trend sparkline (green = up, red = down, based on last vs first point) ── */
+/* ── trend sparkline: one smooth line, green = up / red = down, soft glow + faint area ── */
 function Sparkline({ data }: { data?: { month: string; sales: number }[] }) {
   const pts = (data || []).filter((p) => p.sales != null);
   if (pts.length < 2) return null;
 
-  const W = 64, H = 22, PAD = 2;
+  const W = 96, H = 40, PADX = 4, PADY = 6;
   const vals = pts.map((p) => p.sales);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
-  const stepX = (W - PAD * 2) / (pts.length - 1);
+  const stepX = (W - PADX * 2) / (pts.length - 1);
   const coords = vals.map((v, i) => {
-    const x = PAD + i * stepX;
-    const y = H - PAD - ((v - min) / range) * (H - PAD * 2);
+    const x = PADX + i * stepX;
+    const y = H - PADY - ((v - min) / range) * (H - PADY * 2);
     return [x, y] as const;
   });
-  const path = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const line = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${coords[coords.length - 1][0].toFixed(1)},${H} L${coords[0][0].toFixed(1)},${H} Z`;
 
   const up = vals[vals.length - 1] >= vals[0];
   const color = up ? "#22c55e" : "#ef4444";
   const pctChange = vals[0] ? ((vals[vals.length - 1] - vals[0]) / vals[0]) * 100 : 0;
   const [lastX, lastY] = coords[coords.length - 1];
+  const gid = `spk-${Math.round(coords[0][1]) + Math.round(lastX)}-${up ? "u" : "d"}`;
 
   return (
     <span title={`${up ? "▲" : "▼"} ${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}% vs first period`}
       style={{ display: "inline-flex", alignItems: "center" }}>
-      <svg width={W} height={H} style={{ display: "block" }}>
-        <path d={path} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx={lastX} cy={lastY} r={2.2} fill={color} />
+      <svg width={W} height={H} style={{ display: "block", overflow: "visible" }}>
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+            <stop offset="100%" stopColor={color} stopOpacity="0" />
+          </linearGradient>
+          <filter id={`${gid}-glow`} x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor={color} floodOpacity="0.7" />
+          </filter>
+        </defs>
+        <path d={area} fill={`url(#${gid})`} stroke="none" />
+        <path d={line} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" filter={`url(#${gid}-glow)`} />
+        <circle cx={lastX} cy={lastY} r={2.6} fill={color} filter={`url(#${gid}-glow)`} />
       </svg>
     </span>
   );
