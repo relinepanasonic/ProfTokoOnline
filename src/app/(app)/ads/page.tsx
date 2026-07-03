@@ -31,10 +31,10 @@ const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustu
 const MONTH_ORDER = ["Baseline", ...MONTHS];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
 const LEVELS = [
-  { v: "incubation",     l: "Incubation",     c: "#3b82f6" },
-  { v: "hero",           l: "Hero",           c: "#c9a227" },
-  { v: "regular",        l: "Regular",        c: "#8b5cf6" },
-  { v: "low_conversion", l: "Low Conversion", c: "#ef4444" },
+  { v: "incubation",     l: "Incubation - Hero",     c: "#3b82f6" },
+  { v: "hero",           l: "Hero - Independent Ads", c: "#c9a227" },
+  { v: "regular",        l: "Independent Ads - Hero", c: "#8b5cf6" },
+  { v: "low_conversion", l: "All - Low Conversion",  c: "#ef4444" },
 ];
 const levelMeta = (v: string | null) => LEVELS.find((x) => x.v === v);
 
@@ -540,10 +540,10 @@ function DrillDown({ store, grup, mode, periods, rows, formula, onClose }: {
 // The 4 tiers as (data ads_level value → formulation field prefix) pairs.
 // Note the data level "regular" maps to the "independent" formulation fields.
 const FORM_TIERS = [
-  { level: "incubation",     key: "incubation",     label: "Incubation",     c: "#3b82f6" },
-  { level: "hero",           key: "hero",           label: "Hero",           c: "#c9a227" },
-  { level: "regular",        key: "independent",    label: "Independent",    c: "#8b5cf6" },
-  { level: "low_conversion", key: "low_conversion", label: "Low Conversion", c: "#ef4444" },
+  { level: "incubation",     key: "incubation",     label: "Incubation - Hero",      c: "#3b82f6" },
+  { level: "hero",           key: "hero",           label: "Hero - Independent Ads", c: "#c9a227" },
+  { level: "regular",        key: "independent",    label: "Independent Ads - Hero", c: "#8b5cf6" },
+  { level: "low_conversion", key: "low_conversion", label: "All - Low Conversion",   c: "#ef4444" },
 ] as const;
 
 type FormFields = {
