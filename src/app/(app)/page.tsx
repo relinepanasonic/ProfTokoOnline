@@ -166,6 +166,7 @@ export default function DashboardPage() {
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -187,7 +188,7 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.rpc("dashboard_summary", {
+    const { data, error } = await supabase.rpc("dashboard_summary", {
       p_year:  sel.year  ? Number(sel.year) : null,
       p_month: sel.month || null,
       p_city:  sel.city  || null,
@@ -195,9 +196,11 @@ export default function DashboardPage() {
       p_brand: sel.brand || null,
       p_store: sel.store || null,
     });
+    setLoadErr(error ? `${error.message} (code: ${error.code || "?"})` : "");
     setD(data as Summary);
     setLoading(false);
   }, [supabase, sel]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
   const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
@@ -225,6 +228,17 @@ export default function DashboardPage() {
   return (
     <>
       <ChartDefs />
+
+      {loadErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ Dashboard query failed: {loadErr}
+          {loadErr.includes("57014") && (
+            <div style={{ marginTop: 4, color: "#f87171" }}>
+              Statement timeout — run migration 0024 + <b>VACUUM (FULL, ANALYZE) sales_rows;</b> in Supabase to speed up the query.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="filterbar">
