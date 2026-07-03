@@ -18,7 +18,7 @@ type Summary = {
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
   traffic_trend: { month: string; traffic: number; in_cart: number }[];
-  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null }[];
+  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number }[] }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
@@ -83,6 +83,15 @@ function ChartDefs() {
           <feGaussianBlur stdDeviation="3" result="blur" />
           <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
         </filter>
+        {/* Soft ground shadow under 3D bars */}
+        <filter id="barShadow" x="-60%" y="-20%" width="220%" height="180%">
+          <feGaussianBlur stdDeviation="2.5" />
+        </filter>
+        {/* Right-side face shading (adds a subtle gradient instead of flat black) */}
+        <linearGradient id="gSide" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="rgba(0,0,0,0.15)" />
+          <stop offset="100%" stopColor="rgba(0,0,0,0.5)" />
+        </linearGradient>
       </defs>
     </svg>
   );
@@ -95,28 +104,35 @@ function Bar3D(props: Record<string, unknown>) {
   const w = props.width as number ?? 0;
   const h = props.height as number ?? 0;
   const fill = props.fill as string ?? GOLD;
+  const baseY = y + h;
   if (!h || h < 1 || !w || w < 1) return null;
 
-  const d  = Math.min(w * 0.22, 11);   // horizontal depth
-  const dv = d * 0.52;                  // vertical depth (perspective angle)
-  const rx = 2;
+  const d  = Math.min(w * 0.24, 12);   // horizontal depth
+  const dv = d * 0.55;                  // vertical depth (perspective angle)
+  const rx = 3;
 
   return (
-    <g filter="url(#glow)">
-      {/* front face */}
-      <rect x={x} y={y} width={w} height={h} fill={fill} rx={rx} />
-      {/* top face */}
-      <path
-        d={`M${x},${y} L${x+d},${y-dv} L${x+w+d},${y-dv} L${x+w},${y} Z`}
-        fill="rgba(255,255,255,0.28)"
-      />
-      {/* right side face */}
-      <path
-        d={`M${x+w},${y} L${x+w+d},${y-dv} L${x+w+d},${y+h-dv} L${x+w},${y+h} Z`}
-        fill="rgba(0,0,0,0.38)"
-      />
-      {/* top edge highlight */}
-      <line x1={x} y1={y} x2={x+w} y2={y} stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
+    <g>
+      {/* soft ambient shadow on the ground plane below the bar */}
+      <ellipse cx={x + w / 2} cy={baseY + 2} rx={w / 2 + d * 0.4} ry={3.2} fill="rgba(0,0,0,0.4)" filter="url(#barShadow)" />
+      <g filter="url(#glow)">
+        {/* front face */}
+        <rect x={x} y={y} width={w} height={h} fill={fill} rx={rx} />
+        {/* subtle vertical sheen on the front face for extra polish */}
+        <rect x={x} y={y} width={w} height={Math.min(h, h * 0.4)} fill="rgba(255,255,255,0.08)" rx={rx} />
+        {/* top face */}
+        <path
+          d={`M${x},${y} L${x+d},${y-dv} L${x+w+d},${y-dv} L${x+w},${y} Z`}
+          fill="rgba(255,255,255,0.3)"
+        />
+        {/* right side face — gradient instead of flat shade for more depth */}
+        <path
+          d={`M${x+w},${y} L${x+w+d},${y-dv} L${x+w+d},${y+h-dv} L${x+w},${y+h} Z`}
+          fill="url(#gSide)"
+        />
+        {/* top edge highlight */}
+        <line x1={x} y1={y} x2={x+w} y2={y} stroke="rgba(255,255,255,0.5)" strokeWidth={1.2} />
+      </g>
     </g>
   );
 }
@@ -299,11 +315,11 @@ export default function DashboardPage() {
       {/* ── Dealer table ── */}
       <div className="panel">
         <h3>Detail Data per {storeLabel}</h3>
-        <div className="hint">Sorted by sales · Baseline excluded</div>
+        <div className="hint">Sorted by sales · Baseline excluded · line shows SPOS sales trend</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
-              <th>{storeLabel}</th><th>City</th>
+              <th>{storeLabel}</th>
               <th className="num">Sales</th><th className="num">Traffic</th>
               <th className="num">In-Cart</th><th className="num">Cart Rate</th>
               <th className="num">Ads Cost</th><th className="num">ROAS</th>
@@ -313,7 +329,12 @@ export default function DashboardPage() {
                 const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
                 return (
                   <tr key={i}>
-                    <td>{r.store_name}</td><td>{r.city||"—"}</td>
+                    <td>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <span>{r.store_name}</span>
+                        <Sparkline data={r.trend} />
+                      </div>
+                    </td>
                     <td className="num">{idr(r.sales)}</td>
                     <td className="num">{num(r.traffic)}</td>
                     <td className="num">{num(r.in_cart)}</td>
@@ -328,7 +349,7 @@ export default function DashboardPage() {
                 );
               })}
               {(!d?.dealers||d.dealers.length===0) && (
-                <tr><td colSpan={8} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
+                <tr><td colSpan={7} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
               )}
             </tbody>
           </table>
@@ -572,5 +593,38 @@ function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:
         </AreaChart>
       </ResponsiveContainer>
     </div>
+  );
+}
+
+/* ── tiny inline trend sparkline (green = up, red = down, based on last vs first point) ── */
+function Sparkline({ data }: { data?: { month: string; sales: number }[] }) {
+  const pts = (data || []).filter((p) => p.sales != null);
+  if (pts.length < 2) return null;
+
+  const W = 64, H = 22, PAD = 2;
+  const vals = pts.map((p) => p.sales);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const stepX = (W - PAD * 2) / (pts.length - 1);
+  const coords = vals.map((v, i) => {
+    const x = PAD + i * stepX;
+    const y = H - PAD - ((v - min) / range) * (H - PAD * 2);
+    return [x, y] as const;
+  });
+  const path = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+
+  const up = vals[vals.length - 1] >= vals[0];
+  const color = up ? "#22c55e" : "#ef4444";
+  const pctChange = vals[0] ? ((vals[vals.length - 1] - vals[0]) / vals[0]) * 100 : 0;
+  const [lastX, lastY] = coords[coords.length - 1];
+
+  return (
+    <span title={`${up ? "▲" : "▼"} ${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(1)}% vs first period`}
+      style={{ display: "inline-flex", alignItems: "center" }}>
+      <svg width={W} height={H} style={{ display: "block" }}>
+        <path d={path} fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={lastX} cy={lastY} r={2.2} fill={color} />
+      </svg>
+    </span>
   );
 }
