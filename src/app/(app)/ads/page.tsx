@@ -547,12 +547,13 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
   rows: AdRow[]; formulas: Formulation[]; clientId: string;
   supabase: ReturnType<typeof createClient>; canEdit: boolean; reload: () => void;
 }) {
-  // Year/Month/Store come from the DASHBOARD's own data range (sales_rows),
-  // not from ad_groups — otherwise the picker is empty (and baseline ROAS
-  // unreachable) until someone has already uploaded a Grup Iklan file.
-  const [years, setYears] = useState<number[]>([]);
-  const [months, setMonths] = useState<string[]>([]);
-  const [stores, setStores] = useState<string[]>([]);
+  // Year/Month/Store options are the UNION of the Dashboard's own data range
+  // (sales_rows, via dashboard_filters) and whatever's in ad_groups — a period
+  // should be pickable as soon as EITHER dataset has it, since Ads Performance
+  // uploads and SPOS/Performa uploads don't always happen at the same time.
+  const [dashYears, setDashYears] = useState<number[]>([]);
+  const [dashMonths, setDashMonths] = useState<string[]>([]);
+  const [dashStores, setDashStores] = useState<string[]>([]);
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
   const [store, setStore] = useState("");
@@ -562,11 +563,22 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
     (async () => {
       const { data } = await supabase.rpc("dashboard_filters");
       const f = data as { years?: number[]; months?: string[]; stores?: string[] } | null;
-      setYears((f?.years || []).slice().sort((a, b) => b - a));
-      setMonths((f?.months || []).slice().sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)));
-      setStores((f?.stores || []).slice().sort());
+      setDashYears(f?.years || []);
+      setDashMonths(f?.months || []);
+      setDashStores(f?.stores || []);
     })();
   }, [supabase]);
+
+  const years = useMemo(() =>
+    Array.from(new Set([...dashYears, ...rows.map((r) => r.year).filter(Boolean) as number[]])).sort((a, b) => b - a),
+  [dashYears, rows]);
+  const months = useMemo(() =>
+    Array.from(new Set([...dashMonths, ...rows.map((r) => r.month).filter(Boolean) as string[]]))
+      .sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)),
+  [dashMonths, rows]);
+  const stores = useMemo(() =>
+    Array.from(new Set([...dashStores, ...rows.map((r) => r.store_name).filter(Boolean) as string[]])).sort(),
+  [dashStores, rows]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!year && years.length) setYear(String(years[0])); }, [years, year]);
