@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 
@@ -324,13 +324,7 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
         {/* table */}
         <div className="tbl-wrap">
           <table className="tbl" style={{ color: "#e8edf8" }}>
-            <thead>
-              <tr>
-                <th>Dealer</th><th>Grup Iklan</th>
-                {periods.map((p) => <th key={p} className="num">{p}</th>)}
-                <th className="num">Total</th><th></th>
-              </tr>
-            </thead>
+            <PeriodTableHead leadCols={["Dealer", "Grup Iklan"]} periods={periods} trailCols={[""]} />
             <tbody>
               {groupRows.map((g) => {
                 const tot = rowTotal(g.store, g.grup);
@@ -345,29 +339,33 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
                     {periods.map((p) => {
                       const a = cellAgg(g.store, g.grup, p);
                       return (
-                        <td key={p} className="num">
-                          <Cell a={a} />
-                          {mode === "week" && (
-                            canUpload ? (
-                              <input
-                                defaultValue={modalMap.get(modalKey(g.store, g.grup, p)) ?? ""}
-                                onClick={(e) => e.stopPropagation()}
-                                onBlur={(e) => saveModal(g.store, g.grup, p, e.target.value)}
-                                placeholder="Modal/hari"
-                                style={modalInput}
-                              />
-                            ) : (
-                              modalMap.get(modalKey(g.store, g.grup, p)) != null && (
-                                <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
-                                  Modal: {modalMap.get(modalKey(g.store, g.grup, p))}
-                                </div>
+                        <Fragment key={p}>
+                          <td className="num" style={{ fontWeight: 600, borderLeft: "1px solid var(--line)" }}>
+                            {rpC(a.biaya)}
+                            {mode === "week" && (
+                              canUpload ? (
+                                <input
+                                  defaultValue={modalMap.get(modalKey(g.store, g.grup, p)) ?? ""}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onBlur={(e) => saveModal(g.store, g.grup, p, e.target.value)}
+                                  placeholder="Modal/hari"
+                                  style={modalInput}
+                                />
+                              ) : (
+                                modalMap.get(modalKey(g.store, g.grup, p)) != null && (
+                                  <div style={{ marginTop: 6, fontSize: 11, color: "var(--muted)" }}>
+                                    Modal: {modalMap.get(modalKey(g.store, g.grup, p))}
+                                  </div>
+                                )
                               )
-                            )
-                          )}
-                        </td>
+                            )}
+                          </td>
+                          <td className="num" style={{ fontSize: 12.5 }}>{a.gmv ? rpC(a.gmv) : <span style={{ color: "var(--muted)" }}>—</span>}</td>
+                          <td className="num" style={{ fontSize: 12, color: "#cdd9f0" }}>{roasF(roasOf(a))}</td>
+                        </Fragment>
                       );
                     })}
-                    <td className="num"><Cell a={tot} bold /></td>
+                    <PeriodTds a={tot} bold />
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                         <span style={{ color: "#9ab0cc" }}>↗</span>
@@ -378,19 +376,15 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
                 );
               })}
               {groupRows.length === 0 && (
-                <tr><td colSpan={periods.length + 4} style={{ textAlign: "center", color: "var(--muted)", padding: 26 }}>
+                <tr><td colSpan={2 + periods.length * 3 + 3 + 1} style={{ textAlign: "center", color: "var(--muted)", padding: 26 }}>
                   {loading ? "Loading…" : rows.length ? "No groups match these filters" : "No Grup Iklan uploaded yet — use the upload box above."}
                 </td></tr>
               )}
               {groupRows.length > 0 && (
                 <tr style={{ borderTop: "2px solid var(--line)" }}>
                   <td style={{ fontWeight: 800 }}>TOTAL</td><td></td>
-                  {periods.map((p) => <td key={p} className="num"><Cell a={grand.per.get(p) || { biaya:0, gmv:0 }} bold /></td>)}
-                  <td className="num">
-                    <div style={{ fontWeight: 800 }}>{rpFull(grand.total.biaya)}</div>
-                    <div style={{ fontSize: 12 }}>{rpFull(grand.total.gmv)}</div>
-                    <div style={{ fontSize: 12 }}>{roasF(roasOf(grand.total))}</div>
-                  </td>
+                  {periods.map((p) => <PeriodTds key={p} a={grand.per.get(p) || { biaya: 0, gmv: 0 }} bold />)}
+                  <PeriodTds a={grand.total} bold />
                   <td></td>
                 </tr>
               )}
@@ -419,15 +413,40 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
   );
 }
 
-/* a Biaya/GMV/ROAS cell (all white) */
-function Cell({ a, bold }: { a: Agg; bold?: boolean }) {
-  if (!a.biaya && !a.gmv) return <span style={{ color: "var(--muted)" }}>—</span>;
+/* ── two-row table head: period labels spanning 3 sub-columns (Biaya/GMV/ROAS) ── */
+function PeriodTableHead({ leadCols, periods, trailCols }: { leadCols: React.ReactNode[]; periods: string[]; trailCols?: React.ReactNode[] }) {
   return (
-    <div style={{ lineHeight: 1.35 }}>
-      <div style={{ fontWeight: bold ? 800 : 600 }}>{rpC(a.biaya)}</div>
-      <div style={{ fontSize: 12.5 }}>{rpC(a.gmv)}</div>
-      <div style={{ fontSize: 12, color: "#cdd9f0" }}>{roasF(roasOf(a))}</div>
-    </div>
+    <thead>
+      <tr>
+        {leadCols.map((c, i) => <th key={`l${i}`} rowSpan={2} style={{ verticalAlign: "bottom" }}>{c}</th>)}
+        {periods.map((p) => <th key={p} colSpan={3} className="num" style={groupTh}>{p}</th>)}
+        <th colSpan={3} className="num" style={groupTh}>Total</th>
+        {(trailCols || []).map((c, i) => <th key={`t${i}`} rowSpan={2} style={{ verticalAlign: "bottom" }}>{c}</th>)}
+      </tr>
+      <tr>
+        {periods.map((p) => (
+          <Fragment key={p}>
+            <th className="num" style={subTh}>Biaya</th>
+            <th className="num" style={subTh}>GMV</th>
+            <th className="num" style={subTh}>ROAS</th>
+          </Fragment>
+        ))}
+        <th className="num" style={subTh}>Biaya</th>
+        <th className="num" style={subTh}>GMV</th>
+        <th className="num" style={subTh}>ROAS</th>
+      </tr>
+    </thead>
+  );
+}
+
+/* Biaya / GMV / ROAS rendered as 3 separate <td> cells (all white text) */
+function PeriodTds({ a, bold }: { a: Agg; bold?: boolean }) {
+  return (
+    <>
+      <td className="num" style={{ fontWeight: bold ? 800 : 600 }}>{rpC(a.biaya)}</td>
+      <td className="num" style={{ fontSize: 12.5 }}>{a.gmv ? rpC(a.gmv) : <span style={{ color: "var(--muted)" }}>—</span>}</td>
+      <td className="num" style={{ fontSize: 12, color: "#cdd9f0" }}>{roasF(roasOf(a))}</td>
+    </>
   );
 }
 
@@ -496,14 +515,7 @@ function DrillDown({ store, grup, mode, periods, rows, formula, onClose }: {
         {/* product table */}
         <div className="tbl-wrap" style={{ maxHeight: "55vh" }}>
           <table className="tbl" style={{ color: "#e8edf8" }}>
-            <thead>
-              <tr>
-                <th>Kode Produk</th><th>Nama Iklan / Produk</th>
-                <th className="num">Analisa</th>
-                {periods.map((p) => <th key={p} className="num">{p}</th>)}
-                <th className="num">Total</th>
-              </tr>
-            </thead>
+            <PeriodTableHead leadCols={["Kode Produk", "Nama Iklan / Produk", "Analisa"]} periods={periods} />
             <tbody>
               {products.map((pr) => {
                 const t = prodTotal(pr.name);
@@ -519,13 +531,13 @@ function DrillDown({ store, grup, mode, periods, rows, formula, onClose }: {
                         <span style={{ color: "var(--muted)" }}>—</span>
                       )}
                     </td>
-                    {periods.map((p) => <td key={p} className="num"><Cell a={prodPer(pr.name, p)} /></td>)}
-                    <td className="num"><Cell a={t} bold /></td>
+                    {periods.map((p) => <PeriodTds key={p} a={prodPer(pr.name, p)} />)}
+                    <PeriodTds a={t} bold />
                   </tr>
                 );
               })}
               {products.length === 0 && (
-                <tr><td colSpan={periods.length + 4} style={{ textAlign: "center", color: "var(--muted)", padding: 22 }}>No product rows</td></tr>
+                <tr><td colSpan={3 + periods.length * 3 + 3} style={{ textAlign: "center", color: "var(--muted)", padding: 22 }}>No product rows</td></tr>
               )}
             </tbody>
           </table>
@@ -953,6 +965,8 @@ const modalInput: React.CSSProperties = {
   border: "1px solid rgba(201,162,39,.25)", background: "rgba(10,22,40,.7)", color: "#e8edf8", fontSize: 11, textAlign: "right",
 };
 const trashBtn: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 13, opacity: .7, padding: 0 };
+const groupTh: React.CSSProperties = { borderLeft: "1px solid var(--line)" };
+const subTh: React.CSSProperties = { fontSize: 10.5, fontWeight: 600, color: "#9ab0cc", padding: "6px 10px" };
 const fInput: React.CSSProperties = {
   width: 130, boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, textAlign: "right",
   border: "1px solid rgba(201,162,39,.3)", background: "rgba(10,22,40,.7)", color: "#e8edf8", fontSize: 13,
