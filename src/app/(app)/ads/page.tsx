@@ -31,10 +31,10 @@ const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustu
 const MONTH_ORDER = ["Baseline", ...MONTHS];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
 const LEVELS = [
-  { v: "incubation",     l: "Incubation - Hero",     c: "#3b82f6" },
-  { v: "hero",           l: "Hero - Independent Ads", c: "#c9a227" },
-  { v: "regular",        l: "Independent Ads - Hero", c: "#8b5cf6" },
-  { v: "low_conversion", l: "All - Low Conversion",  c: "#ef4444" },
+  { v: "incubation",     l: "Incubation",     c: "#3b82f6" },
+  { v: "hero",           l: "Hero",           c: "#c9a227" },
+  { v: "regular",        l: "Independent Ads", c: "#8b5cf6" },
+  { v: "low_conversion", l: "Low Conversion", c: "#ef4444" },
 ];
 const levelMeta = (v: string | null) => LEVELS.find((x) => x.v === v);
 
