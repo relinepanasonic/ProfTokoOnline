@@ -86,19 +86,24 @@ export default function AdsPerformancePage() {
   const [modals, setModals] = useState<ModalRow[]>([]);
   const [formulas, setFormulas] = useState<Formulation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
 
   const load = useCallback(async (cid: string) => {
     setLoading(true);
-    const [{ data: r }, { data: m }, { data: fo }] = await Promise.all([
+    const [rGroups, rModals, rFormulas] = await Promise.all([
       supabase.from("ad_groups")
         .select("upload_id,year,month,week,store_name,pic_client,brand,grup_iklan,ads_level,level,item_name,kode_produk,biaya,omzet")
         .eq("client_id", cid),
       supabase.from("ad_modals").select("store_name,grup_iklan,year,month,week,modal_harian").eq("client_id", cid),
       supabase.from("ad_formulation").select("year,month,incubation_spent,incubation_roas,hero_spent,hero_roas,independent_spent,independent_roas,low_conversion_spent,low_conversion_roas").eq("client_id", cid),
     ]);
-    setRows((r as AdRow[]) || []);
-    setModals((m as ModalRow[]) || []);
-    setFormulas((fo as Formulation[]) || []);
+    // Surface the first real error (e.g. "relation ad_groups does not exist"
+    // when a migration hasn't been run yet) instead of silently going empty.
+    const err = rGroups.error || rModals.error || rFormulas.error;
+    setLoadErr(err ? `${err.message} (code: ${err.code || "?"})` : "");
+    setRows((rGroups.data as AdRow[]) || []);
+    setModals((rModals.data as ModalRow[]) || []);
+    setFormulas((rFormulas.data as Formulation[]) || []);
     setLoading(false);
   }, [supabase]);
 
@@ -120,6 +125,15 @@ export default function AdsPerformancePage() {
 
   return (
     <>
+      {loadErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ Database error loading Ads Performance data: {loadErr}
+          <div style={{ marginTop: 4, color: "#f87171", fontFamily: "inherit" }}>
+            This usually means a required Supabase migration hasn&apos;t been run yet (0018–0022).
+          </div>
+        </div>
+      )}
+
       {/* tabs */}
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         {(["performance", "formulation"] as const).map((t) => (
@@ -558,11 +572,13 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
   const [month, setMonth] = useState("");
   const [store, setStore] = useState("");
   const [baseline, setBaseline] = useState<number | null>(null);
+  const [filtersErr, setFiltersErr] = useState("");
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.rpc("dashboard_filters");
+      const { data, error } = await supabase.rpc("dashboard_filters");
       const f = data as { years?: number[]; months?: string[]; stores?: string[] } | null;
+      setFiltersErr(error ? `${error.message} (code: ${error.code || "?"})` : "");
       setDashYears(f?.years || []);
       setDashMonths(f?.months || []);
       setDashStores(f?.stores || []);
@@ -612,6 +628,14 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
 
   return (
     <div className="panel">
+      {filtersErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, color: "#fca5a5", fontSize: 12.5, fontFamily: "monospace" }}>
+          ⚠ dashboard_filters() error: {filtersErr}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, fontFamily: "monospace" }}>
+        diagnostic — ad_groups rows: {rows.length} · dashboard years: {dashYears.length} · dashboard months: {dashMonths.length} · dashboard stores: {dashStores.length}
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Formulation</h3>
