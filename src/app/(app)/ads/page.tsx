@@ -19,7 +19,7 @@ type ModalRow = { store_name: string; grup_iklan: string; year: number; month: s
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Mode = "week" | "month";
 type Formulation = {
-  year: number; month: string;
+  year: number; month: string; store_name: string;
   incubation_spent: number | null; incubation_roas: number | null;
   hero_spent: number | null; hero_roas: number | null;
   independent_spent: number | null; independent_roas: number | null;
@@ -95,7 +95,7 @@ export default function AdsPerformancePage() {
         .select("upload_id,year,month,week,store_name,pic_client,brand,grup_iklan,ads_level,level,item_name,kode_produk,biaya,omzet")
         .eq("client_id", cid),
       supabase.from("ad_modals").select("store_name,grup_iklan,year,month,week,modal_harian").eq("client_id", cid),
-      supabase.from("ad_formulation").select("year,month,incubation_spent,incubation_roas,hero_spent,hero_roas,independent_spent,independent_roas,low_conversion_spent,low_conversion_roas").eq("client_id", cid),
+      supabase.from("ad_formulation").select("year,month,store_name,incubation_spent,incubation_roas,hero_spent,hero_roas,independent_spent,independent_roas,low_conversion_spent,low_conversion_roas").eq("client_id", cid),
     ]);
     // Surface the first real error (e.g. "relation ad_groups does not exist"
     // when a migration hasn't been run yet) instead of silently going empty.
@@ -595,9 +595,11 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!year && years.length) setYear(String(years[0])); }, [years, year]);
 
+  // thresholds are unique PER STORE — an empty store_name ("") means the
+  // "All Stores" bucket, kept separate from any individual store's values.
   const stored = useMemo(() =>
-    formulas.find((f) => String(f.year) === year && f.month === month) || null,
-  [formulas, year, month]);
+    formulas.find((f) => String(f.year) === year && f.month === month && f.store_name === store) || null,
+  [formulas, year, month, store]);
 
   // actual per-level spend/ROAS from uploaded Grup Iklan data (reference)
   const scope = useMemo(() => rows.filter((r) =>
@@ -652,10 +654,16 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
         <StatCard label="Existing ROAS (Dashboard)" value={baseline != null ? roasF(baseline) : "—"} sub={`Baseline · ${store || "All Stores"} · ${month || "—"} ${year || ""}`} accent />
       </div>
 
+      {!store && (
+        <div style={{ fontSize: 12.5, color: "#f59e0b", marginBottom: 10 }}>
+          ⚠ Pick a specific store to save its thresholds — thresholds are per-store, not shared.
+        </div>
+      )}
+
       {/* keyed so local field state re-initialises from `stored` on month/store change */}
       <ThresholdEditor
-        key={`${year}|${month}`}
-        stored={stored} canEdit={canEdit} year={year} month={month}
+        key={`${year}|${month}|${store}`}
+        stored={stored} canEdit={canEdit && !!store} year={year} month={month} store={store}
         clientId={clientId} supabase={supabase} actualFor={actualFor} reload={reload}
       />
 
@@ -713,9 +721,18 @@ function WorkflowDiagram() {
   );
 }
 
-/* ── Threshold editor (keyed by year|month → fresh state per month) ── */
-function ThresholdEditor({ stored, canEdit, year, month, clientId, supabase, actualFor, reload }: {
-  stored: Formulation | null; canEdit: boolean; year: string; month: string;
+// Rupiah thousand-separator formatting: "23000" -> "23,000" (comma, per request).
+function formatRpInput(digits: string): string {
+  if (!digits) return "";
+  return Number(digits).toLocaleString("en-US");
+}
+function stripToDigits(v: string): string {
+  return v.replace(/[^0-9]/g, "");
+}
+
+/* ── Threshold editor (keyed by year|month|store → fresh state per store) ── */
+function ThresholdEditor({ stored, canEdit, year, month, store, clientId, supabase, actualFor, reload }: {
+  stored: Formulation | null; canEdit: boolean; year: string; month: string; store: string;
   clientId: string; supabase: ReturnType<typeof createClient>;
   actualFor: (lvl: string) => { spent: number; roas: number }; reload: () => void;
 }) {
@@ -736,13 +753,13 @@ function ThresholdEditor({ stored, canEdit, year, month, clientId, supabase, act
     if (!year || !month) { setMsg("Pick a year and month first."); return; }
     setSaving(true); setMsg("");
     const { error } = await supabase.from("ad_formulation").upsert({
-      client_id: clientId, year: Number(year), month,
+      client_id: clientId, store_name: store, year: Number(year), month,
       incubation_spent: numOrNull(fields.incubation_spent), incubation_roas: numOrNull(fields.incubation_roas),
       hero_spent: numOrNull(fields.hero_spent), hero_roas: numOrNull(fields.hero_roas),
       independent_spent: numOrNull(fields.independent_spent), independent_roas: numOrNull(fields.independent_roas),
       low_conversion_spent: numOrNull(fields.low_conversion_spent), low_conversion_roas: numOrNull(fields.low_conversion_roas),
       updated_at: new Date().toISOString(),
-    }, { onConflict: "client_id,year,month" });
+    }, { onConflict: "client_id,store_name,year,month" });
     setSaving(false);
     if (error) { setMsg("✗ " + error.message); return; }
     setMsg("✓ Saved"); reload();
@@ -755,8 +772,8 @@ function ThresholdEditor({ stored, canEdit, year, month, clientId, supabase, act
           <thead>
             <tr>
               <th>Ads Level</th>
-              <th className="num">Ads Spent (threshold)</th>
-              <th className="num">ROAS (threshold)</th>
+              <th className="num" style={{ width: 160 }}>Ads Spent (threshold)</th>
+              <th className="num" style={{ width: 110 }}>ROAS (threshold)</th>
               <th className="num">Actual Spent</th>
               <th className="num">Actual ROAS</th>
             </tr>
@@ -770,8 +787,14 @@ function ThresholdEditor({ stored, canEdit, year, month, clientId, supabase, act
                 <tr key={t.key}>
                   <td><span style={badge(t.c)}>{t.label}</span></td>
                   <td className="num">
-                    <input type="number" value={fields[spentKey]} disabled={!canEdit}
-                      onChange={(e) => setF(spentKey, e.target.value)} placeholder="Rp" style={fInput} />
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <span style={{ ...fInput, display: "flex", alignItems: "center", gap: 4, padding: "6px 9px" }}>
+                        <span style={{ color: "var(--muted)" }}>Rp</span>
+                        <input type="text" inputMode="numeric" value={formatRpInput(fields[spentKey])} disabled={!canEdit}
+                          onChange={(e) => setF(spentKey, stripToDigits(e.target.value))} placeholder="0"
+                          style={{ border: "none", background: "transparent", color: "inherit", fontSize: "inherit", textAlign: "right", width: "100%", padding: 0, outline: "none" }} />
+                      </span>
+                    </div>
                   </td>
                   <td className="num">
                     <input type="number" step="0.01" value={fields[roasKey]} disabled={!canEdit}
@@ -931,7 +954,7 @@ const modalInput: React.CSSProperties = {
 };
 const trashBtn: React.CSSProperties = { background: "none", border: "none", cursor: "pointer", fontSize: 13, opacity: .7, padding: 0 };
 const fInput: React.CSSProperties = {
-  width: "100%", boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, textAlign: "right",
+  width: 130, boxSizing: "border-box", padding: "6px 9px", borderRadius: 8, textAlign: "right",
   border: "1px solid rgba(201,162,39,.3)", background: "rgba(10,22,40,.7)", color: "#e8edf8", fontSize: 13,
 };
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" };
