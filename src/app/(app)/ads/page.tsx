@@ -547,11 +547,26 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
   rows: AdRow[]; formulas: Formulation[]; clientId: string;
   supabase: ReturnType<typeof createClient>; canEdit: boolean; reload: () => void;
 }) {
-  const years  = useMemo(() => Array.from(new Set(rows.map((r) => r.year).filter(Boolean) as number[])).sort((a,b)=>b-a), [rows]);
-  const months = useMemo(() => Array.from(new Set(rows.map((r) => r.month).filter(Boolean) as string[])).sort((a,b)=>MONTH_ORDER.indexOf(a)-MONTH_ORDER.indexOf(b)), [rows]);
+  // Year/Month/Store come from the DASHBOARD's own data range (sales_rows),
+  // not from ad_groups — otherwise the picker is empty (and baseline ROAS
+  // unreachable) until someone has already uploaded a Grup Iklan file.
+  const [years, setYears] = useState<number[]>([]);
+  const [months, setMonths] = useState<string[]>([]);
+  const [stores, setStores] = useState<string[]>([]);
   const [year, setYear] = useState("");
   const [month, setMonth] = useState("");
+  const [store, setStore] = useState("");
   const [baseline, setBaseline] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.rpc("dashboard_filters");
+      const f = data as { years?: number[]; months?: string[]; stores?: string[] } | null;
+      setYears((f?.years || []).slice().sort((a, b) => b - a));
+      setMonths((f?.months || []).slice().sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)));
+      setStores((f?.stores || []).slice().sort());
+    })();
+  }, [supabase]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!year && years.length) setYear(String(years[0])); }, [years, year]);
@@ -562,24 +577,26 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
     formulas.find((f) => String(f.year) === year && f.month === month) || null,
   [formulas, year, month]);
 
-  // actual per-level spend/ROAS from uploaded data (reference)
-  const scope = useMemo(() => rows.filter((r) => r.level === "group" && String(r.year) === year && r.month === month), [rows, year, month]);
+  // actual per-level spend/ROAS from uploaded Grup Iklan data (reference)
+  const scope = useMemo(() => rows.filter((r) =>
+    r.level === "group" && String(r.year) === year && r.month === month && (!store || r.store_name === store)
+  ), [rows, year, month, store]);
   const actualFor = (lvl: string) => { const a = sumAgg(scope.filter((r) => r.ads_level === lvl)); return { spent: a.biaya, roas: roasOf(a) }; };
 
-  // baseline "Existing ROAS" = the main Dashboard's ROAS for this month.
+  // baseline "Existing ROAS" = the main Dashboard's ROAS for this month (+ store if picked).
   // setState only ever happens inside the async callback (never synchronously).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!year || !month) { if (!cancelled) setBaseline(null); return; }
       const { data } = await supabase.rpc("dashboard_summary", {
-        p_year: Number(year), p_month: month, p_city: null, p_owner: null, p_brand: null, p_store: null,
+        p_year: Number(year), p_month: month, p_city: null, p_owner: null, p_brand: null, p_store: store || null,
       });
       const roas = (data as { kpis?: { roas?: number | null } } | null)?.kpis?.roas;
       if (!cancelled) setBaseline(roas ?? null);
     })();
     return () => { cancelled = true; };
-  }, [year, month, supabase]);
+  }, [year, month, store, supabase]);
 
   return (
     <div className="panel">
@@ -588,7 +605,13 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
           <h3 style={{ margin: 0 }}>Formulation</h3>
           <div className="hint">Set the monthly thresholds that drive the Analisa switch recommendations.</div>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <div className="fld" style={{ minWidth: 150 }}><label>Store</label>
+            <select value={store} onChange={(e) => setStore(e.target.value)}>
+              <option value="">All Stores</option>
+              {stores.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <div className="fld" style={{ minWidth: 110 }}><label>Year</label>
             <select value={year} onChange={(e) => setYear(e.target.value)}>
               {years.length ? years.map((y) => <option key={y} value={String(y)}>{y}</option>) : <option value="">—</option>}
@@ -604,15 +627,17 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
 
       {/* baseline */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12, marginBottom: 18 }}>
-        <StatCard label="Existing ROAS (Dashboard)" value={baseline != null ? roasF(baseline) : "—"} sub={`Baseline · ${month || "—"} ${year || ""}`} accent />
+        <StatCard label="Existing ROAS (Dashboard)" value={baseline != null ? roasF(baseline) : "—"} sub={`Baseline · ${store || "All Stores"} · ${month || "—"} ${year || ""}`} accent />
       </div>
 
-      {/* keyed so local field state re-initialises from `stored` on month change */}
+      {/* keyed so local field state re-initialises from `stored` on month/store change */}
       <ThresholdEditor
         key={`${year}|${month}`}
         stored={stored} canEdit={canEdit} year={year} month={month}
         clientId={clientId} supabase={supabase} actualFor={actualFor} reload={reload}
       />
+
+      <WorkflowDiagram />
 
       <div className="hint" style={{ marginTop: 16, lineHeight: 1.7 }}>
         <b style={{ color: "#cdd9f0" }}>Analisa switch rules</b> (per product, using its monthly Biaya &amp; ROAS):<br />
@@ -621,6 +646,47 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
         • <b>Hero</b> → “Switch to Low Conversion Group” when ROAS &lt; Low Conversion ROAS <i>and</i> Biaya &gt; Low Conversion Ads Spent<br />
         • <b>Independent</b> → “Switch to Hero Group” when ROAS &lt; Independent ROAS <i>and</i> Biaya &gt; Independent Ads Spent
       </div>
+    </div>
+  );
+}
+
+/* ── "Maximize Ads Work Flow" diagram (recreated to match the app theme) ── */
+function WorkflowDiagram() {
+  const box = (x: number, w: number, label: string, color: string) => (
+    <g>
+      <rect x={x} y={40} width={w} height={54} rx={10} fill="rgba(10,22,40,.75)" stroke={color} strokeWidth={1.5} />
+      <text x={x + w / 2} y={72} textAnchor="middle" fill="#e8edf8" fontSize="13" fontWeight={700}>{label}</text>
+    </g>
+  );
+  return (
+    <div style={{ marginTop: 20, padding: 18, borderRadius: 14, border: "1px solid var(--line)", background: "rgba(10,22,40,.4)" }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>
+        Maximize Ads Work Flow
+      </div>
+      <svg viewBox="0 0 760 220" style={{ width: "100%", height: "auto", maxWidth: 720 }}>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#c9a227" />
+          </marker>
+        </defs>
+        {/* Incubation -> Hero */}
+        {box(20, 140, "Group Incubation", "#3b82f6")}
+        <line x1="160" y1="67" x2="290" y2="67" stroke="#c9a227" strokeWidth="1.5" markerEnd="url(#arrow)" />
+        {/* Hero */}
+        {box(300, 140, "Group Hero", "#c9a227")}
+        {/* Hero -> Independent */}
+        <line x1="440" y1="67" x2="580" y2="67" stroke="#c9a227" strokeWidth="1.5" markerEnd="url(#arrow)" />
+        {/* Independent */}
+        {box(590, 150, "Independent Ads", "#8b5cf6")}
+        {/* Hero <-> Low Conversion loop */}
+        <rect x={300} y={150} width={140} height={54} rx={10} fill="rgba(10,22,40,.75)" stroke="#ef4444" strokeWidth="1.5" />
+        <text x={370} y={182} textAnchor="middle" fill="#e8edf8" fontSize="13" fontWeight={700}>Low Conversion</text>
+        <path d="M330,94 L330,150" stroke="#ef4444" strokeWidth="1.5" markerEnd="url(#arrow)" />
+        <path d="M410,150 L410,94" stroke="#ef4444" strokeWidth="1.5" markerEnd="url(#arrow)" />
+        {/* Independent -> Hero (demote) */}
+        <path d="M660,150 C660,190 480,190 440,94" fill="none" stroke="#8b5cf6" strokeWidth="1.5" strokeDasharray="4 3" markerEnd="url(#arrow)" />
+        <text x="560" y="205" textAnchor="middle" fill="#9ab0cc" fontSize="10">low ROAS → back to Hero</text>
+      </svg>
     </div>
   );
 }
