@@ -561,45 +561,39 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
   rows: AdRow[]; formulas: Formulation[]; clientId: string;
   supabase: ReturnType<typeof createClient>; canEdit: boolean; reload: () => void;
 }) {
-  // Year/Month/Store options are the UNION of the Dashboard's own data range
-  // (sales_rows, via dashboard_filters) and whatever's in ad_groups — a period
-  // should be pickable as soon as EITHER dataset has it, since Ads Performance
-  // uploads and SPOS/Performa uploads don't always happen at the same time.
-  const [dashYears, setDashYears] = useState<number[]>([]);
-  const [dashMonths, setDashMonths] = useState<string[]>([]);
-  const [dashStores, setDashStores] = useState<string[]>([]);
+  // Store options come from the CORE LIST (store_links) — always available,
+  // independent of whether any sales/ads data has been uploaded yet. Month is
+  // the fixed 12-month calendar (thresholds are config, may be set ahead of
+  // data); Year is a small range around now unioned with any year present in
+  // ad data. This is what "connect to Core List" means — the picker no longer
+  // waits on the heavy dashboard_filters() aggregation.
+  const [coreStores, setCoreStores] = useState<string[]>([]);
   const [year, setYear] = useState("");
-  const [month, setMonth] = useState("");
+  const nowY = new Date().getFullYear();
+  const [month, setMonth] = useState(MONTHS[new Date().getMonth()]);
   const [store, setStore] = useState("");
   const [baseline, setBaseline] = useState<number | null>(null);
-  const [filtersErr, setFiltersErr] = useState("");
 
   useEffect(() => {
+    if (!clientId) return;
     (async () => {
-      const { data, error } = await supabase.rpc("dashboard_filters");
-      const f = data as { years?: number[]; months?: string[]; stores?: string[] } | null;
-      setFiltersErr(error ? `${error.message} (code: ${error.code || "?"})` : "");
-      setDashYears(f?.years || []);
-      setDashMonths(f?.months || []);
-      setDashStores(f?.stores || []);
+      const { data } = await supabase.from("store_links").select("store_name").eq("client_id", clientId);
+      const s = Array.from(new Set(((data as { store_name: string | null }[]) || [])
+        .map((x) => x.store_name).filter(Boolean) as string[])).sort();
+      setCoreStores(s);
     })();
-  }, [supabase]);
+  }, [clientId, supabase]);
 
   const years = useMemo(() =>
-    Array.from(new Set([...dashYears, ...rows.map((r) => r.year).filter(Boolean) as number[]])).sort((a, b) => b - a),
-  [dashYears, rows]);
-  const months = useMemo(() =>
-    Array.from(new Set([...dashMonths, ...rows.map((r) => r.month).filter(Boolean) as string[]]))
-      .sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)),
-  [dashMonths, rows]);
+    Array.from(new Set([nowY, nowY - 1, ...rows.map((r) => r.year).filter(Boolean) as number[]])).sort((a, b) => b - a),
+  [rows, nowY]);
+  const months = MONTHS;
   const stores = useMemo(() =>
-    Array.from(new Set([...dashStores, ...rows.map((r) => r.store_name).filter(Boolean) as string[]])).sort(),
-  [dashStores, rows]);
+    Array.from(new Set([...coreStores, ...rows.map((r) => r.store_name).filter(Boolean) as string[]])).sort(),
+  [coreStores, rows]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { if (!year && years.length) setYear(String(years[0])); }, [years, year]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (!month && months.length) setMonth(months[months.length - 1]); }, [months, month]);
 
   const stored = useMemo(() =>
     formulas.find((f) => String(f.year) === year && f.month === month) || null,
@@ -628,14 +622,6 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
 
   return (
     <div className="panel">
-      {filtersErr && (
-        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, color: "#fca5a5", fontSize: 12.5, fontFamily: "monospace" }}>
-          ⚠ dashboard_filters() error: {filtersErr}
-        </div>
-      )}
-      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, fontFamily: "monospace" }}>
-        diagnostic — ad_groups rows: {rows.length} · dashboard years: {dashYears.length} · dashboard months: {dashMonths.length} · dashboard stores: {dashStores.length}
-      </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Formulation</h3>
@@ -655,7 +641,7 @@ function FormulationTab({ rows, formulas, clientId, supabase, canEdit, reload }:
           </div>
           <div className="fld" style={{ minWidth: 130 }}><label>Month</label>
             <select value={month} onChange={(e) => setMonth(e.target.value)}>
-              {months.length ? months.map((m) => <option key={m} value={m}>{m}</option>) : <option value="">—</option>}
+              {months.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
         </div>
