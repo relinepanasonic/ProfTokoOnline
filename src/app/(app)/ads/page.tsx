@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
+import Loader from "@/components/Loader";
 
 export const dynamic = "force-dynamic";
 
@@ -377,7 +378,7 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
               })}
               {groupRows.length === 0 && (
                 <tr><td colSpan={2 + periods.length * 3 + 3 + 1} style={{ textAlign: "center", color: "var(--muted)", padding: 26 }}>
-                  {loading ? "Loading…" : rows.length ? "No groups match these filters" : "No Grup Iklan uploaded yet — use the upload box above."}
+                  {loading ? <Loader center /> : rows.length ? "No groups match these filters" : "No Grup Iklan uploaded yet — use the upload box above."}
                 </td></tr>
               )}
               {groupRows.length > 0 && (

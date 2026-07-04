@@ -159,6 +159,21 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
   min-height:50vh;color:var(--muted);text-align:center}
 .coming .big{font-size:40px;opacity:.5}
 
+/* ── loading spinner (gold rotating ring) + skeleton shimmer ── */
+@keyframes ptSpin{to{transform:rotate(360deg)}}
+@keyframes ptShimmer{0%{background-position:-450px 0}100%{background-position:450px 0}}
+@keyframes ptPulse{0%,100%{opacity:.55}50%{opacity:.9}}
+.pt-ring{border-radius:50%;border-style:solid;border-color:rgba(201,162,39,.18);
+  border-top-color:var(--gold);animation:ptSpin .7s linear infinite;flex:none}
+.pt-loading{display:inline-flex;align-items:center;gap:9px;color:var(--gold);font-size:13px;font-weight:600}
+.pt-loading-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  padding:40px 0;color:var(--gold);font-weight:700}
+/* shimmering skeleton block */
+.pt-skel{position:relative;overflow:hidden;border-radius:8px;
+  background:linear-gradient(90deg,rgba(255,255,255,.04) 25%,rgba(255,255,255,.10) 37%,rgba(255,255,255,.04) 63%);
+  background-size:900px 100%;animation:ptShimmer 1.4s ease-in-out infinite}
+.kpi.pt-loading-card{animation:ptPulse 1.4s ease-in-out infinite}
+
 /* user badge */
 .user-badge{display:flex;align-items:center;gap:8px;background:rgba(15,32,64,.7);
   border:1px solid var(--card-border);border-radius:999px;padding:5px 6px 5px 14px;color:var(--text);font-size:13px}

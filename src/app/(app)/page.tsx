@@ -6,6 +6,7 @@ import {
   ComposedChart, Line, AreaChart, Area, PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
+import Loader from "@/components/Loader";
 
 export const dynamic = "force-dynamic";
 
@@ -295,18 +296,26 @@ export default function DashboardPage() {
         {brandsForOwner.length > 0 && <Sel label="Brand" value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all="All Brands" />}
         <Sel label={storeLabel} value={sel.store} onChange={pickStore} opts={filteredStores} all={`All ${storeLabel}s`} />
         <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>Reset</button>
-        {loading && <span style={{ alignSelf:"center", color: GOLD, fontSize:12 }}>Updating…</span>}
+        {loading && <Loader />}
       </div>
 
-      {/* ── KPIs ── */}
+      {/* ── KPIs (skeleton values while first-loading with no cached data) ── */}
+      {(() => {
+        const kv = (node: React.ReactNode) => k ? node : <span className="pt-skel" style={{ display:"inline-block", width:64, height:20, verticalAlign:"middle" }} />;
+        return (
       <div className="kpi-grid">
-        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Total Sales</div><div className="val">{k ? idr(k.sales) : "—"}</div><div className="kpi-sub">SPOS · siap dikirim</div></div>
-        <div className="kpi"><div className="kpi-icon">🏪</div><div className="lbl">Total GMV</div><div className="val">{k ? idr(k.gmv) : "—"}</div><div className="kpi-sub">Performa</div></div>
-        <div className="kpi"><div className="kpi-icon">👁</div><div className="lbl">Traffic</div><div className="val">{k ? num(k.traffic) : "—"}</div></div>
-        <div className="kpi"><div className="kpi-icon">🛒</div><div className="lbl">In-Cart</div><div className="val">{k ? num(k.in_cart) : "—"}</div><div className="kpi-sub">{k ? cartRate.toFixed(1)+"% cart rate" : ""}</div></div>
-        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Cost</div><div className="val">{k ? idr(k.ad_cost) : "—"}</div></div>
-        <div className="kpi kpi-roas"><div className="kpi-icon">⚡</div><div className="lbl">ROAS</div><div className="val">{k && k.roas ? k.roas.toFixed(2)+"×" : "—"}</div><div className="roas-bar"><div className="roas-fill" style={{ width: roasPct+"%" }} /></div></div>
+        <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">Total Sales</div><div className="val">{kv(idr(k?.sales ?? 0))}</div><div className="kpi-sub">SPOS · siap dikirim</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">Total GMV</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div><div className="kpi-sub">Performa</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">Traffic</div><div className="val">{kv(num(k?.traffic ?? 0))}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">In-Cart</div><div className="val">{kv(num(k?.in_cart ?? 0))}</div><div className="kpi-sub">{k ? cartRate.toFixed(1)+"% cart rate" : ""}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">Ads Cost</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div></div>
+        <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">⚡</div><div className="lbl">ROAS</div><div className="val">{kv((k?.roas ? k.roas.toFixed(2) : "0.00")+"×")}</div><div className="roas-bar"><div className="roas-fill" style={{ width: roasPct+"%" }} /></div></div>
       </div>
+        );
+      })()}
+
+      {/* first-load spinner (no cached data yet) */}
+      {loading && !d && <Loader center />}
 
       {/* ── Monthly sales ── */}
       <div className="row">

@@ -4,6 +4,27 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 
+const PROONE_URL = process.env.NEXT_PUBLIC_PROONE_API_URL ?? 'https://prooneaccounting.vercel.app/api/v1'
+const PROONE_KEY = process.env.NEXT_PUBLIC_PROONE_API_KEY ?? ''
+
+async function syncToProone(invoiceId: string, form: FormState, packageType: string) {
+  if (!PROONE_KEY) return
+  try {
+    await fetch(`${PROONE_URL}/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${PROONE_KEY}` },
+      body: JSON.stringify({
+        invoice_number: `PT-${invoiceId.slice(0, 8).toUpperCase()}`,
+        due_date: form.end_date || form.start_date,
+        client_name: form.store_name || form.brand || form.owner || 'ProfToko Client',
+        source: 'prof-toko-online',
+        external_id: invoiceId,
+        items: [{ description: `${form.package_name}${form.store_name ? ` — ${form.store_name}` : ''}`, quantity: 1, unit_price: Number(form.price_idr) || 0 }],
+      }),
+    })
+  } catch { /* non-blocking */ }
+}
+
 export const dynamic = "force-dynamic";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
@@ -140,11 +161,16 @@ export default function InvoicePage() {
     setSaving(true); setMsg("");
     const pkg = packages.find((p) => p.name === form.package_name);
     const payload = { client_id:clientId, owner:form.owner||null, brand:form.brand||null, store_name:form.store_name||null, package_name:form.package_name, package_type:pkg?.type||"addon", price_idr:Number(form.price_idr)||0, start_date:form.start_date, end_date:form.end_date||null, notes:form.notes||null };
-    const { error } = editId
-      ? await supabase.from("invoices").update({...payload, updated_at:new Date().toISOString()}).eq("id", editId)
-      : await supabase.from("invoices").insert(payload);
-    setSaving(false);
-    if (error) { setMsg("✗ " + error.message); return; }
+    if (editId) {
+      const { error } = await supabase.from("invoices").update({...payload, updated_at:new Date().toISOString()}).eq("id", editId)
+      setSaving(false);
+      if (error) { setMsg("✗ " + error.message); return; }
+    } else {
+      const { data: newInv, error } = await supabase.from("invoices").insert(payload).select('id').single()
+      setSaving(false);
+      if (error || !newInv) { setMsg("✗ " + (error?.message ?? 'Gagal menyimpan')); return; }
+      syncToProone(newInv.id, form, pkg?.type ?? 'addon')
+    }
     setShowForm(false); setForm(emptyForm); setEditId(null); loadInvoices(clientId);
   }
   async function del(id: string) {
