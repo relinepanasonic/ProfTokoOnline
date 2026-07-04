@@ -186,12 +186,24 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
+      // paint filter bar + store label instantly from last session's cache
+      try {
+        const raw = localStorage.getItem("ptoko_dash_meta_v2");
+        if (raw) {
+          const m = JSON.parse(raw) as { filters?: Filters; links?: StoreLink[]; storeLabel?: string };
+          if (m.filters) setFilters(m.filters);
+          if (m.links) setLinks(m.links);
+          if (m.storeLabel) setStoreLabel(m.storeLabel);
+        }
+      } catch { /* ignore */ }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      let label = "Store";
       const { data: p } = await supabase.from("profiles").select("client_id").eq("id", user.id).single();
       if (p?.client_id) {
         const { data: c } = await supabase.from("clients").select("store_label").eq("id", p.client_id).single();
-        if (c?.store_label) setStoreLabel(c.store_label);
+        if (c?.store_label) { label = c.store_label; setStoreLabel(label); }
       }
       const [{ data: f }, { data: sl }] = await Promise.all([
         supabase.rpc("dashboard_filters"),
@@ -199,10 +211,23 @@ export default function DashboardPage() {
       ]);
       if (f) setFilters(f as Filters);
       setLinks((sl as StoreLink[]) || []);
+      try {
+        localStorage.setItem("ptoko_dash_meta_v2", JSON.stringify({ filters: f, links: sl, storeLabel: label }));
+      } catch { /* quota */ }
     })();
   }, [supabase]);
 
   const load = useCallback(async () => {
+    // Stale-while-revalidate: paint the last-seen result for this exact filter
+    // selection instantly from localStorage (huge mobile win — no blank wait
+    // for the ~5s query), then refresh in the background.
+    const cacheKey = "ptoko_dash_v2:" + JSON.stringify(sel);
+    let hadCache = false;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) { setD(JSON.parse(raw) as Summary); hadCache = true; }
+    } catch { /* ignore */ }
+
     setLoading(true);
     const { data, error } = await supabase.rpc("dashboard_summary", {
       p_year:  sel.year  ? Number(sel.year) : null,
@@ -212,8 +237,13 @@ export default function DashboardPage() {
       p_brand: sel.brand || null,
       p_store: sel.store || null,
     });
-    setLoadErr(error ? `${error.message} (code: ${error.code || "?"})` : "");
-    setD(data as Summary);
+    // keep the stale snapshot on screen if the fresh fetch failed
+    if (error && hadCache) setLoadErr("");
+    else setLoadErr(error ? `${error.message} (code: ${error.code || "?"})` : "");
+    if (data) {
+      setD(data as Summary);
+      try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
+    }
     setLoading(false);
   }, [supabase, sel]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
