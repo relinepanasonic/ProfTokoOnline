@@ -19,7 +19,7 @@ type Summary = {
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
   traffic_trend: { month: string; traffic: number; in_cart: number }[];
-  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number }[] }[];
+  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
@@ -361,20 +361,22 @@ export default function DashboardPage() {
               <th>{storeLabel}</th><th>Trend</th>
               <th className="num">Sales</th><th className="num">Traffic</th>
               <th className="num">In-Cart</th><th className="num">Cart Rate</th>
-              <th className="num">Ads Cost</th><th className="num">ROAS</th>
+              <th className="num">Ads Cost</th><th className="num">ROAS Trend</th><th className="num">ROAS</th>
             </tr></thead>
             <tbody>
               {(d?.dealers||[]).map((r, i) => {
                 const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
+                const roasTrend = r.trend?.map((t) => ({ month: t.month, value: t.ad_cost ? t.sales / t.ad_cost : 0 }));
                 return (
                   <tr key={i}>
                     <td>{r.store_name}</td>
-                    <td><Sparkline data={r.trend} /></td>
+                    <td><Sparkline data={r.trend?.map((t) => ({ month: t.month, value: t.sales }))} /></td>
                     <td className="num">{idr(r.sales)}</td>
                     <td className="num">{num(r.traffic)}</td>
                     <td className="num">{num(r.in_cart)}</td>
                     <td className="num">{cr.toFixed(1)}%</td>
                     <td className="num">{idr(r.ad_cost)}</td>
+                    <td className="num"><Sparkline data={roasTrend} /></td>
                     <td className="num">
                       <span className={`pill ${!r.roas?"":r.roas>=3?"good":r.roas>=1?"warn":"bad"}`}>
                         {r.roas ? r.roas.toFixed(2)+"×" : "—"}
@@ -384,7 +386,7 @@ export default function DashboardPage() {
                 );
               })}
               {(!d?.dealers||d.dealers.length===0) && (
-                <tr><td colSpan={8} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
+                <tr><td colSpan={9} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
               )}
             </tbody>
           </table>
@@ -632,12 +634,12 @@ function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:
 }
 
 /* ── trend sparkline: one smooth line, green = up / red = down, soft glow + faint area ── */
-function Sparkline({ data }: { data?: { month: string; sales: number }[] }) {
-  const pts = (data || []).filter((p) => p.sales != null);
+function Sparkline({ data }: { data?: { month: string; value: number }[] }) {
+  const pts = (data || []).filter((p) => p.value != null);
   if (pts.length < 2) return null;
 
   const W = 96, H = 40, PADX = 4, PADY = 6;
-  const vals = pts.map((p) => p.sales);
+  const vals = pts.map((p) => p.value);
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
   const stepX = (W - PADX * 2) / (pts.length - 1);
