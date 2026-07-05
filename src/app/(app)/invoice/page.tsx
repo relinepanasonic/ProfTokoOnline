@@ -28,16 +28,13 @@ async function syncToProone(invoiceId: string, form: FormState, packageType: str
 export const dynamic = "force-dynamic";
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
-const COMPANIES = ["Profesor Toko Online", "New Wave Agency", "PT Pintu Langit"] as const;
-type Company = typeof COMPANIES[number];
-
-type Package = { id: string; name: string; type: string; months: number; price: number; sort_order: number; is_active: boolean; company: Company };
-type Invoice  = { id: string; owner: string | null; brand: string | null; store_name: string | null; package_name: string; package_type: string; price_idr: number; start_date: string; end_date: string | null; notes: string | null; created_at: string; company: Company };
+type Package = { id: string; name: string; type: string; months: number; price: number; sort_order: number; is_active: boolean };
+type Invoice  = { id: string; owner: string | null; brand: string | null; store_name: string | null; package_name: string; package_type: string; price_idr: number; start_date: string; end_date: string | null; notes: string | null; created_at: string };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
-type FormState = { company: Company; owner: string; store_name: string; brand: string; package_name: string; price_idr: string; start_date: string; end_date: string; notes: string };
+type FormState = { owner: string; store_name: string; brand: string; package_name: string; price_idr: string; start_date: string; end_date: string; notes: string };
 
-const emptyForm: FormState = { company: COMPANIES[0], owner: "", store_name: "", brand: "", package_name: "", price_idr: "", start_date: "", end_date: "", notes: "" };
-const emptyPkg = { id: "", name: "", type: "subscription", months: 3, price: 0, sort_order: 0, is_active: true, company: COMPANIES[0] as Company };
+const emptyForm: FormState = { owner: "", store_name: "", brand: "", package_name: "", price_idr: "", start_date: "", end_date: "", notes: "" };
+const emptyPkg = { id: "", name: "", type: "subscription", months: 3, price: 0, sort_order: 0, is_active: true };
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 function addMonths(iso: string, n: number) { const d = new Date(iso + "T00:00:00"); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10); }
@@ -84,8 +81,7 @@ export default function InvoicePage() {
   const [editId,   setEditId]   = useState<string|null>(null);
   const [saving,   setSaving]   = useState(false);
   const [msg,      setMsg]      = useState("");
-  const [flt, setFlt] = useState({ company: "", owner: "", package_name: "", month: "" });
-  const [pkgCompanyFilter, setPkgCompanyFilter] = useState("");
+  const [flt, setFlt] = useState({ owner: "", package_name: "", month: "" });
 
   /* ── Loaders ── */
   const loadPackages = useCallback(async () => {
@@ -96,7 +92,7 @@ export default function InvoicePage() {
   const loadInvoices = useCallback(async (cid: string) => {
     if (!cid) return;
     const { data } = await supabase.from("invoices")
-      .select("id,owner,brand,store_name,package_name,package_type,price_idr,start_date,end_date,notes,created_at,company")
+      .select("id,owner,brand,store_name,package_name,package_type,price_idr,start_date,end_date,notes,created_at")
       .eq("client_id", cid).order("created_at", { ascending: false });
     setInvoices((data as Invoice[]) || []);
   }, [supabase]);
@@ -119,16 +115,16 @@ export default function InvoicePage() {
 
   /* ── Package CRUD ── */
   function openAddPkg() {
-    setPkgForm({ ...emptyPkg, sort_order: packages.length + 1, company: (pkgCompanyFilter as Company) || COMPANIES[0] });
+    setPkgForm({ ...emptyPkg, sort_order: packages.length + 1 });
     setPkgEditId(null); setPkgMsg(""); setShowPkgForm(true);
   }
   function openEditPkg(p: Package) {
-    setPkgForm({ name:p.name, type:p.type, months:p.months, price:p.price, sort_order:p.sort_order, is_active:p.is_active, company:p.company });
+    setPkgForm({ name:p.name, type:p.type, months:p.months, price:p.price, sort_order:p.sort_order, is_active:p.is_active });
     setPkgEditId(p.id); setPkgMsg(""); setShowPkgForm(true);
   }
   async function savePkg() {
     if (!pkgForm.name.trim()) { setPkgMsg("Name is required"); return; }
-    const payload = { name:pkgForm.name.trim(), type:pkgForm.type, months:Number(pkgForm.months)||0, price:Number(pkgForm.price)||0, sort_order:Number(pkgForm.sort_order)||0, is_active:pkgForm.is_active, company:pkgForm.company };
+    const payload = { name:pkgForm.name.trim(), type:pkgForm.type, months:Number(pkgForm.months)||0, price:Number(pkgForm.price)||0, sort_order:Number(pkgForm.sort_order)||0, is_active:pkgForm.is_active };
     const { error } = pkgEditId
       ? await supabase.from("packages").update(payload).eq("id", pkgEditId)
       : await supabase.from("packages").insert(payload);
@@ -144,32 +140,27 @@ export default function InvoicePage() {
   /* ── Invoice helpers ── */
   function setF(k: keyof FormState, v: string) { setForm((f) => ({...f, [k]:v})); }
 
-  function pickCompany(company: Company) {
-    // Clear the package selection when switching company since packages are
-    // scoped per company — an old selection could belong to a different one.
-    setForm((f) => ({ ...f, company, package_name: "", price_idr: "", end_date: "" }));
-  }
   function pickPackage(name: string) {
-    const pkg = packages.find((p) => p.name === name && p.company === form.company);
+    const pkg = packages.find((p) => p.name === name);
     if (!pkg) { setF("package_name", name); return; }
     const endDate = form.start_date && pkg.months > 0 ? addMonths(form.start_date, pkg.months) : "";
     setForm((f) => ({...f, package_name:name, price_idr:String(pkg.price), end_date:endDate}));
   }
   function pickStart(v: string) {
-    const pkg = packages.find((p) => p.name === form.package_name && p.company === form.company);
+    const pkg = packages.find((p) => p.name === form.package_name);
     const endDate = v && pkg && pkg.months > 0 ? addMonths(v, pkg.months) : "";
     setForm((f) => ({...f, start_date:v, end_date:endDate}));
   }
   function openAdd() { setForm(emptyForm); setEditId(null); setMsg(""); setShowForm(true); }
   function openEdit(inv: Invoice) {
-    setForm({ company:inv.company, owner:inv.owner||"", store_name:inv.store_name||"", brand:inv.brand||"", package_name:inv.package_name, price_idr:String(inv.price_idr), start_date:inv.start_date, end_date:inv.end_date||"", notes:inv.notes||"" });
+    setForm({ owner:inv.owner||"", store_name:inv.store_name||"", brand:inv.brand||"", package_name:inv.package_name, price_idr:String(inv.price_idr), start_date:inv.start_date, end_date:inv.end_date||"", notes:inv.notes||"" });
     setEditId(inv.id); setMsg(""); setShowForm(true);
   }
   async function save() {
     if (!form.package_name || !form.start_date) { setMsg("Package and Start Date are required."); return; }
     setSaving(true); setMsg("");
-    const pkg = packages.find((p) => p.name === form.package_name && p.company === form.company);
-    const payload = { client_id:clientId, company:form.company, owner:form.owner||null, brand:form.brand||null, store_name:form.store_name||null, package_name:form.package_name, package_type:pkg?.type||"addon", price_idr:Number(form.price_idr)||0, start_date:form.start_date, end_date:form.end_date||null, notes:form.notes||null };
+    const pkg = packages.find((p) => p.name === form.package_name);
+    const payload = { client_id:clientId, owner:form.owner||null, brand:form.brand||null, store_name:form.store_name||null, package_name:form.package_name, package_type:pkg?.type||"addon", price_idr:Number(form.price_idr)||0, start_date:form.start_date, end_date:form.end_date||null, notes:form.notes||null };
     if (editId) {
       const { error } = await supabase.from("invoices").update({...payload, updated_at:new Date().toISOString()}).eq("id", editId)
       setSaving(false);
@@ -178,12 +169,7 @@ export default function InvoicePage() {
       const { data: newInv, error } = await supabase.from("invoices").insert(payload).select('id').single()
       setSaving(false);
       if (error || !newInv) { setMsg("✗ " + (error?.message ?? 'Gagal menyimpan')); return; }
-      // The Proone API key configured here is scoped to Profesor Toko Online's
-      // company in Proone Accounting — syncing New Wave/PT Pintu Langit
-      // invoices with it would file them under the wrong company's books.
-      if (form.company === "Profesor Toko Online") {
-        syncToProone(newInv.id, form, pkg?.type ?? 'addon')
-      }
+      syncToProone(newInv.id, form, pkg?.type ?? 'addon')
     }
     setShowForm(false); setForm(emptyForm); setEditId(null); loadInvoices(clientId);
   }
@@ -193,9 +179,8 @@ export default function InvoicePage() {
     loadInvoices(clientId);
   }
 
-  const activePkg = packages.find((p) => p.name === form.package_name && p.company === form.company);
+  const activePkg = packages.find((p) => p.name === form.package_name);
   const isAddon   = activePkg?.type === "addon";
-  const companyPackages = packages.filter((p) => p.company === form.company);
 
   const expiring = invoices.filter((inv) => {
     if (inv.package_type !== "subscription" || !inv.end_date) return false;
@@ -206,7 +191,6 @@ export default function InvoicePage() {
   const pkgNames = Array.from(new Set(invoices.map((i) => i.package_name))).sort();
   const fOwners = Array.from(new Set(invoices.map((i) => i.owner).filter(Boolean) as string[])).sort();
   const shown = invoices.filter((inv) => {
-    if (flt.company && inv.company !== flt.company) return false;
     if (flt.owner && inv.owner !== flt.owner) return false;
     if (flt.package_name && inv.package_name !== flt.package_name) return false;
     if (flt.month) {
@@ -254,32 +238,23 @@ export default function InvoicePage() {
         {/* ══ TAB: Product Packages ══ */}
         {tab === "products" && (
           <>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
               <div>
                 <h3 style={{ margin:0 }}>Product Packages</h3>
-                <div className="hint">Service packages — different per company</div>
+                <div className="hint">Service packages offered by ProfTokoOnline</div>
               </div>
               <button className="btn-gold" onClick={openAddPkg}>+ New Package</button>
-            </div>
-
-            <div className="fld" style={{ maxWidth:220, marginBottom:14 }}>
-              <label>Company</label>
-              <select value={pkgCompanyFilter} onChange={(e) => setPkgCompanyFilter(e.target.value)}>
-                <option value="">All companies</option>
-                {COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
             </div>
 
             <div className="tbl-wrap">
               <table className="tbl">
                 <thead>
-                  <tr><th>#</th><th>Company</th><th>Package Name</th><th>Type</th><th>Duration</th><th className="num">Price</th><th>Status</th><th></th></tr>
+                  <tr><th>#</th><th>Package Name</th><th>Type</th><th>Duration</th><th className="num">Price</th><th>Status</th><th></th></tr>
                 </thead>
                 <tbody>
-                  {packages.filter((p) => !pkgCompanyFilter || p.company === pkgCompanyFilter).map((p, i) => (
+                  {packages.map((p, i) => (
                     <tr key={p.id}>
                       <td style={{ color:"var(--muted)", fontSize:12 }}>{i+1}</td>
-                      <td style={{ color:"var(--muted)", fontSize:12 }}>{p.company}</td>
                       <td style={{ fontWeight:600 }}>{p.name}</td>
                       <td>
                         <span className={`pill ${p.type==="subscription"?"good":"warn"}`}>
@@ -301,7 +276,7 @@ export default function InvoicePage() {
                       </td>
                     </tr>
                   ))}
-                  {packages.filter((p) => !pkgCompanyFilter || p.company === pkgCompanyFilter).length === 0 && <tr><td colSpan={8} style={{ textAlign:"center", color:"var(--muted)", padding:28 }}>No packages yet</td></tr>}
+                  {packages.length === 0 && <tr><td colSpan={7} style={{ textAlign:"center", color:"var(--muted)", padding:28 }}>No packages yet</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -321,13 +296,6 @@ export default function InvoicePage() {
 
             {/* Filters */}
             <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"flex-end", marginBottom:14 }}>
-              <div className="fld" style={{ minWidth:170 }}>
-                <label>Company</label>
-                <select value={flt.company} onChange={(e) => setFlt((f) => ({...f, company:e.target.value}))}>
-                  <option value="">All companies</option>
-                  {COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
               <div className="fld" style={{ minWidth:160 }}>
                 <label>Owner</label>
                 <select value={flt.owner} onChange={(e) => setFlt((f) => ({...f, owner:e.target.value}))}>
@@ -347,8 +315,8 @@ export default function InvoicePage() {
                 <input type="month" value={flt.month} onChange={(e) => setFlt((f) => ({...f, month:e.target.value}))}
                   style={{ padding:"7px 10px", borderRadius:10, border:"1px solid rgba(201,162,39,.25)", background:"rgba(10,22,40,.6)", color:"var(--text)", fontSize:13 }} />
               </div>
-              {(flt.company || flt.owner || flt.package_name || flt.month) && (
-                <button className="btn-ghost" onClick={() => setFlt({company:"",owner:"",package_name:"",month:""})} style={{ height:38, alignSelf:"flex-end" }}>Reset</button>
+              {(flt.owner || flt.package_name || flt.month) && (
+                <button className="btn-ghost" onClick={() => setFlt({owner:"",package_name:"",month:""})} style={{ height:38, alignSelf:"flex-end" }}>Reset</button>
               )}
               <span style={{ marginLeft:"auto", alignSelf:"flex-end", fontSize:11, fontWeight:700, color:"var(--gold)", background:"rgba(201,162,39,.12)", border:"1px solid rgba(201,162,39,.25)", borderRadius:999, padding:"3px 12px" }}>
                 {shown.length} / {invoices.length}
@@ -358,7 +326,7 @@ export default function InvoicePage() {
             <div className="tbl-wrap">
               <table className="tbl">
                 <thead>
-                  <tr><th>Company</th><th>Store</th><th>Owner</th><th>Brand</th><th>Package</th><th>Type</th><th className="num">Price</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th></th></tr>
+                  <tr><th>Store</th><th>Owner</th><th>Brand</th><th>Package</th><th>Type</th><th className="num">Price</th><th>Start</th><th>End</th><th>Status</th><th>Notes</th><th></th></tr>
                 </thead>
                 <tbody>
                   {shown.map((inv) => {
@@ -372,7 +340,6 @@ export default function InvoicePage() {
                       : <span className="pill good">Active</span>;
                     return (
                       <tr key={inv.id}>
-                        <td style={{ color:"var(--muted)", fontSize:12 }}>{inv.company}</td>
                         <td style={{ fontWeight:600 }}>{inv.store_name||"—"}</td>
                         <td>{inv.owner||"—"}</td>
                         <td>{inv.brand||"—"}</td>
@@ -393,7 +360,7 @@ export default function InvoicePage() {
                     );
                   })}
                   {shown.length === 0 && (
-                    <tr><td colSpan={12} style={{ color:"var(--muted)", textAlign:"center", padding:28 }}>
+                    <tr><td colSpan={11} style={{ color:"var(--muted)", textAlign:"center", padding:28 }}>
                       {invoices.length ? "No invoices match these filters" : "No invoices yet — click New Invoice to add one"}
                     </td></tr>
                   )}
@@ -414,13 +381,6 @@ export default function InvoicePage() {
 
             <div style={{ padding:"16px 20px", overflowY:"auto", flex:1, display:"flex", flexDirection:"column", gap:14 }}>
               {msg && <div style={{ color:"#ff9a9a", fontSize:12, background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.2)", borderRadius:8, padding:"8px 12px" }}>{msg}</div>}
-
-              {/* Company */}
-              <MFld label="Company">
-                <select value={form.company} onChange={(e) => pickCompany(e.target.value as Company)}>
-                  {COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </MFld>
 
               {/* Row 1: Owner | Store Name | Brand — 3 columns */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
@@ -448,24 +408,21 @@ export default function InvoicePage() {
                 </MFld>
               </div>
 
-              {/* Package — scoped to the selected company */}
+              {/* Package */}
               <MFld label="Package">
                 <select value={form.package_name} onChange={(e) => pickPackage(e.target.value)}>
                   <option value="">— Select package —</option>
                   <optgroup label="── Subscriptions ──">
-                    {companyPackages.filter((p) => p.type==="subscription" && p.is_active).map((p) => (
+                    {packages.filter((p) => p.type==="subscription" && p.is_active).map((p) => (
                       <option key={p.id} value={p.name}>{p.name} — {fmtIDR(p.price)}</option>
                     ))}
                   </optgroup>
                   <optgroup label="── Add-ons (one-time) ──">
-                    {companyPackages.filter((p) => p.type==="addon" && p.is_active).map((p) => (
+                    {packages.filter((p) => p.type==="addon" && p.is_active).map((p) => (
                       <option key={p.id} value={p.name}>{p.name} — {fmtIDR(p.price)}</option>
                     ))}
                   </optgroup>
                 </select>
-                {companyPackages.length === 0 && (
-                  <span style={{ fontSize:10.5, color:"var(--muted)", marginTop:3 }}>No packages yet for {form.company} — add one in Product Packages.</span>
-                )}
               </MFld>
 
               <MFld label="Price (IDR)">
@@ -511,12 +468,6 @@ export default function InvoicePage() {
 
             <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:14 }}>
               {pkgMsg && <div style={{ color:"#ff9a9a", fontSize:12, background:"rgba(239,68,68,.1)", border:"1px solid rgba(239,68,68,.2)", borderRadius:8, padding:"8px 12px" }}>{pkgMsg}</div>}
-
-              <Fld2 label="Company">
-                <select style={inp} value={pkgForm.company} onChange={(e) => setPkgForm((f) => ({...f, company:e.target.value as Company}))}>
-                  {COMPANIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Fld2>
 
               <Fld2 label="Package Name">
                 <input style={inp} value={pkgForm.name} onChange={(e) => setPkgForm((f) => ({...f, name:e.target.value}))} placeholder="e.g. Paket Lapak" />
