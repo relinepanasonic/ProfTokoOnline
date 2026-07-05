@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ProfTokoOnline Dashboard",
   description: "Multi-client Shopee sales dashboard",
-  manifest: "/manifest.webmanifest",
+  // manifest link is auto-injected by the app/manifest.ts route convention
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Prof Toko Online" },
 };
 
