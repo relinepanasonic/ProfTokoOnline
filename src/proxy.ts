@@ -36,7 +36,13 @@ export async function proxy(request: NextRequest) {
   // /join/[token] (self-registration from an invite link) and its API must
   // stay reachable while signed out — otherwise the invite link bounces
   // straight to /login before the signup form ever renders.
-  const isPublic = isAuthPage || path.startsWith("/join/") || path === "/api/join";
+  // manifest.webmanifest and sw.js MUST be reachable while signed out — the
+  // login page itself needs them for Android's "Install app" prompt to work.
+  // A redirect response here breaks service-worker registration outright
+  // (rejected by spec) and makes the manifest fetch return HTML instead of
+  // JSON, silently failing installability.
+  const isPublic = isAuthPage || path.startsWith("/join/") || path === "/api/join"
+    || path === "/manifest.webmanifest" || path === "/sw.js";
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
@@ -53,5 +59,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };
