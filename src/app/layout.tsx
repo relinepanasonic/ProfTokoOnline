@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "ProfTokoOnline Dashboard",
   description: "Multi-client Shopee sales dashboard",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Prof Toko Online" },
+};
+
+// navy status-bar / browser-chrome tint + splash background (no white flash)
+export const viewport: Viewport = {
+  themeColor: "#0a1628",
 };
 
 export default function RootLayout({
