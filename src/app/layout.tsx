@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 // navy status-bar / browser-chrome tint + splash background (no white flash)
 export const viewport: Viewport = {
-  themeColor: "#0a1628",
+  themeColor: "#091732",
 };
 
 export default function RootLayout({
