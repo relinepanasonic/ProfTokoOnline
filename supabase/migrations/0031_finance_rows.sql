@@ -115,8 +115,8 @@ as $$
     'jasa_kirim', (select coalesce(jsonb_agg(x order by x.cnt desc),'[]') from (
         select coalesce(jasa_kirim,'Lainnya') service, count(*) cnt
         from f group by jasa_kirim) x),
-    'daily', (select coalesce(jsonb_agg(x order by x.day),'[]') from (
-        select release_date day, count(*) orders,
+    'daily', (select coalesce(jsonb_agg(x order by x.tx_date),'[]') from (
+        select release_date as tx_date, count(*) orders,
                sum(sales) sales, sum(discount_voucher) discount_voucher,
                sum(marketplace_fee) marketplace_fee, sum(net_income) net_income,
                sum(refund) refund
