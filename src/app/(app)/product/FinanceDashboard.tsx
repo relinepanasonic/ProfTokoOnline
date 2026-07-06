@@ -174,10 +174,10 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       {/* Fee + Discount */}
       <div className="row c2">
         <Panel title="Monthly Biaya Marketplace" hint="Total Admin & Layanan fee per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" color="#f87171" />
+          <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" top="#8896a4" bottom="#525f6d" />
         </Panel>
         <Panel title="Monthly Promotion Cost" hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" color="#fbbf24" />
+          <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" top="#cdae66" bottom="#8c7233" />
         </Panel>
       </div>
 
@@ -398,20 +398,21 @@ type StackedMonth = {
   delivery_cost: number; affiliate_cost: number; marketplace_fee: number;
   ads_cost: number; modal: number; misc: number;
 };
-// Jewel-toned gradients (top = lighter stop, bottom = darker) — same visual
-// language as the main Dashboard's gold/navy 3D bars, no neon pink/green.
-// "Ads Spent" reuses the exact navy gradient from the main Dashboard's own
-// Ads Cost chart, so the two pages read as one family.
+// Single cohesive tonal ramp in the app's own navy↔gold family — a low-
+// contrast "luxurious" sweep from warm gold (Nett Profit, the hero, at the
+// base) up through bronze/taupe/slate to deep navy (top). Adjacent segments
+// differ only slightly, so nothing fights; desaturated so it reads refined
+// rather than neon. Each has a soft top→bottom gradient (lighter top stop).
 const STACK_SEGMENTS: { key: keyof StackedMonth; label: string; top: string; bottom: string; dot: string }[] = [
-  { key: "nett_profit",     label: "Nett Profit",       top: "#f5e070", bottom: "#8a6510", dot: "#f0d870" }, // gold
-  { key: "promotion_cost",  label: "Promotion Cost",    top: "#fcd34d", bottom: "#92611a", dot: "#e8c84a" }, // amber
-  { key: "refund",          label: "Pengembalian Dana", top: "#e0a389", bottom: "#6b3524", dot: "#d99178" }, // terracotta
-  { key: "delivery_cost",   label: "Delivery Cost",     top: "#6fd6cd", bottom: "#0f5c56", dot: "#4fc2b8" }, // teal
-  { key: "affiliate_cost",  label: "Affiliate Cost",    top: "#b79bdb", bottom: "#4a2a6b", dot: "#9c7bc9" }, // plum
-  { key: "marketplace_fee", label: "Marketplace Fee",   top: "#e08a8a", bottom: "#6b1f1f", dot: "#d67373" }, // muted rust
-  { key: "ads_cost",        label: "Ads Spent",         top: "#4a8fd4", bottom: "#0c1e40", dot: "#3b82c4" }, // navy (matches Dashboard Ads Cost)
-  { key: "modal",           label: "Total Modal",       top: "#d7a466", bottom: "#6b4423", dot: "#c98f4a" }, // bronze
-  { key: "misc",            label: "Misc",              top: "#9fb0c4", bottom: "#3f4b5c", dot: "#7f93aa" }, // slate
+  { key: "nett_profit",     label: "Nett Profit",       top: "#e6c65f", bottom: "#a4801f", dot: "#dcb84f" }, // gold — hero
+  { key: "promotion_cost",  label: "Promotion Cost",    top: "#cdae66", bottom: "#8c7233", dot: "#c2a25c" }, // soft gold
+  { key: "refund",          label: "Pengembalian Dana", top: "#bd9d72", bottom: "#7d6440", dot: "#b08f64" }, // bronze
+  { key: "delivery_cost",   label: "Delivery Cost",     top: "#a8977f", bottom: "#6b5d48", dot: "#9c8b73" }, // taupe
+  { key: "affiliate_cost",  label: "Affiliate Cost",    top: "#95928d", bottom: "#5c5a55", dot: "#8a8781" }, // warm grey
+  { key: "marketplace_fee", label: "Marketplace Fee",   top: "#8896a4", bottom: "#525f6d", dot: "#7e8c9a" }, // slate
+  { key: "ads_cost",        label: "Ads Spent",         top: "#6f88a4", bottom: "#3d566f", dot: "#657f9c" }, // steel navy (Dashboard Ads family)
+  { key: "modal",           label: "Total Modal",       top: "#5a7490", bottom: "#31495f", dot: "#516a86" }, // deep slate
+  { key: "misc",            label: "Misc",              top: "#496286", bottom: "#243c56", dot: "#42597c" }, // deep navy
 ];
 function buildStackedData(d: Summary | null, pd: ProductDetail | null): StackedMonth[] {
   const months = new Set<string>();
@@ -490,6 +491,7 @@ function StackedProfitChart({ data }: { data: StackedMonth[] }) {
           <Tooltip content={<StackedTooltip />} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
           {STACK_SEGMENTS.map((s, i) => (
             <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={`url(#psg-${s.key})`}
+              stroke="rgba(9,17,33,0.75)" strokeWidth={1} maxBarSize={104}
               radius={i === STACK_SEGMENTS.length - 1 ? [6, 6, 0, 0] : undefined} />
           ))}
         </BarChart>
@@ -498,17 +500,24 @@ function StackedProfitChart({ data }: { data: StackedMonth[] }) {
     </div>
   );
 }
-function SimpleBarChart({ data, dataKey, color }: { data: Record<string, unknown>[]; dataKey: string; color: string }) {
+function SimpleBarChart({ data, dataKey, top, bottom }: { data: Record<string, unknown>[]; dataKey: string; top: string; bottom: string }) {
   if (!data.length) return <Empty />;
+  const gid = `sbg-${dataKey}`;
   return (
     <div style={{ width: "100%", height: 260 }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+          <defs>
+            <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={top} />
+              <stop offset="100%" stopColor={bottom} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [rpFull(Number(v)), ""]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
-          <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>{data.map((_, i) => <Cell key={i} fill={color} />)}</Bar>
+          <Bar dataKey={dataKey} radius={[6, 6, 0, 0]} maxBarSize={104} fill={`url(#${gid})`} />
         </BarChart>
       </ResponsiveContainer>
     </div>
