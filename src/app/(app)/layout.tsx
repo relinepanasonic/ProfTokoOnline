@@ -15,16 +15,16 @@ type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "a
 //                     Market Place Fee (read-only, scoped to their Owner)
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser"] },
-  { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
-  { href: "/product",   icon: "📦", label: "Product Performance", roles: ["superadmin"] },
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
+  { href: "/product",   icon: "📦", label: "Detail Keuangan",     roles: ["superadmin"] },
   { href: "/store",     icon: "🏬", label: "Store Performance",   roles: ["superadmin"] },
-  { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
-  { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
-  { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
   { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
+  { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
+  { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
+  { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
+  { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
