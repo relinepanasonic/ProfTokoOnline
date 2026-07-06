@@ -34,12 +34,12 @@ type Summary = {
   daily: { tx_date: string; orders: number; sales: number; discount_voucher: number; marketplace_fee: number; net_income: number; refund: number }[];
 };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
-type FinanceRowLite = { year: number | null; month: string | null; week: string | null; store_name: string | null; pic_client: string | null; brand: string | null };
+type FinanceFilters = { years: number[]; months: string[] };
 
 export default function FinanceDashboard({ clientId, refreshKey }: { clientId: string; refreshKey: number }) {
   const [supabase] = useState(() => createClient());
   const [hasAnyData, setHasAnyData] = useState<boolean | null>(null); // null = checking
-  const [meta, setMeta] = useState<FinanceRowLite[]>([]);
+  const [filters, setFilters] = useState<FinanceFilters>({ years: [], months: [] });
   const [links, setLinks] = useState<Link[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", brand: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
@@ -50,8 +50,11 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
     if (!clientId) return;
     const { count } = await supabase.from("finance_rows").select("id", { count: "exact", head: true }).eq("client_id", clientId);
     setHasAnyData((count ?? 0) > 0);
-    const { data: mrows } = await supabase.from("finance_rows").select("year,month,week,store_name,pic_client,brand").eq("client_id", clientId);
-    setMeta((mrows as FinanceRowLite[]) || []);
+    // server-side DISTINCT — never ships every row to the browser just to
+    // build a dropdown (a plain select() truncates at 1000 rows, which
+    // silently dropped later months once total uploads grew past that)
+    const { data: f } = await supabase.rpc("finance_filters");
+    setFilters((f as FinanceFilters) || { years: [], months: [] });
     const { data: sl } = await supabase.from("store_links").select("owner,brand,store_name").eq("client_id", clientId);
     setLinks((sl as Link[]) || []);
   }, [supabase, clientId]);
@@ -76,8 +79,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
-  const years = useMemo(() => Array.from(new Set(meta.map((r) => r.year).filter(Boolean) as number[])).sort((a, b) => b - a), [meta]);
-  const months = useMemo(() => Array.from(new Set(meta.map((r) => r.month).filter(Boolean) as string[])).sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)), [meta]);
+  const years = useMemo(() => [...filters.years].sort((a, b) => b - a), [filters.years]);
+  const months = useMemo(() => [...filters.months].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)), [filters.months]);
   const owners = useMemo(() => Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort(), [links]);
   const brandsForOwner = useMemo(() => sel.owner
     ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.brand).filter(Boolean) as string[])).sort()
