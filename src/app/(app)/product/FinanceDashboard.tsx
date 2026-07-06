@@ -430,6 +430,24 @@ function buildStackedData(d: Summary | null, pd: ProductDetail | null): StackedM
     };
   });
 }
+function StackedTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey?: string; value?: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const byKey = new Map(payload.map((p) => [p.dataKey, p.value ?? 0]));
+  // top of the visual stack first, matching how the bars read top-to-bottom
+  const ordered = [...STACK_SEGMENTS].reverse();
+  return (
+    <div style={TIP_STYLE}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      {ordered.map((s) => (
+        <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 0" }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.color, flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{s.label}</span>
+          <span style={{ fontWeight: 700 }}>{rpFull(Number(byKey.get(s.key) ?? 0))}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 function StackedProfitChart({ data }: { data: StackedMonth[] }) {
   if (!data.length) return <Empty />;
   return (
@@ -439,7 +457,7 @@ function StackedProfitChart({ data }: { data: StackedMonth[] }) {
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [rpFull(Number(v)), STACK_SEGMENTS.find((s) => s.key === n)?.label || String(n)]} />
+          <Tooltip content={<StackedTooltip />} />
           <Legend wrapperStyle={{ fontSize: 10.5 }} iconType="circle" iconSize={8} />
           {STACK_SEGMENTS.map((s, i) => (
             <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={s.color}
