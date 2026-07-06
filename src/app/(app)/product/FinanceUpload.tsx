@@ -4,18 +4,17 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type UploadRow = {
   id: string; filename: string | null; row_count: number; created_at: string;
-  meta: { pic_client?: string; store_name?: string; bulan?: string; week?: string; year?: number; periode_start?: string; periode_end?: string } | null;
+  meta: { pic_client?: string; store_name?: string; bulan?: string; year?: number; periode_start?: string; periode_end?: string } | null;
 };
 
 export default function FinanceUpload({ clientId, onUploaded }: { clientId: string; onUploaded: () => void }) {
   const [supabase] = useState(() => createClient());
   const [file, setFile] = useState<File | null>(null);
-  const [m, setM] = useState({ year: new Date().getFullYear(), bulan: "", week: "Week 1", pic_client: "", brand: "", store_name: "" });
+  const [m, setM] = useState({ year: new Date().getFullYear(), bulan: "", pic_client: "", brand: "", store_name: "" });
   const [links, setLinks] = useState<Link[]>([]);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState("");
@@ -82,9 +81,12 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
           ⬇ Download Cara Ambil Report Keuangan dari Shopee
         </a>
       </div>
-      <div className="hint" style={{ marginBottom: 16 }}>Upload the Shopee &quot;Laporan Penghasilan&quot; (Income) export — the &quot;Income&quot; sheet is read automatically.</div>
+      <div className="hint" style={{ marginBottom: 16 }}>
+        Upload the Shopee &quot;Laporan Penghasilan&quot; (Income) export — the &quot;Income&quot; sheet is read automatically.
+        Week is auto-detected per transaction from its release date (Week 1 = days 1–7 of the month you pick, Week 5 may spill a few days into the next month).
+      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 14 }}>
         <Field label="Year">
           <input type="number" value={m.year} onChange={(e) => setM((s) => ({ ...s, year: Number(e.target.value) }))} />
         </Field>
@@ -92,11 +94,6 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
           <select value={m.bulan} onChange={(e) => setM((s) => ({ ...s, bulan: e.target.value }))}>
             <option value="">Month</option>
             {MONTHS.map((mo) => <option key={mo}>{mo}</option>)}
-          </select>
-        </Field>
-        <Field label="Week">
-          <select value={m.week} onChange={(e) => setM((s) => ({ ...s, week: e.target.value }))}>
-            {WEEKS.map((w) => <option key={w}>{w}</option>)}
           </select>
         </Field>
       </div>
@@ -146,14 +143,13 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
       {uploads.length > 0 && (
         <div className="tbl-wrap" style={{ marginTop: 20 }}>
           <table className="tbl">
-            <thead><tr><th>Owner</th><th>Store</th><th>Month</th><th>Week</th><th>Year</th><th className="num">Rows</th><th>File</th><th>Uploaded</th><th></th></tr></thead>
+            <thead><tr><th>Owner</th><th>Store</th><th>Month</th><th>Year</th><th className="num">Rows</th><th>File</th><th>Uploaded</th><th></th></tr></thead>
             <tbody>
               {uploads.map((u) => (
                 <tr key={u.id}>
                   <td>{u.meta?.pic_client || "—"}</td>
                   <td>{u.meta?.store_name || "—"}</td>
                   <td>{u.meta?.bulan || "—"}</td>
-                  <td>{u.meta?.week || "—"}</td>
                   <td>{u.meta?.year || "—"}</td>
                   <td className="num">{u.row_count?.toLocaleString("id-ID") || 0}</td>
                   <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u.filename || ""}>{u.filename || "—"}</td>

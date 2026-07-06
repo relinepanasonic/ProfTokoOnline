@@ -142,3 +142,22 @@ export function parseFinanceMatrix(matrix: unknown[][]): FinanceParsed {
 
   return { username, periodeStart, periodeEnd, rows };
 }
+
+const MONTHS_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
+// "Week N of <month>" = days (N-1)*7+1 .. N*7 counted from day 1 of the
+// UPLOAD'S chosen month (not the calendar month the date literally falls
+// in) — Week 5 naturally spills into the next calendar month, and stays
+// attributed to the chosen month's week grid. Matches the same
+// Monday-Sunday weekly cadence used across the rest of the app whenever
+// day 1 of the month is itself a Monday.
+export function weekOfMonth(releaseDateISO: string | null, year: number, monthName: string): string | null {
+  if (!releaseDateISO) return null;
+  const mIdx = MONTHS_ID.indexOf(monthName);
+  if (mIdx < 0) return null;
+  const first = Date.UTC(year, mIdx, 1);
+  const rel = new Date(releaseDateISO + "T00:00:00Z").getTime();
+  const dayOffset = Math.floor((rel - first) / 86400000) + 1;
+  if (dayOffset < 1 || dayOffset > 35) return null; // outside this month's 5-week grid
+  return `Week ${Math.ceil(dayOffset / 7)}`;
+}

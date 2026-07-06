@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { parseFinanceMatrix } from "@/lib/parseFinance";
+import { parseFinanceMatrix, weekOfMonth } from "@/lib/parseFinance";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 interface FinanceManual {
-  year?: number; bulan?: string; week?: string;
+  year?: number; bulan?: string;
   pic_client?: string; brand?: string; store_name?: string;
 }
 
@@ -67,12 +67,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: upErr?.message || "UPLOAD_FAIL" }, { status: 500 });
   }
 
+  // Week is no longer manually picked — it's derived per transaction from
+  // its own release_date, anchored to the chosen month's 5-week grid
+  // (Week 5 naturally spills a few days into the next calendar month).
   const records = parsed.rows.map((r) => ({
     client_id: clientId,
     upload_id: upload.id,
     year: manual.year ?? null,
     month: manual.bulan ?? null,
-    week: manual.week ?? null,
+    week: manual.year && manual.bulan ? weekOfMonth(r.release_date, manual.year, manual.bulan) : null,
     store_name: manual.store_name ?? null,
     pic_client: manual.pic_client ?? null,
     brand: manual.brand ?? null,
