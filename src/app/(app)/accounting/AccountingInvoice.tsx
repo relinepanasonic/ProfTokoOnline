@@ -14,6 +14,32 @@ function fmtDate(iso: string) {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 }
+function daysLeft(end: string) {
+  const e = new Date(end + "T00:00:00"), n = new Date(); n.setHours(0, 0, 0, 0);
+  return Math.ceil((e.getTime() - n.getTime()) / (864e5));
+}
+
+function csvEscape(v: unknown): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+function downloadInvoicesCSV(rows: Invoice[]) {
+  const headers = ["Store", "Owner", "Brand", "Package", "Type", "Price (IDR)", "Start Date", "End Date", "Notes"];
+  const lines = rows.map((r) => [
+    r.store_name || "", r.owner || "", r.brand || "", r.package_name, r.package_type,
+    r.price_idr ?? 0, r.start_date || "", r.end_date || "", r.notes || "",
+  ].map(csvEscape).join(","));
+  const csv = "﻿" + [headers.join(","), ...lines].join("\n"); // BOM so Excel reads UTF-8 correctly
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `invoices_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 // Same records pushed to Proone Accounting via syncToProone() on save —
 // read from the local table directly rather than re-fetching an unverified
@@ -45,14 +71,57 @@ export default function AccountingInvoice() {
   );
   const total = shown.reduce((s, r) => s + (r.price_idr || 0), 0);
 
+  const subs = rows.filter((inv) => inv.package_type === "subscription" && inv.end_date);
+  const expiringSoon = subs.filter((inv) => { const d = daysLeft(inv.end_date!); return d >= 0 && d <= 30; });
+  const overdue = subs.filter((inv) => daysLeft(inv.end_date!) < 0);
+
   return (
     <div className="panel">
+      {(expiringSoon.length > 0 || overdue.length > 0) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+          {/* left — orange, expiring within 30 days */}
+          <div style={{ background: "rgba(245,158,11,.1)", border: "1px solid rgba(245,158,11,.3)", borderRadius: 14, padding: "12px 16px" }}>
+            <div style={{ fontWeight: 800, color: "#fbbf24", fontSize: 13, marginBottom: 6 }}>
+              ⏰ {expiringSoon.length} subscription{expiringSoon.length !== 1 ? "s" : ""} expiring within 30 days
+            </div>
+            {expiringSoon.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>None</div>
+            ) : expiringSoon.map((inv) => { const d = daysLeft(inv.end_date!); return (
+              <div key={inv.id} style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4 }}>
+                <span style={{ color: d <= 7 ? "#f87171" : "#fbbf24", fontWeight: 700 }}>{d}d left</span>
+                {" — "}{[inv.store_name, inv.owner].filter(Boolean).join(" / ")} · {inv.package_name} · ends {fmtDate(inv.end_date!)}
+              </div>
+            ); })}
+          </div>
+
+          {/* right — red, already past due date */}
+          <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 14, padding: "12px 16px" }}>
+            <div style={{ fontWeight: 800, color: "#f87171", fontSize: 13, marginBottom: 6 }}>
+              ⚠ {overdue.length} subscription{overdue.length !== 1 ? "s" : ""} already out of date
+            </div>
+            {overdue.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>None</div>
+            ) : overdue.map((inv) => { const d = daysLeft(inv.end_date!); return (
+              <div key={inv.id} style={{ fontSize: 12, color: "var(--text-2)", marginTop: 4 }}>
+                <span style={{ color: "#f87171", fontWeight: 700 }}>{Math.abs(d)}d overdue</span>
+                {" — "}{[inv.store_name, inv.owner].filter(Boolean).join(" / ")} · {inv.package_name} · ended {fmtDate(inv.end_date!)}
+              </div>
+            ); })}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
         <div>
           <h3 style={{ margin: 0 }}>Invoice</h3>
           <div className="hint">Service package invoices — synced to Proone Accounting.</div>
         </div>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--gold)" }}>{fmtRp(total)} <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>total (filtered)</span></div>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--gold)" }}>{fmtRp(total)} <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>total (filtered)</span></div>
+          <button className="btn-gold" onClick={() => downloadInvoicesCSV(shown)} disabled={!shown.length} style={{ padding: "8px 16px", fontSize: 12.5 }}>
+            ⬇ Export CSV
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
