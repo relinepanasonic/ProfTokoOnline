@@ -31,7 +31,7 @@ type Summary = {
   monthly_discount: { month: string; discount: number }[];
   payment_method: { method: string; cnt: number }[];
   jasa_kirim: { service: string; cnt: number }[];
-  daily: { day: string; orders: number; sales: number; discount_voucher: number; marketplace_fee: number; net_income: number; refund: number }[];
+  daily: { tx_date: string; orders: number; sales: number; discount_voucher: number; marketplace_fee: number; net_income: number; refund: number }[];
 };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type FinanceRowLite = { year: number | null; month: string | null; week: string | null; store_name: string | null; pic_client: string | null; brand: string | null };
@@ -168,8 +168,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
             </tr></thead>
             <tbody>
               {(d?.daily || []).map((r) => (
-                <tr key={r.day} style={{ cursor: "pointer" }} onClick={() => setDrill(r.day)}>
-                  <td style={{ fontWeight: 600 }}>{fmtDate(r.day)}</td>
+                <tr key={r.tx_date} style={{ cursor: "pointer" }} onClick={() => setDrill(r.tx_date)}>
+                  <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
                   <td className="num">{r.orders}</td>
                   <td className="num">{rpFull(r.sales)}</td>
                   <td className="num">{rpFull(r.discount_voucher)}</td>
