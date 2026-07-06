@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, ComposedChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
@@ -121,7 +121,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const k = d?.kpis;
   const totalModal = pd?.total_modal ?? 0;
   const nettProfit = (k?.gross_profit ?? 0) - (k?.ads_cost ?? 0) - totalModal;
-  const stackedData = buildStackedData(d, pd);
+  const grossNettData = buildGrossNettData(d, pd);
 
   return (
     <>
@@ -164,10 +164,10 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><div className="kpi-sub">X – AE</div></div>
       </div>
 
-      {/* Monthly Sales vs Profit — stacked waterfall (Nett Profit at base, every cost stacked on top toward Gross Sales) */}
+      {/* Monthly Gross Sales vs Nett Profit */}
       <div className="row">
-        <Panel title="Monthly Sales vs Profit" hint="Nett Profit (base) + semua biaya ditumpuk ke atas hingga menyamai Gross Sales">
-          <StackedProfitChart data={stackedData} />
+        <Panel title="Monthly Gross Sales vs Nett Profit" hint="Gross Sales (bar) vs Nett Profit setelah Ads Spent dan Total Modal Product (garis)">
+          <GrossVsNettChart data={grossNettData} />
         </Panel>
       </div>
 
@@ -393,110 +393,46 @@ function Panel({ title, hint, children }: { title: string; hint: string; childre
 function Empty() {
   return <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>No data yet</div>;
 }
-type StackedMonth = {
-  month: string; nett_profit: number; promotion_cost: number; refund: number;
-  delivery_cost: number; affiliate_cost: number; marketplace_fee: number;
-  ads_cost: number; modal: number; misc: number;
-};
-// Single cohesive tonal ramp in the app's own navy↔gold family — a low-
-// contrast "luxurious" sweep from warm gold (Nett Profit, the hero, at the
-// base) up through bronze/taupe/slate to deep navy (top). Adjacent segments
-// differ only slightly, so nothing fights; desaturated so it reads refined
-// rather than neon. Each has a soft top→bottom gradient (lighter top stop).
-const STACK_SEGMENTS: { key: keyof StackedMonth; label: string; top: string; bottom: string; dot: string }[] = [
-  { key: "nett_profit",     label: "Nett Profit",       top: "#e6c65f", bottom: "#a4801f", dot: "#dcb84f" }, // gold — hero
-  { key: "promotion_cost",  label: "Promotion Cost",    top: "#cdae66", bottom: "#8c7233", dot: "#c2a25c" }, // soft gold
-  { key: "refund",          label: "Pengembalian Dana", top: "#bd9d72", bottom: "#7d6440", dot: "#b08f64" }, // bronze
-  { key: "delivery_cost",   label: "Delivery Cost",     top: "#a8977f", bottom: "#6b5d48", dot: "#9c8b73" }, // taupe
-  { key: "affiliate_cost",  label: "Affiliate Cost",    top: "#95928d", bottom: "#5c5a55", dot: "#8a8781" }, // warm grey
-  { key: "marketplace_fee", label: "Marketplace Fee",   top: "#8896a4", bottom: "#525f6d", dot: "#7e8c9a" }, // slate
-  { key: "ads_cost",        label: "Ads Spent",         top: "#6f88a4", bottom: "#3d566f", dot: "#657f9c" }, // steel navy (Dashboard Ads family)
-  { key: "modal",           label: "Total Modal",       top: "#5a7490", bottom: "#31495f", dot: "#516a86" }, // deep slate
-  { key: "misc",            label: "Misc",              top: "#496286", bottom: "#243c56", dot: "#42597c" }, // deep navy
-];
-function buildStackedData(d: Summary | null, pd: ProductDetail | null): StackedMonth[] {
-  const months = new Set<string>();
-  (d?.monthly || []).forEach((x) => months.add(x.month));
+type GrossNettMonth = { month: string; sales: number; nett_profit: number };
+function buildGrossNettData(d: Summary | null, pd: ProductDetail | null): GrossNettMonth[] {
   const byMonth2 = <T extends { month: string }>(a: T[]) => Object.fromEntries((a || []).map((x) => [x.month, x]));
-  const profit = byMonth2(d?.monthly || []);
-  const costs = byMonth2(d?.monthly_costs || []);
+  const sales = byMonth2(d?.monthly || []);
   const ads = byMonth2(d?.monthly_ads_cost || []);
   const modal = byMonth2(pd?.monthly_modal || []);
-  return byMonth([...months].map((month) => ({ month }))).map(({ month }) => {
-    const grossProfit = (profit[month] as { profit?: number } | undefined)?.profit ?? 0;
+  return byMonth(d?.monthly || []).map(({ month }) => {
+    const row = sales[month] as { sales?: number; profit?: number } | undefined;
     const adCost = (ads[month] as { ad_cost?: number } | undefined)?.ad_cost ?? 0;
     const modalCost = (modal[month] as { modal?: number } | undefined)?.modal ?? 0;
-    const c = costs[month] as Partial<StackedMonth> | undefined;
     return {
       month,
-      nett_profit: grossProfit - adCost - modalCost,
-      promotion_cost: c?.promotion_cost ?? 0,
-      refund: c?.refund ?? 0,
-      delivery_cost: c?.delivery_cost ?? 0,
-      affiliate_cost: c?.affiliate_cost ?? 0,
-      marketplace_fee: c?.marketplace_fee ?? 0,
-      ads_cost: adCost,
-      modal: modalCost,
-      misc: c?.misc ?? 0,
+      sales: row?.sales ?? 0,
+      nett_profit: (row?.profit ?? 0) - adCost - modalCost,
     };
   });
 }
-function StackedTooltip({ active, payload, label }: { active?: boolean; payload?: { dataKey?: string; value?: number }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  const byKey = new Map(payload.map((p) => [p.dataKey, p.value ?? 0]));
-  // top of the visual stack first, matching how the bars read top-to-bottom
-  const ordered = [...STACK_SEGMENTS].reverse();
-  return (
-    <div style={TIP_STYLE}>
-      <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
-      {ordered.map((s) => (
-        <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 0" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
-          <span style={{ flex: 1 }}>{s.label}</span>
-          <span style={{ fontWeight: 700 }}>{rpFull(Number(byKey.get(s.key) ?? 0))}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-function StackedLegend() {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", justifyContent: "center", marginTop: 10, fontSize: 10.5, color: "#9ab0cc" }}>
-      {STACK_SEGMENTS.map((s) => (
-        <span key={s.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.dot }} />
-          {s.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-function StackedProfitChart({ data }: { data: StackedMonth[] }) {
+function GrossVsNettChart({ data }: { data: GrossNettMonth[] }) {
   if (!data.length) return <Empty />;
   return (
-    <div style={{ width: "100%", height: 320 }}>
+    <div style={{ width: "100%", height: 300 }}>
       <ResponsiveContainer>
-        <BarChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
           <defs>
-            {STACK_SEGMENTS.map((s) => (
-              <linearGradient key={s.key} id={`psg-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={s.top} />
-                <stop offset="100%" stopColor={s.bottom} />
-              </linearGradient>
-            ))}
+            <linearGradient id="gng-sales" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e6c65f" />
+              <stop offset="100%" stopColor="#a4801f" />
+            </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip content={<StackedTooltip />} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
-          {STACK_SEGMENTS.map((s, i) => (
-            <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={`url(#psg-${s.key})`}
-              stroke="rgba(9,17,33,0.75)" strokeWidth={1} maxBarSize={104}
-              radius={i === STACK_SEGMENTS.length - 1 ? [6, 6, 0, 0] : undefined} />
-          ))}
-        </BarChart>
+          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [rpFull(Number(v)), n === "sales" ? "Gross Sales" : "Nett Profit"]} />
+          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8}
+            formatter={(v) => (v === "sales" ? "Gross Sales" : "Nett Profit")} />
+          <Bar dataKey="sales" name="sales" fill="url(#gng-sales)" radius={[6, 6, 0, 0]} maxBarSize={72} />
+          <Line type="monotone" dataKey="nett_profit" name="nett_profit" stroke="#6f88a4" strokeWidth={2.5}
+            dot={{ r: 4, fill: "#6f88a4", strokeWidth: 0 }} activeDot={{ r: 6 }} />
+        </ComposedChart>
       </ResponsiveContainer>
-      <StackedLegend />
     </div>
   );
 }
