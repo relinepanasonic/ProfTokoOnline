@@ -23,7 +23,10 @@ const rpC = (n: number) => {
 const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
-type Kpis = { sales: number; discount_voucher: number; marketplace_fee: number; gross_profit: number; refund: number };
+type Kpis = {
+  sales: number; promotion_cost: number; refund: number; delivery_cost: number;
+  affiliate_cost: number; marketplace_fee: number; misc: number; gross_profit: number;
+};
 type Summary = {
   kpis: Kpis;
   monthly: { month: string; sales: number; profit: number }[];
@@ -31,7 +34,7 @@ type Summary = {
   monthly_discount: { month: string; discount: number }[];
   payment_method: { method: string; cnt: number }[];
   jasa_kirim: { service: string; cnt: number }[];
-  daily: { tx_date: string; orders: number; sales: number; discount_voucher: number; marketplace_fee: number; net_income: number; refund: number }[];
+  daily: { tx_date: string; orders: number; sales: number; promotion_cost: number; marketplace_fee: number; net_income: number; refund: number }[];
 };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type FinanceFilters = { years: number[]; months: string[] };
@@ -122,13 +125,17 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         {loading && <Loader />}
       </div>
 
-      {/* KPIs */}
-      <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(5,1fr)" }}>
-        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Total Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><div className="kpi-sub">Harga Asli Produk</div></div>
-        <div className="kpi"><div className="kpi-icon">🎟️</div><div className="lbl">Discount / Voucher</div><div className="val">{k ? rpC(k.discount_voucher) : "—"}</div></div>
-        <div className="kpi"><div className="kpi-icon">🏪</div><div className="lbl">Market Place Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div></div>
-        <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><div className="kpi-sub">tanpa Product Cost</div></div>
-        <div className="kpi"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div></div>
+      {/* KPIs — mirrors the Income sheet's own columns exactly: H, I+K+L+M+N+O,
+          J, P-V, W, X-AE, AF, and AG (which must equal the sum of the other 7) */}
+      <div className="kpi-grid">
+        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><div className="kpi-sub">Harga Asli Produk (H)</div></div>
+        <div className="kpi"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><div className="kpi-sub">I, K, L, M, N, O</div></div>
+        <div className="kpi"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><div className="kpi-sub">J</div></div>
+        <div className="kpi"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><div className="kpi-sub">P – V</div></div>
+        <div className="kpi"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><div className="kpi-sub">W</div></div>
+        <div className="kpi"><div className="kpi-icon">🏪</div><div className="lbl">Market Place Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><div className="kpi-sub">X – AE</div></div>
+        <div className="kpi"><div className="kpi-icon">📎</div><div className="lbl">Misc</div><div className="val">{k ? rpC(k.misc) : "—"}</div><div className="kpi-sub">AF</div></div>
+        <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><div className="kpi-sub">= Total Penghasilan (AG)</div></div>
       </div>
 
       {/* Monthly Sales vs Profit */}
@@ -143,7 +150,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         <Panel title="Monthly Biaya Marketplace" hint="Total Admin & Layanan fee per bulan">
           <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" color="#f87171" />
         </Panel>
-        <Panel title="Monthly Discount / Voucher" hint="Diskon produk + voucher per bulan">
+        <Panel title="Monthly Promotion Cost" hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
           <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" color="#fbbf24" />
         </Panel>
       </div>
@@ -166,7 +173,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
           <table className="tbl">
             <thead><tr>
               <th>Tanggal</th><th className="num">Orders</th><th className="num">Sales</th>
-              <th className="num">Discount/Voucher</th><th className="num">Marketplace Fee</th>
+              <th className="num">Promotion Cost</th><th className="num">Marketplace Fee</th>
               <th className="num">Net Income</th><th className="num">Refund</th>
             </tr></thead>
             <tbody>
@@ -175,7 +182,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
                   <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
                   <td className="num">{r.orders}</td>
                   <td className="num">{rpFull(r.sales)}</td>
-                  <td className="num">{rpFull(r.discount_voucher)}</td>
+                  <td className="num">{rpFull(r.promotion_cost)}</td>
                   <td className="num">{rpFull(r.marketplace_fee)}</td>
                   <td className="num" style={{ color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income)}</td>
                   <td className="num">{rpFull(r.refund)}</td>
@@ -199,7 +206,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
 /* ── day drill-down overlay ── */
 type DetailRow = {
   order_no: string | null; buyer_username: string | null; payment_method: string | null;
-  sales: number | null; discount_voucher: number | null; marketplace_fee: number | null;
+  sales: number | null; promotion_cost: number | null; marketplace_fee: number | null;
   net_income: number | null; refund: number | null; jasa_kirim: string | null; nama_kurir: string | null;
 };
 function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
@@ -212,7 +219,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   useEffect(() => {
     (async () => {
       let q = supabase.from("finance_rows")
-        .select("order_no,buyer_username,payment_method,sales,discount_voucher,marketplace_fee,net_income,refund,jasa_kirim,nama_kurir")
+        .select("order_no,buyer_username,payment_method,sales,promotion_cost,marketplace_fee,net_income,refund,jasa_kirim,nama_kurir")
         .eq("client_id", clientId).eq("release_date", day);
       if (sel.year) q = q.eq("year", Number(sel.year));
       if (sel.month) q = q.eq("month", sel.month);
@@ -247,10 +254,10 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
                     <td>{r.buyer_username || "—"}</td>
                     <td>{r.payment_method || "—"}</td>
                     <td className="num">{rpFull(r.sales || 0)}</td>
-                    <td className="num">{rpFull(r.discount_voucher || 0)}</td>
-                    <td className="num">{rpFull(r.marketplace_fee || 0)}</td>
+                    <td className="num">{rpFull(Math.abs(r.promotion_cost || 0))}</td>
+                    <td className="num">{rpFull(Math.abs(r.marketplace_fee || 0))}</td>
                     <td className="num" style={{ color: (r.net_income || 0) >= 0 ? "#86efac" : "#f87171" }}>{rpFull(r.net_income || 0)}</td>
-                    <td className="num">{rpFull(r.refund || 0)}</td>
+                    <td className="num">{rpFull(Math.abs(r.refund || 0))}</td>
                     <td style={{ fontSize: 12 }}>{r.jasa_kirim || "—"}{r.nama_kurir ? ` · ${r.nama_kurir}` : ""}</td>
                   </tr>
                 ))}

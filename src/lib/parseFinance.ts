@@ -10,18 +10,27 @@
 //   row 6+: one row per order
 import { toNum } from "./parse";
 
+// Column-letter mapping to Shopee's Income sheet (verified against the real
+// export, 0 mismatches across 248 rows): sales(H) + promotion_cost(I,K,L,M,N,O)
+// + refund(J) + delivery_cost(P-V) + affiliate_cost(W) + marketplace_fee(X-AE)
+// + misc(AF) == net_income(AG) EXACTLY, using each column's own raw signed
+// value (costs are already negative in the source file). Do not take abs()
+// here — the identity only holds with signed values; abs() is a display
+// concern for the frontend, not a storage concern.
 export interface FinanceRow {
   order_no: string | null;
   buyer_username: string | null;
   payment_method: string | null;
   order_date: string | null;   // ISO yyyy-mm-dd
   release_date: string | null; // ISO yyyy-mm-dd
-  sales: number | null;
-  discount_voucher: number | null;
-  refund: number | null;
-  shipping_net: number | null;
-  marketplace_fee: number | null;
-  net_income: number | null;
+  sales: number | null;             // H
+  promotion_cost: number | null;    // I + K + L + M + N + O
+  refund: number | null;            // J
+  delivery_cost: number | null;     // P + Q + R + S + T + U + V
+  affiliate_cost: number | null;    // W
+  marketplace_fee: number | null;   // X + Y + Z + AA + AB + AC + AD + AE
+  misc: number | null;              // AF
+  net_income: number | null;        // AG
   jasa_kirim: string | null;
   nama_kurir: string | null;
   raw: Record<string, unknown>;
@@ -87,17 +96,18 @@ export function parseFinanceMatrix(matrix: unknown[][]): FinanceParsed {
   const cKembaliBiaya    = idx("Kembali ke Biaya Pengiriman Pengirim");
   const cPengembalianBiaya = idx("Pengembalian Biaya Kirim");
 
-  const cKomisiAms       = idx("Biaya Komisi AMS");
-  const cAdministrasi    = idx("Biaya Administrasi");
-  const cLayanan         = idx("Biaya Layanan");
-  const cProsesPesanan   = idx("Biaya Proses Pesanan");
-  const cPremi           = idx("Premi");
-  const cHematKirim      = idx("Biaya Program Hemat Biaya Kirim");
-  const cTransaksi       = idx("Biaya Transaksi");
-  const cKampanye        = idx("Biaya Kampanye");
-  const cIsiSaldo        = idx("Biaya Isi Saldo Otomatis (dari Penghasilan)");
+  const cKomisiAms       = idx("Biaya Komisi AMS");             // W — Affiliate Cost
+  const cAdministrasi    = idx("Biaya Administrasi");           // X
+  const cLayanan         = idx("Biaya Layanan");                // Y
+  const cProsesPesanan   = idx("Biaya Proses Pesanan");         // Z
+  const cPremi           = idx("Premi");                        // AA
+  const cHematKirim      = idx("Biaya Program Hemat Biaya Kirim"); // AB
+  const cTransaksi       = idx("Biaya Transaksi");              // AC
+  const cKampanye        = idx("Biaya Kampanye");               // AD
+  const cBeaMasuk        = idx("Bea Masuk, PPN & PPh");         // AE
+  const cIsiSaldo        = idx("Biaya Isi Saldo Otomatis (dari Penghasilan)"); // AF — Misc
 
-  const cNetIncome       = idx("Total Penghasilan");
+  const cNetIncome       = idx("Total Penghasilan"); // AG
 
   const num = (r: unknown[], c: number) => (c >= 0 ? toNum(r[c]) ?? 0 : 0);
 
@@ -107,17 +117,15 @@ export function parseFinanceMatrix(matrix: unknown[][]): FinanceParsed {
     if (!r.some((c) => c !== "" && c != null)) continue;
     if (cOrderNo >= 0 && !cell(r, cOrderNo)) continue; // skip stray blank/footer rows
 
-    const discountVoucher = Math.abs(
+    const promotionCost =
       num(r, cDiskonProduk) + num(r, cDiskonShopee) + num(r, cVoucherPenjual) +
-      num(r, cVoucherCofund) + num(r, cCashbackKoin) + num(r, cCashbackCofund)
-    );
-    const shippingNet =
+      num(r, cVoucherCofund) + num(r, cCashbackKoin) + num(r, cCashbackCofund);
+    const deliveryCost =
       num(r, cOngkirBuyer) + num(r, cDiskonOngkir) + num(r, cGratisOngkir) +
       num(r, cOngkirDiteruskan) + num(r, cOngkosPengembalian) + num(r, cKembaliBiaya) + num(r, cPengembalianBiaya);
-    const marketplaceFee = Math.abs(
-      num(r, cKomisiAms) + num(r, cAdministrasi) + num(r, cLayanan) + num(r, cProsesPesanan) +
-      num(r, cPremi) + num(r, cHematKirim) + num(r, cTransaksi) + num(r, cKampanye) + num(r, cIsiSaldo)
-    );
+    const marketplaceFee =
+      num(r, cAdministrasi) + num(r, cLayanan) + num(r, cProsesPesanan) + num(r, cPremi) +
+      num(r, cHematKirim) + num(r, cTransaksi) + num(r, cKampanye) + num(r, cBeaMasuk);
 
     const raw: Record<string, unknown> = {};
     headers.forEach((h, hi) => { if (h) raw[h] = r[hi] ?? null; });
@@ -129,10 +137,12 @@ export function parseFinanceMatrix(matrix: unknown[][]): FinanceParsed {
       order_date: cOrderDate >= 0 ? asISODate(r[cOrderDate]) : null,
       release_date: cRelease >= 0 ? asISODate(r[cRelease]) : null,
       sales: cSales >= 0 ? toNum(r[cSales]) : null,
-      discount_voucher: discountVoucher,
-      refund: Math.abs(num(r, cRefund)),
-      shipping_net: shippingNet,
+      promotion_cost: promotionCost,
+      refund: num(r, cRefund),
+      delivery_cost: deliveryCost,
+      affiliate_cost: num(r, cKomisiAms),
       marketplace_fee: marketplaceFee,
+      misc: num(r, cIsiSaldo),
       net_income: cNetIncome >= 0 ? toNum(r[cNetIncome]) : null,
       jasa_kirim: cJasaKirim >= 0 ? cell(r, cJasaKirim) || null : null,
       nama_kurir: cKurir >= 0 ? cell(r, cKurir) || null : null,
