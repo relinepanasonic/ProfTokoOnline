@@ -1,0 +1,139 @@
+"use client";
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { createClient } from "@/lib/supabase/client";
+import Loader from "@/components/Loader";
+
+type AvgRow = {
+  kode_produk: string; kode_variasi: string;
+  nama_produk: string | null; nama_variasi: string | null;
+  total_sales: number; total_units: number; avg_price: number | null;
+};
+type CostRow = { kode_produk: string; kode_variasi: string; harga_modal: number | null };
+
+const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
+
+// Rupiah thousand-separator formatting — same pattern as the Ads Formulation
+// threshold input: raw digits stored underneath, comma-grouped for display.
+function formatRpInput(digits: string): string {
+  if (!digits) return "";
+  return Number(digits).toLocaleString("en-US");
+}
+function stripToDigits(v: string): string {
+  return v.replace(/[^0-9]/g, "");
+}
+
+export default function ModalProduct({ clientId }: { clientId: string }) {
+  const [supabase] = useState(() => createClient());
+  const [rows, setRows] = useState<AvgRow[] | null>(null);
+  const [costs, setCosts] = useState<Map<string, string>>(new Map()); // key -> raw digits
+  const [saving, setSaving] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const key = (k: string, v: string) => `${k}::${v}`;
+
+  const load = useCallback(async () => {
+    if (!clientId) return;
+    const [{ data: avg }, { data: cc }] = await Promise.all([
+      supabase.rpc("product_avg_price"),
+      supabase.from("product_costs").select("kode_produk,kode_variasi,harga_modal").eq("client_id", clientId),
+    ]);
+    setRows((avg as AvgRow[]) || []);
+    const m = new Map<string, string>();
+    for (const c of (cc as CostRow[]) || []) {
+      if (c.harga_modal != null) m.set(key(c.kode_produk, c.kode_variasi), String(Math.round(c.harga_modal)));
+    }
+    setCosts(m);
+  }, [supabase, clientId]);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [load]);
+
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) =>
+      (r.kode_produk || "").toLowerCase().includes(q) ||
+      (r.nama_produk || "").toLowerCase().includes(q) ||
+      (r.nama_variasi || "").toLowerCase().includes(q));
+  }, [rows, search]);
+
+  async function saveCost(r: AvgRow, digits: string) {
+    const k = key(r.kode_produk, r.kode_variasi);
+    setSaving(k);
+    const harga_modal = digits.trim() === "" ? null : Number(digits);
+    const { error } = await supabase.from("product_costs").upsert({
+      client_id: clientId,
+      kode_produk: r.kode_produk,
+      kode_variasi: r.kode_variasi,
+      nama_produk: r.nama_produk,
+      nama_variasi: r.nama_variasi,
+      harga_modal,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "client_id,kode_produk,kode_variasi" });
+    setSaving(null);
+    if (!error) setCosts((m) => new Map(m).set(k, digits));
+  }
+
+  if (rows === null) return <Loader center />;
+
+  return (
+    <div className="panel">
+      <h3>Modal Product</h3>
+      <div className="hint">Harga modal (cost) per produk/variasi — masukkan manual, tersimpan lintas upload. AVG Harga Jual dihitung dari seluruh histori SPOS (Penjualan Siap Dikirim ÷ Produk Siap Dikirim).</div>
+      <div className="filterbar" style={{ marginTop: 10 }}>
+        <div className="fld" style={{ minWidth: 260 }}>
+          <label>Cari</label>
+          <input type="text" placeholder="Kode Produk / Nama Produk / Nama Variasi"
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+        </div>
+      </div>
+      <div className="tbl-wrap" style={{ maxHeight: 440 }}>
+        <table className="tbl">
+          <thead><tr>
+            <th>Kode Product</th><th>Nama Product</th><th>Kode Variasi</th><th>Nama Variasi</th>
+            <th className="num">AVG Harga Jual</th><th className="num">Harga Modal Product</th>
+          </tr></thead>
+          <tbody>
+            {filtered.map((r) => {
+              const k = key(r.kode_produk, r.kode_variasi);
+              const digits = costs.get(k) ?? "";
+              return (
+                <tr key={k}>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_produk}</td>
+                  <td>{r.nama_produk || "—"}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_variasi}</td>
+                  <td>{r.nama_variasi || "—"}</td>
+                  <td className="num">{r.avg_price != null ? rpFull(r.avg_price) : "—"}</td>
+                  <td className="num">
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <span style={fInputWrap}>
+                        <span style={{ color: "var(--muted)" }}>Rp</span>
+                        <input type="text" inputMode="numeric" value={formatRpInput(digits)}
+                          onChange={(e) => setCosts((m) => new Map(m).set(k, stripToDigits(e.target.value)))}
+                          onBlur={(e) => saveCost(r, stripToDigits(e.target.value))}
+                          placeholder="0"
+                          style={{ border: "none", background: "transparent", color: "inherit", fontSize: "inherit", textAlign: "right", width: "100%", padding: 0, outline: "none" }} />
+                      </span>
+                      {saving === k && <span style={{ fontSize: 10, color: "var(--muted)", marginLeft: 6 }}>saving…</span>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No products found</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+const fInputWrap: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 4, padding: "6px 9px",
+  border: "1px solid rgba(201,162,39,.25)", borderRadius: 8, background: "rgba(10,22,40,.5)", minWidth: 130,
+};

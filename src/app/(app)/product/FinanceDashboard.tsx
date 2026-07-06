@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  BarChart, Bar, ComposedChart, Line, PieChart, Pie, Cell,
+  BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
@@ -25,17 +25,24 @@ const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString(
 
 type Kpis = {
   sales: number; promotion_cost: number; refund: number; delivery_cost: number;
-  affiliate_cost: number; marketplace_fee: number; misc: number; gross_profit: number;
+  affiliate_cost: number; marketplace_fee: number; misc: number; gross_profit: number; ads_cost: number;
 };
 type Summary = {
   kpis: Kpis;
   monthly: { month: string; sales: number; profit: number }[];
   monthly_fee: { month: string; fee: number }[];
   monthly_discount: { month: string; discount: number }[];
+  monthly_ads_cost: { month: string; ad_cost: number }[];
+  monthly_costs: { month: string; promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number; marketplace_fee: number; misc: number }[];
   payment_method: { method: string; cnt: number }[];
   jasa_kirim: { service: string; cnt: number }[];
   daily: { tx_date: string; orders: number; sales: number; promotion_cost: number; marketplace_fee: number; net_income: number; refund: number }[];
 };
+type ProductRow = {
+  kode_produk: string; nama_produk: string | null; kode_variasi: string; nama_variasi: string | null;
+  total_sales: number; total_modal: number; profit: number;
+};
+type ProductDetail = { rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[] };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type FinanceFilters = { years: number[]; months: string[] };
 
@@ -46,6 +53,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [links, setLinks] = useState<Link[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", brand: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
+  const [pd, setPd] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [drill, setDrill] = useState<string | null>(null);
 
@@ -68,15 +76,20 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const load = useCallback(async () => {
     if (!clientId || !hasAnyData) return;
     setLoading(true);
-    const { data } = await supabase.rpc("finance_summary", {
+    const params = {
       p_year: sel.year ? Number(sel.year) : null,
       p_month: sel.month || null,
       p_week: sel.week || null,
       p_owner: sel.owner || null,
       p_brand: sel.brand || null,
       p_store: sel.store || null,
-    });
+    };
+    const [{ data }, { data: pdata }] = await Promise.all([
+      supabase.rpc("finance_summary", params),
+      supabase.rpc("product_profit_detail", params),
+    ]);
     setD(data as Summary);
+    setPd(pdata as ProductDetail);
     setLoading(false);
   }, [supabase, clientId, hasAnyData, sel]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -110,6 +123,9 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   }
 
   const k = d?.kpis;
+  const totalModal = pd?.total_modal ?? 0;
+  const nettProfit = (k?.gross_profit ?? 0) - (k?.ads_cost ?? 0) - totalModal;
+  const stackedData = buildStackedData(d, pd);
 
   return (
     <>
@@ -125,23 +141,28 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         {loading && <Loader />}
       </div>
 
-      {/* KPIs — mirrors the Income sheet's own columns exactly: H, I+K+L+M+N+O,
-          J, P-V, W, X-AE, AF, and AG (which must equal the sum of the other 7) */}
-      <div className="kpi-grid">
+      {/* Row 1 — headline P&L */}
+      <div className="kpi-grid kpi-grid-5">
         <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><div className="kpi-sub">Harga Asli Produk (H)</div></div>
-        <div className="kpi"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><div className="kpi-sub">I, K, L, M, N, O</div></div>
-        <div className="kpi"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><div className="kpi-sub">J</div></div>
-        <div className="kpi"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><div className="kpi-sub">P – V</div></div>
-        <div className="kpi"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><div className="kpi-sub">W</div></div>
-        <div className="kpi"><div className="kpi-icon">🏪</div><div className="lbl">Market Place Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><div className="kpi-sub">X – AE</div></div>
-        <div className="kpi"><div className="kpi-icon">📎</div><div className="lbl">Misc</div><div className="val">{k ? rpC(k.misc) : "—"}</div><div className="kpi-sub">AF</div></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><div className="kpi-sub">= Total Penghasilan (AG)</div></div>
+        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><div className="kpi-sub">sama seperti Dashboard Ads Cost</div></div>
+        <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><div className="kpi-sub">Harga Modal × unit terjual</div></div>
+        <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><div className="kpi-sub">Gross Profit − Ads − Modal</div></div>
       </div>
 
-      {/* Monthly Sales vs Profit */}
+      {/* Row 2 — cost breakdown (red glow on hover) */}
+      <div className="kpi-grid kpi-grid-5">
+        <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><div className="kpi-sub">I, K, L, M, N, O</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><div className="kpi-sub">J</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><div className="kpi-sub">P – V</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><div className="kpi-sub">W</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><div className="kpi-sub">X – AE</div></div>
+      </div>
+
+      {/* Monthly Sales vs Profit — stacked waterfall (Nett Profit at base, every cost stacked on top toward Gross Sales) */}
       <div className="row">
-        <Panel title="Monthly Sales vs Profit" hint="Sales (Harga Asli Produk) vs Gross Profit (Total Penghasilan)">
-          <SalesProfitChart data={byMonth(d?.monthly || [])} />
+        <Panel title="Monthly Sales vs Profit" hint="Nett Profit (base) + semua biaya ditumpuk ke atas hingga menyamai Gross Sales">
+          <StackedProfitChart data={stackedData} />
         </Panel>
       </div>
 
@@ -196,10 +217,78 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </div>
       </div>
 
+      {/* Detail Product Profit */}
+      <ProductProfitTable rows={pd?.rows || []} />
+
       {drill && (
         <DayDrillDown day={drill} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setDrill(null)} />
       )}
     </>
+  );
+}
+
+/* ── Detail Product Profit: search + sortable table ── */
+type SortKey = "total_sales" | "total_modal" | "profit";
+function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("total_sales");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = !q ? rows : rows.filter((r) =>
+      (r.kode_produk || "").toLowerCase().includes(q) ||
+      (r.nama_produk || "").toLowerCase().includes(q) ||
+      (r.nama_variasi || "").toLowerCase().includes(q));
+    list = [...list].sort((a, b) => (a[sortKey] - b[sortKey]) * (sortDir === "asc" ? 1 : -1));
+    return list;
+  }, [rows, search, sortKey, sortDir]);
+
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("desc"); }
+  }
+  const arrow = (k: SortKey) => sortKey !== k ? "" : sortDir === "asc" ? " ▲" : " ▼";
+
+  return (
+    <div className="panel">
+      <h3>Detail Product Profit</h3>
+      <div className="hint">Total Sales vs Total Modal Product (Harga Modal × unit terjual) per produk/variasi, untuk periode dan filter yang dipilih</div>
+      <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
+        <div className="fld" style={{ minWidth: 260 }}>
+          <label>Cari</label>
+          <input type="text" placeholder="Kode Produk / Nama Produk / Nama Variasi"
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+        </div>
+      </div>
+      <div className="tbl-wrap" style={{ maxHeight: 440 }}>
+        <table className="tbl">
+          <thead><tr>
+            <th>Kode Product</th><th>Nama Product</th><th>Kode Variasi</th><th>Nama Variasi</th>
+            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("total_sales")}>Total Sales{arrow("total_sales")}</th>
+            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
+            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("profit")}>Profit{arrow("profit")}</th>
+          </tr></thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
+                <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_produk}</td>
+                <td>{r.nama_produk || "—"}</td>
+                <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_variasi}</td>
+                <td>{r.nama_variasi || "—"}</td>
+                <td className="num">{rpFull(r.total_sales)}</td>
+                <td className="num">{rpFull(r.total_modal)}</td>
+                <td className="num" style={{ color: r.profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.profit)}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -298,20 +387,65 @@ function Panel({ title, hint, children }: { title: string; hint: string; childre
 function Empty() {
   return <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>No data yet</div>;
 }
-function SalesProfitChart({ data }: { data: { month: string; sales: number; profit: number }[] }) {
+type StackedMonth = {
+  month: string; nett_profit: number; promotion_cost: number; refund: number;
+  delivery_cost: number; affiliate_cost: number; marketplace_fee: number;
+  ads_cost: number; modal: number; misc: number;
+};
+const STACK_SEGMENTS: { key: keyof StackedMonth; label: string; color: string }[] = [
+  { key: "nett_profit",     label: "Nett Profit",       color: "#4ade80" },
+  { key: "promotion_cost",  label: "Promotion Cost",    color: "#fbbf24" },
+  { key: "refund",          label: "Pengembalian Dana", color: "#f97316" },
+  { key: "delivery_cost",   label: "Delivery Cost",     color: "#38bdf8" },
+  { key: "affiliate_cost",  label: "Affiliate Cost",    color: "#a78bfa" },
+  { key: "marketplace_fee", label: "Marketplace Fee",   color: "#f87171" },
+  { key: "ads_cost",        label: "Ads Spent",         color: "#ec4899" },
+  { key: "modal",           label: "Total Modal",       color: "#c9a227" },
+  { key: "misc",            label: "Misc",              color: "#64748b" },
+];
+function buildStackedData(d: Summary | null, pd: ProductDetail | null): StackedMonth[] {
+  const months = new Set<string>();
+  (d?.monthly || []).forEach((x) => months.add(x.month));
+  const byMonth2 = <T extends { month: string }>(a: T[]) => Object.fromEntries((a || []).map((x) => [x.month, x]));
+  const profit = byMonth2(d?.monthly || []);
+  const costs = byMonth2(d?.monthly_costs || []);
+  const ads = byMonth2(d?.monthly_ads_cost || []);
+  const modal = byMonth2(pd?.monthly_modal || []);
+  return byMonth([...months].map((month) => ({ month }))).map(({ month }) => {
+    const grossProfit = (profit[month] as { profit?: number } | undefined)?.profit ?? 0;
+    const adCost = (ads[month] as { ad_cost?: number } | undefined)?.ad_cost ?? 0;
+    const modalCost = (modal[month] as { modal?: number } | undefined)?.modal ?? 0;
+    const c = costs[month] as Partial<StackedMonth> | undefined;
+    return {
+      month,
+      nett_profit: grossProfit - adCost - modalCost,
+      promotion_cost: c?.promotion_cost ?? 0,
+      refund: c?.refund ?? 0,
+      delivery_cost: c?.delivery_cost ?? 0,
+      affiliate_cost: c?.affiliate_cost ?? 0,
+      marketplace_fee: c?.marketplace_fee ?? 0,
+      ads_cost: adCost,
+      modal: modalCost,
+      misc: c?.misc ?? 0,
+    };
+  });
+}
+function StackedProfitChart({ data }: { data: StackedMonth[] }) {
   if (!data.length) return <Empty />;
   return (
-    <div style={{ width: "100%", height: 290 }}>
+    <div style={{ width: "100%", height: 320 }}>
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+        <BarChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [rpFull(Number(v)), n === "sales" ? "Sales" : "Profit"]} />
-          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
-          <Bar dataKey="sales" fill={GOLD} radius={[4, 4, 0, 0]}>{data.map((_, i) => <Cell key={i} fill={GOLD} fillOpacity={0.35} />)}</Bar>
-          <Line type="monotone" dataKey="profit" stroke="#4ade80" strokeWidth={2.5} dot={{ r: 4, fill: "#4ade80" }} />
-        </ComposedChart>
+          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [rpFull(Number(v)), STACK_SEGMENTS.find((s) => s.key === n)?.label || String(n)]} />
+          <Legend wrapperStyle={{ fontSize: 10.5 }} iconType="circle" iconSize={8} />
+          {STACK_SEGMENTS.map((s, i) => (
+            <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={s.color}
+              radius={i === STACK_SEGMENTS.length - 1 ? [4, 4, 0, 0] : undefined} />
+          ))}
+        </BarChart>
       </ResponsiveContainer>
     </div>
   );

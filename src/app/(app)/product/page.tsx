@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import FinanceDashboard from "./FinanceDashboard";
 import FinanceUpload from "./FinanceUpload";
+import ModalProduct from "./ModalProduct";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { v: "dashboard", l: "Dashboard Keuangan" },
   { v: "upload", l: "Upload Keuangan" },
+  { v: "modal", l: "Modal Product" },
 ] as const;
 
 export default function Page() {
@@ -32,9 +34,9 @@ export default function Page() {
           <button key={t.v} onClick={() => setTab(t.v)} style={tabBtn(tab === t.v)}>{t.l}</button>
         ))}
       </div>
-      {tab === "dashboard"
-        ? <FinanceDashboard clientId={clientId} refreshKey={refreshKey} />
-        : <FinanceUpload clientId={clientId} onUploaded={() => setRefreshKey((k) => k + 1)} />}
+      {tab === "dashboard" && <FinanceDashboard clientId={clientId} refreshKey={refreshKey} />}
+      {tab === "upload" && <FinanceUpload clientId={clientId} onUploaded={() => setRefreshKey((k) => k + 1)} />}
+      {tab === "modal" && <ModalProduct clientId={clientId} />}
     </>
   );
 }

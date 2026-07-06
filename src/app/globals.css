@@ -127,6 +127,9 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .kpi-roas{background:linear-gradient(135deg,rgba(20,38,74,.95),rgba(15,32,64,.85));border:1px solid rgba(201,162,39,.35);
   box-shadow:0 10px 28px rgba(201,162,39,.16)}
 .kpi-roas .lbl{color:rgba(201,162,39,.85)} .kpi-roas .val{color:var(--gold);text-shadow:0 0 22px rgba(201,162,39,.4)}
+/* cost-flavoured KPI cards (Detail Keuangan row 2) — red glow on hover */
+.kpi-cost:hover{box-shadow:0 12px 34px rgba(239,68,68,.35)}
+.kpi-grid-5{grid-template-columns:repeat(5,1fr)}
 .roas-bar{height:4px;background:rgba(201,162,39,.18);border-radius:99px;margin-top:9px;overflow:hidden}
 .roas-fill{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--gold-soft));
   box-shadow:0 0 10px rgba(201,162,39,.5);transition:width 1.2s cubic-bezier(.34,1.4,.64,1)}
