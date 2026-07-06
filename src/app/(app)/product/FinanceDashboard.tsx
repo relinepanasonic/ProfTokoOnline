@@ -51,7 +51,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [hasAnyData, setHasAnyData] = useState<boolean | null>(null); // null = checking
   const [filters, setFilters] = useState<FinanceFilters>({ years: [], months: [] });
   const [links, setLinks] = useState<Link[]>([]);
-  const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", brand: "", store: "" });
+  const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [pd, setPd] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,15 +74,15 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   useEffect(() => { checkData(); }, [checkData, refreshKey]);
 
   const load = useCallback(async () => {
-    if (!clientId || !hasAnyData) return;
+    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); return; }
     setLoading(true);
     const params = {
       p_year: sel.year ? Number(sel.year) : null,
       p_month: sel.month || null,
       p_week: sel.week || null,
       p_owner: sel.owner || null,
-      p_brand: sel.brand || null,
-      p_store: sel.store || null,
+      p_brand: null,
+      p_store: sel.store,
     };
     const [{ data }, { data: pdata }] = await Promise.all([
       supabase.rpc("finance_summary", params),
@@ -98,15 +98,11 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const years = useMemo(() => [...filters.years].sort((a, b) => b - a), [filters.years]);
   const months = useMemo(() => [...filters.months].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b)), [filters.months]);
   const owners = useMemo(() => Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort(), [links]);
-  const brandsForOwner = useMemo(() => sel.owner
-    ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.brand).filter(Boolean) as string[])).sort()
-    : Array.from(new Set(links.map((l) => l.brand).filter(Boolean) as string[])).sort(), [links, sel.owner]);
-  const storesForBrand = useMemo(() => sel.brand
-    ? links.filter((l) => l.brand === sel.brand && (!sel.owner || l.owner === sel.owner)).map((l) => l.store_name).filter(Boolean) as string[]
-    : Array.from(new Set(links.map((l) => l.store_name).filter(Boolean) as string[])), [links, sel.brand, sel.owner]);
+  const storesForOwner = useMemo(() => sel.owner
+    ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.store_name).filter(Boolean) as string[]))
+    : Array.from(new Set(links.map((l) => l.store_name).filter(Boolean) as string[])), [links, sel.owner]);
 
-  function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, brand: "", store: "" })); }
-  function pickBrand(brand: string) { setSel((s) => ({ ...s, brand, store: "" })); }
+  function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, store: "" })); }
 
   if (hasAnyData === null) return <Loader center />;
 
@@ -129,18 +125,27 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
 
   return (
     <>
-      {/* filters */}
+      {/* filters — Owner then Store first: this dashboard is store-per-store, not a combined view */}
       <div className="filterbar">
+        <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
+        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="Pick a store…" />
         <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
         <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
         <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
-        <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
-        <Sel label="Brand" value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all="All Brands" />
-        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForBrand} all="All Stores" />
-        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", brand: "", store: "" })}>Reset</button>
+        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", store: "" })}>Reset</button>
         {loading && <Loader />}
       </div>
 
+      {!sel.store ? (
+        <div className="panel">
+          <div className="coming">
+            <div className="big">🏬</div>
+            <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Pilih Store</h3>
+            <p style={{ maxWidth: 420, margin: 0 }}>Detail Keuangan ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.</p>
+          </div>
+        </div>
+      ) : (
+      <>
       {/* Row 1 — headline P&L */}
       <div className="kpi-grid kpi-grid-5">
         <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><div className="kpi-sub">Harga Asli Produk (H)</div></div>
@@ -223,6 +228,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       {drill && (
         <DayDrillDown day={drill} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setDrill(null)} />
       )}
+      </>
+      )}
     </>
   );
 }
@@ -300,7 +307,7 @@ type DetailRow = {
 };
 function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   day: string; clientId: string;
-  sel: { year: string; month: string; week: string; owner: string; brand: string; store: string };
+  sel: { year: string; month: string; week: string; owner: string; store: string };
   supabase: ReturnType<typeof createClient>; onClose: () => void;
 }) {
   const [rows, setRows] = useState<DetailRow[] | null>(null);
@@ -314,7 +321,6 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
       if (sel.month) q = q.eq("month", sel.month);
       if (sel.week) q = q.eq("week", sel.week);
       if (sel.owner) q = q.eq("pic_client", sel.owner);
-      if (sel.brand) q = q.eq("brand", sel.brand);
       if (sel.store) q = q.eq("store_name", sel.store);
       const { data } = await q.order("order_no");
       setRows((data as DetailRow[]) || []);
@@ -392,16 +398,20 @@ type StackedMonth = {
   delivery_cost: number; affiliate_cost: number; marketplace_fee: number;
   ads_cost: number; modal: number; misc: number;
 };
-const STACK_SEGMENTS: { key: keyof StackedMonth; label: string; color: string }[] = [
-  { key: "nett_profit",     label: "Nett Profit",       color: "#4ade80" },
-  { key: "promotion_cost",  label: "Promotion Cost",    color: "#fbbf24" },
-  { key: "refund",          label: "Pengembalian Dana", color: "#f97316" },
-  { key: "delivery_cost",   label: "Delivery Cost",     color: "#38bdf8" },
-  { key: "affiliate_cost",  label: "Affiliate Cost",    color: "#a78bfa" },
-  { key: "marketplace_fee", label: "Marketplace Fee",   color: "#f87171" },
-  { key: "ads_cost",        label: "Ads Spent",         color: "#ec4899" },
-  { key: "modal",           label: "Total Modal",       color: "#c9a227" },
-  { key: "misc",            label: "Misc",              color: "#64748b" },
+// Jewel-toned gradients (top = lighter stop, bottom = darker) — same visual
+// language as the main Dashboard's gold/navy 3D bars, no neon pink/green.
+// "Ads Spent" reuses the exact navy gradient from the main Dashboard's own
+// Ads Cost chart, so the two pages read as one family.
+const STACK_SEGMENTS: { key: keyof StackedMonth; label: string; top: string; bottom: string; dot: string }[] = [
+  { key: "nett_profit",     label: "Nett Profit",       top: "#f5e070", bottom: "#8a6510", dot: "#f0d870" }, // gold
+  { key: "promotion_cost",  label: "Promotion Cost",    top: "#fcd34d", bottom: "#92611a", dot: "#e8c84a" }, // amber
+  { key: "refund",          label: "Pengembalian Dana", top: "#e0a389", bottom: "#6b3524", dot: "#d99178" }, // terracotta
+  { key: "delivery_cost",   label: "Delivery Cost",     top: "#6fd6cd", bottom: "#0f5c56", dot: "#4fc2b8" }, // teal
+  { key: "affiliate_cost",  label: "Affiliate Cost",    top: "#b79bdb", bottom: "#4a2a6b", dot: "#9c7bc9" }, // plum
+  { key: "marketplace_fee", label: "Marketplace Fee",   top: "#e08a8a", bottom: "#6b1f1f", dot: "#d67373" }, // muted rust
+  { key: "ads_cost",        label: "Ads Spent",         top: "#4a8fd4", bottom: "#0c1e40", dot: "#3b82c4" }, // navy (matches Dashboard Ads Cost)
+  { key: "modal",           label: "Total Modal",       top: "#d7a466", bottom: "#6b4423", dot: "#c98f4a" }, // bronze
+  { key: "misc",            label: "Misc",              top: "#9fb0c4", bottom: "#3f4b5c", dot: "#7f93aa" }, // slate
 ];
 function buildStackedData(d: Summary | null, pd: ProductDetail | null): StackedMonth[] {
   const months = new Set<string>();
@@ -440,10 +450,22 @@ function StackedTooltip({ active, payload, label }: { active?: boolean; payload?
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {ordered.map((s) => (
         <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 7, padding: "2px 0" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.color, flexShrink: 0 }} />
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.dot, flexShrink: 0 }} />
           <span style={{ flex: 1 }}>{s.label}</span>
           <span style={{ fontWeight: 700 }}>{rpFull(Number(byKey.get(s.key) ?? 0))}</span>
         </div>
+      ))}
+    </div>
+  );
+}
+function StackedLegend() {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", justifyContent: "center", marginTop: 10, fontSize: 10.5, color: "#9ab0cc" }}>
+      {STACK_SEGMENTS.map((s) => (
+        <span key={s.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: s.dot }} />
+          {s.label}
+        </span>
       ))}
     </div>
   );
@@ -454,17 +476,25 @@ function StackedProfitChart({ data }: { data: StackedMonth[] }) {
     <div style={{ width: "100%", height: 320 }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+          <defs>
+            {STACK_SEGMENTS.map((s) => (
+              <linearGradient key={s.key} id={`psg-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={s.top} />
+                <stop offset="100%" stopColor={s.bottom} />
+              </linearGradient>
+            ))}
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip content={<StackedTooltip />} />
-          <Legend wrapperStyle={{ fontSize: 10.5 }} iconType="circle" iconSize={8} />
+          <Tooltip content={<StackedTooltip />} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
           {STACK_SEGMENTS.map((s, i) => (
-            <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={s.color}
-              radius={i === STACK_SEGMENTS.length - 1 ? [4, 4, 0, 0] : undefined} />
+            <Bar key={s.key} dataKey={s.key} name={s.key} stackId="a" fill={`url(#psg-${s.key})`}
+              radius={i === STACK_SEGMENTS.length - 1 ? [6, 6, 0, 0] : undefined} />
           ))}
         </BarChart>
       </ResponsiveContainer>
+      <StackedLegend />
     </div>
   );
 }

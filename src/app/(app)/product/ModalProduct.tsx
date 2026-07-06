@@ -10,6 +10,7 @@ type AvgRow = {
   total_sales: number; total_units: number; avg_price: number | null;
 };
 type CostRow = { kode_produk: string; kode_variasi: string; harga_modal: number | null };
+type Link = { owner: string | null; store_name: string | null };
 
 const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 
@@ -29,13 +30,28 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
   const [costs, setCosts] = useState<Map<string, string>>(new Map()); // key -> raw digits
   const [saving, setSaving] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [links, setLinks] = useState<Link[]>([]);
+  const [sel, setSel] = useState({ owner: "", store: "" });
 
   const key = (k: string, v: string) => `${k}::${v}`;
+
+  useEffect(() => {
+    if (!clientId) return;
+    (async () => {
+      const { data: sl } = await supabase.from("store_links").select("owner,store_name").eq("client_id", clientId);
+      setLinks((sl as Link[]) || []);
+    })();
+  }, [supabase, clientId]);
+
+  const owners = useMemo(() => Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort(), [links]);
+  const storesForOwner = useMemo(() => sel.owner
+    ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.store_name).filter(Boolean) as string[]))
+    : Array.from(new Set(links.map((l) => l.store_name).filter(Boolean) as string[])), [links, sel.owner]);
 
   const load = useCallback(async () => {
     if (!clientId) return;
     const [{ data: avg }, { data: cc }] = await Promise.all([
-      supabase.rpc("product_avg_price"),
+      supabase.rpc("product_avg_price", { p_owner: sel.owner || null, p_store: sel.store || null }),
       supabase.from("product_costs").select("kode_produk,kode_variasi,harga_modal").eq("client_id", clientId),
     ]);
     setRows((avg as AvgRow[]) || []);
@@ -44,7 +60,7 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
       if (c.harga_modal != null) m.set(key(c.kode_produk, c.kode_variasi), String(Math.round(c.harga_modal)));
     }
     setCosts(m);
-  }, [supabase, clientId]);
+  }, [supabase, clientId, sel]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
@@ -83,6 +99,8 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
       <h3>Modal Product</h3>
       <div className="hint">Harga modal (cost) per produk/variasi — masukkan manual, tersimpan lintas upload. AVG Harga Jual dihitung dari seluruh histori SPOS (Penjualan Siap Dikirim ÷ Produk Siap Dikirim).</div>
       <div className="filterbar" style={{ marginTop: 10 }}>
+        <Sel label="Owner" value={sel.owner} onChange={(v) => setSel({ owner: v, store: "" })} opts={owners} all="All Owners" />
+        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="All Stores" />
         <div className="fld" style={{ minWidth: 260 }}>
           <label>Cari</label>
           <input type="text" placeholder="Kode Produk / Nama Produk / Nama Variasi"
@@ -129,6 +147,17 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function Sel({ label, value, onChange, opts, all }: { label: string; value: string; onChange: (v: string) => void; opts: string[]; all: string }) {
+  return (
+    <div className="fld"><label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{all}</option>
+        {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
     </div>
   );
 }
