@@ -201,13 +201,22 @@ export default function UploadPage() {
     <>
       {/* ───── Upload form ───── */}
       <div className="panel">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
-          {adminName && (
-            <span style={{ fontSize: 12, color: "var(--gold)", background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 999, padding: "3px 12px", fontWeight: 700 }}>
-              by {adminName}
-            </span>
-          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <a
+              href="/Manual%20Book%203%20Core%20Report%20Download.pdf"
+              download="Manual Book 3 Core Report Download.pdf"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--navy-deep)", background: "linear-gradient(135deg,var(--gold),var(--gold-soft))", borderRadius: 999, padding: "7px 16px", textDecoration: "none" }}
+            >
+              ⬇ Download Cara Tarik Data dari Shopee
+            </a>
+            {adminName && (
+              <span style={{ fontSize: 12, color: "var(--gold)", background: "rgba(201,162,39,.1)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 999, padding: "3px 12px", fontWeight: 700 }}>
+                by {adminName}
+              </span>
+            )}
+          </div>
         </div>
         <div className="hint" style={{ marginBottom: 16 }}>Attach one or more Shopee exports — Brand &amp; Tipe Produk are auto-detected from the file.</div>
 
