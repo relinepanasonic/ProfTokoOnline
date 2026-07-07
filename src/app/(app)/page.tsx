@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
-  ComposedChart, Line, AreaChart, Area, PieChart, Pie, Cell, Legend,
+  ComposedChart, Line, AreaChart, Area, Cell, Legend,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
@@ -12,7 +12,7 @@ import { useLang } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 type Summary = {
-  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null };
+  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null };
   monthly_sales: { month: string; sales: number }[];
   store_monthly: { month: string; gmv: number }[];
   top_products: { name: string; sales: number }[];
@@ -20,7 +20,8 @@ type Summary = {
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
   traffic_trend: { month: string; traffic: number; in_cart: number }[];
-  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
+  top_campaigns: { name: string; views: number; orders: number; sales: number; ad_cost: number }[];
+  dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
@@ -41,9 +42,8 @@ const num  = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n |
 
 const GOLD   = "#c9a227";
 const GOLD_L = "#f0d870";
-const NAVY   = "#1e4a7a";
-const NAVY_L = "#3b82c4";
-const PALETTE = ["#c9a227","#e8c84a","#3b82f6","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4","#f97316","#14b8a6"];
+const BLUE   = "#3b82f6";
+const BLUE_L = "#60a5fa";
 
 /* ─── SVG gradient + filter defs (referenced via url(#id) across all charts) ─── */
 function ChartDefs() {
@@ -60,25 +60,20 @@ function ChartDefs() {
           <stop offset="0%"   stopColor="#4a8fd4" />
           <stop offset="100%" stopColor="#0c1e40" />
         </linearGradient>
-        {/* Yellow bar gradient */}
-        <linearGradient id="gYellow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#fcd34d" />
-          <stop offset="100%" stopColor="#92611a" />
-        </linearGradient>
         {/* Traffic area gradient */}
         <linearGradient id="gTraffic" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"   stopColor="#94a3b8" stopOpacity="0.6" />
           <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.02" />
         </linearGradient>
-        {/* In-cart area gradient */}
+        {/* In-cart area gradient — blue, gold reserved for the true highlight metrics */}
         <linearGradient id="gCart" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={GOLD} stopOpacity="0.7" />
-          <stop offset="100%" stopColor={GOLD} stopOpacity="0.02" />
+          <stop offset="0%"   stopColor={BLUE_L} stopOpacity="0.7" />
+          <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
         </linearGradient>
         {/* Cost area gradient */}
         <linearGradient id="gCost" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor={NAVY_L} stopOpacity="0.65" />
-          <stop offset="100%" stopColor={NAVY_L} stopOpacity="0.02" />
+          <stop offset="0%"   stopColor={BLUE_L} stopOpacity="0.65" />
+          <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
         </linearGradient>
         {/* Glow filter */}
         <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -290,6 +285,12 @@ export default function DashboardPage() {
   const k = d?.kpis;
   const roasPct  = k?.roas ? Math.min((k.roas / 5) * 100, 100) : 0;
   const cartRate = k && k.traffic ? (k.in_cart / k.traffic) * 100 : 0;
+  const salesSeries   = byMonth(d?.monthly_sales || []).map((x) => x.sales);
+  const gmvSeries      = byMonth(d?.store_monthly || []).map((x) => x.gmv);
+  const trafficSeries  = byMonth(d?.traffic_trend || []).map((x) => x.traffic);
+  const inCartSeries   = byMonth(d?.traffic_trend || []).map((x) => x.in_cart);
+  const adCostSeries   = byMonth(d?.cost_roas || []).map((x) => x.cost);
+  const [drillStore, setDrillStore] = useState<Summary["dealers"][number] | null>(null);
 
   return (
     <>
@@ -313,7 +314,7 @@ export default function DashboardPage() {
         <Sel label={t("City")}  value={sel.city}  onChange={(v) => setSel((s) => ({ ...s, city: v }))}  opts={filters.cities} all={t("All Cities")} />
         {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
-        <Sel label={storeLabel} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${storeLabel}s`} />
+        <Sel label={t(storeLabel)} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${t(storeLabel)}`} />
         <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>{t("Reset")}</button>
         {loading && <Loader />}
       </div>
@@ -323,11 +324,11 @@ export default function DashboardPage() {
         const kv = (node: React.ReactNode) => k ? node : <span className="pt-skel" style={{ display:"inline-block", width:64, height:20, verticalAlign:"middle" }} />;
         return (
       <div className="kpi-grid">
-        <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div><div className="kpi-sub">{t("SPOS · siap dikirim")}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">{t("Total GMV")}</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div><div className="kpi-sub">{t("Performa")}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.in_cart ?? 0))}</div><div className="kpi-sub">{k ? cartRate.toFixed(1)+"% "+t("cart rate") : ""}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div></div>
+        <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div>{k && <MiniSparkline data={salesSeries} color={GOLD} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">{t("Total GMV")}</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div>{k && <MiniSparkline data={gmvSeries} color={BLUE_L} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div>{k && <MiniSparkline data={trafficSeries} color={BLUE_L} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.in_cart ?? 0))} {k ? <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>· {cartRate.toFixed(1)}%</span> : null}</div>{k && <MiniSparkline data={inCartSeries} color={BLUE_L} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div>{k && <MiniSparkline data={adCostSeries} color={BLUE_L} />}</div>
         <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}>
           <div style={{ position: "absolute", right: 13, top: 12 }}><RadialGauge pct={roasPct} /></div>
           <div className="lbl">{t("ROAS")}</div><div className="val">{kv((k?.roas ? k.roas.toFixed(2) : "0.00")+"×")}</div>
@@ -342,17 +343,17 @@ export default function DashboardPage() {
       {/* ── Monthly sales ── */}
       <div className="row">
         <Panel title={t("Monthly Sales")} hint={t("Penjualan per bulan · SPOS")}>
-          <Bars3DChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} x="month" y="sales" grad="url(#gGold)" accent={GOLD} />
+          <Bars3DChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} x="month" y="sales" grad="url(#gNavy)" accent={BLUE} />
         </Panel>
       </div>
 
-      {/* ── Top products + brand share ── */}
+      {/* ── Top products + funnel ── */}
       <div className="row c2">
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Brand Share of Sales")} hint={t("Sales mix by brand · SPOS")}>
-          <DonutChart data={(d?.brand_share||[]).map((b) => ({ name: b.brand, value: b.sales }))} />
+        <Panel title={t("Shopping Funnel")} hint={t("Traffic → In-Cart → Orders — periode terpilih")}>
+          <FunnelChart traffic={k?.traffic ?? 0} inCart={k?.in_cart ?? 0} orders={k?.orders ?? 0} />
         </Panel>
       </div>
 
@@ -366,21 +367,24 @@ export default function DashboardPage() {
         </Panel>
       </div>
 
-      {/* ── Sales per Store ── */}
-      <div className="row">
+      {/* ── Sales per Store + Best Campaign Performance ── */}
+      <div className="row c2">
         <Panel title={t("Sales per Store")} hint={t("Total SPOS sales per store · baseline excluded")}>
           <StoreSalesChart data={d?.dealers||[]} />
+        </Panel>
+        <Panel title={t("Best Campaign Performance")} hint={t("Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)")}>
+          <CampaignChart data={d?.top_campaigns||[]} />
         </Panel>
       </div>
 
       {/* ── Dealer table ── */}
       <div className="panel">
-        <h3>{t("Detail Data per")} {storeLabel}</h3>
-        <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")}</div>
+        <h3>{t("Detail Data per")} {t(storeLabel)}</h3>
+        <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")} · {t("Klik baris untuk detail")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
-              <th>{storeLabel}</th><th>{t("Trend")}</th>
+              <th>{t(storeLabel)}</th><th>{t("Trend")}</th>
               <th className="num">{t("Sales")}</th><th className="num">{t("Traffic")}</th>
               <th className="num">{t("In-Cart")}</th><th className="num">{t("Cart Rate")}</th>
               <th className="num">{t("Ads Cost")}</th><th className="num">{t("ROAS Trend")}</th><th className="num">{t("ROAS")}</th>
@@ -390,7 +394,7 @@ export default function DashboardPage() {
                 const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
                 const roasTrend = r.trend?.map((tr) => ({ month: tr.month, value: tr.ad_cost ? tr.sales / tr.ad_cost : 0 }));
                 return (
-                  <tr key={i}>
+                  <tr key={i} style={{ cursor: "pointer" }} onClick={() => setDrillStore(r)}>
                     <td>{r.store_name}</td>
                     <td><Sparkline data={r.trend?.map((t) => ({ month: t.month, value: t.sales }))} /></td>
                     <td className="num">{idr(r.sales)}</td>
@@ -414,6 +418,10 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
+
+      {drillStore && (
+        <StoreDrillDown store={drillStore} storeLabel={t(storeLabel)} t={t} onClose={() => setDrillStore(null)} />
+      )}
     </>
   );
 }
@@ -505,54 +513,11 @@ function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
           />
           <Bar dataKey="sales" shape={<HBar3D fill="url(#gGold)" />} radius={[0,4,4,0]}>
             {rows.map((_, i) => (
-              <Cell key={i} fill={i===0?"url(#gGold)":i<3?"url(#gYellow)":"url(#gNavy)"} />
+              <Cell key={i} fill={i===0?"url(#gGold)":"url(#gNavy)"} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
-  );
-}
-
-/* ── Donut Chart with center total ── */
-function DonutChart({ data }: { data: { name:string; value:number }[] }) {
-  const filtered = data.filter((x) => x.value > 0);
-  if (!filtered.length) return <Empty />;
-  const total = filtered.reduce((s, x) => s + x.value, 0);
-  return (
-    <div style={{ width:"100%", height:300, position:"relative" }}>
-      <ResponsiveContainer>
-        <PieChart>
-          <Pie
-            data={filtered} dataKey="value" nameKey="name"
-            cx="50%" cy="50%" innerRadius={68} outerRadius={105}
-            paddingAngle={2} strokeWidth={0}
-            label={({ percent }) => percent ? `${(percent*100).toFixed(0)}%` : ""}
-            labelLine={false}
-          >
-            {filtered.map((_, i) => (
-              <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="rgba(6,14,33,0.6)" strokeWidth={2} />
-            ))}
-          </Pie>
-          <Tooltip
-            contentStyle={TIP_STYLE}
-            formatter={(v) => [idrF(Number(v)), "Sales"]}
-          />
-          <Legend
-            iconType="circle" iconSize={8}
-            wrapperStyle={{ fontSize:10, color:"#9ab0cc", paddingTop:8 }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
-      {/* Centre label */}
-      <div style={{
-        position:"absolute", top:"50%", left:"50%",
-        transform:"translate(-50%,-60%)",
-        textAlign:"center", pointerEvents:"none",
-      }}>
-        <div style={{ fontSize:10, color:"#7089aa", marginBottom:2 }}>TOTAL</div>
-        <div style={{ fontSize:13, fontWeight:700, color:GOLD }}>{idr(total)}</div>
-      </div>
     </div>
   );
 }
@@ -645,8 +610,8 @@ function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:
             activeDot={{ r:6 }}
           />
           <Area type="monotone" dataKey="in_cart"
-            stroke={GOLD} strokeWidth={2.5} fill="url(#gCart)"
-            dot={{ r:4, fill:GOLD, stroke:"#0a1628", strokeWidth:2 }}
+            stroke={BLUE_L} strokeWidth={2.5} fill="url(#gCart)"
+            dot={{ r:4, fill:BLUE_L, stroke:"#0a1628", strokeWidth:2 }}
             activeDot={{ r:6 }}
           />
         </AreaChart>
@@ -697,5 +662,137 @@ function Sparkline({ data }: { data?: { month: string; value: number }[] }) {
         <circle cx={lastX} cy={lastY} r={2.6} fill={color} filter={`url(#${gid}-glow)`} />
       </svg>
     </span>
+  );
+}
+
+/* ── mini trend line for a KPI card — replaces the old text sub-label ── */
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return <div style={{ height: 26 }} />;
+  const w = 100, h = 26, pad = 2;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const stepX = (w - 2 * pad) / (data.length - 1);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
+  const pts = data.map((v, i) => `${pad + i * stepX},${y(v)}`).join(" ");
+  const lastX = pad + (data.length - 1) * stepX;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 26, marginTop: 6, display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+      <circle cx={lastX} cy={y(data[data.length - 1])} r={2.3} fill={color} />
+    </svg>
+  );
+}
+
+/* ── Shopping funnel: Traffic → In-Cart → Orders (real typed fields only —
+     "clicks" isn't captured anywhere in this schema, so it's not shown) ── */
+function FunnelChart({ traffic, inCart, orders }: { traffic: number; inCart: number; orders: number }) {
+  const stages = [
+    { label: "Traffic", value: traffic, color: BLUE },
+    { label: "In-Cart", value: inCart, color: BLUE_L },
+    { label: "Orders", value: orders, color: GOLD },
+  ];
+  const max = Math.max(stages[0].value, 1);
+  if (!traffic) return <Empty />;
+  return (
+    <div style={{ padding: "8px 4px" }}>
+      {stages.map((s, i) => {
+        const widthPct = Math.max((s.value / max) * 100, 4);
+        const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : null;
+        return (
+          <div key={s.label} style={{ marginBottom: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 5 }}>
+              <span style={{ color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
+              <span style={{ color: "#fff", fontWeight: 700 }}>
+                {num(s.value)}{prevPct != null && <span style={{ color: "var(--muted)", fontWeight: 500 }}> · {prevPct.toFixed(1)}%</span>}
+              </span>
+            </div>
+            <div style={{ height: 26, background: "rgba(255,255,255,0.05)", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{
+                width: `${widthPct}%`, height: "100%", borderRadius: 8,
+                background: `linear-gradient(90deg, ${s.color}dd, ${s.color})`,
+                boxShadow: `0 0 16px ${s.color}66`, transition: "width 1s cubic-bezier(.34,1.4,.64,1)",
+              }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Best Campaign Performance: horizontal bars ranked by sales, views annotated ── */
+function CampaignChart({ data }: { data: { name: string; views: number; orders: number; sales: number; ad_cost: number }[] }) {
+  if (!data.length) return <Empty />;
+  const rows = data.map((c, i) => ({
+    ...c,
+    label: (i + 1) + ". " + (c.name.length > 30 ? c.name.slice(0, 30) + "…" : c.name),
+  }));
+  const max = Math.max(...rows.map((r) => r.sales), 1);
+  return (
+    <div style={{ width: "100%", height: 320 }}>
+      <ResponsiveContainer>
+        <BarChart layout="vertical" data={rows} barSize={16} margin={{ left: 8, right: 24, top: 4, bottom: 4 }} barCategoryGap="18%">
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
+          <XAxis type="number" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} domain={[0, max * 1.12]} />
+          <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: "#9ab0cc" }} width={190} axisLine={false} tickLine={false} />
+          <Tooltip
+            contentStyle={TIP_STYLE}
+            formatter={(v, n) => n === "sales" ? [idrF(Number(v)), "Penjualan"] : [num(Number(v)), "Dilihat"]}
+            cursor={{ fill: "rgba(59,130,246,0.04)" }}
+          />
+          <Bar dataKey="sales" shape={<HBar3D fill="url(#gNavy)" />} radius={[0, 4, 4, 0]}>
+            {rows.map((_, i) => <Cell key={i} fill={i === 0 ? "url(#gGold)" : "url(#gNavy)"} />)}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Store drill-down — first pass: KPI grid + sales/ad-cost trend for the clicked store ── */
+function StoreDrillDown({ store, storeLabel, t, onClose }: {
+  store: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] };
+  storeLabel: string; t: (k: string) => string; onClose: () => void;
+}) {
+  const cr = store.traffic ? (store.in_cart / store.traffic) * 100 : 0;
+  const trend = byMonth(store.trend || []);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" }} onClick={onClose}>
+      <div style={{ width: "min(96vw,900px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 26, boxShadow: "0 30px 80px rgba(0,0,0,.7)" }} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18 }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{store.store_name}</div>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>{store.city} · {t(storeLabel)}</div>
+          </div>
+          <button className="btn-ghost" onClick={onClose}>✕ Close</button>
+        </div>
+
+        <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(3,1fr)", marginBottom: 18 }}>
+          <div className="kpi kpi-hero"><div className="lbl">{t("Sales")}</div><div className="val">{idr(store.sales)}</div></div>
+          <div className="kpi"><div className="lbl">{t("Traffic")}</div><div className="val">{num(store.traffic)}</div></div>
+          <div className="kpi"><div className="lbl">{t("In-Cart")}</div><div className="val">{num(store.in_cart)}</div><div className="kpi-sub">{cr.toFixed(1)}% {t("cart rate")}</div></div>
+          <div className="kpi"><div className="lbl">Orders</div><div className="val">{num(store.orders)}</div></div>
+          <div className="kpi"><div className="lbl">{t("Ads Cost")}</div><div className="val">{idr(store.ad_cost)}</div></div>
+          <div className="kpi kpi-roas"><div className="lbl">{t("ROAS")}</div><div className="val">{store.roas ? store.roas.toFixed(2) + "×" : "—"}</div></div>
+        </div>
+
+        <div className="hint" style={{ marginBottom: 8 }}>{t("Monthly Sales")} vs {t("Ads Cost")}</div>
+        {trend.length ? (
+          <div style={{ width: "100%", height: 260 }}>
+            <ResponsiveContainer>
+              <ComposedChart data={trend} margin={{ left: 4, right: 20, top: 10, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
+                <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+                <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [idrF(Number(v)), n === "sales" ? "Sales" : "Ads Cost"]} />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc" }} />
+                <Bar dataKey="sales" fill="url(#gNavy)" radius={[4, 4, 0, 0]} />
+                <Line type="monotone" dataKey="ad_cost" stroke={GOLD} strokeWidth={2.5} dot={{ r: 3, fill: GOLD }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        ) : <Empty />}
+      </div>
+    </div>
   );
 }

@@ -54,6 +54,13 @@ const ID_DICT: Record<string, string> = {
   // table
   "Trend": "Tren", "Sales": "Penjualan", "Cart Rate": "Tingkat Keranjang",
   "ROAS Trend": "Tren ROAS", "No data yet": "Belum ada data",
+  "Klik baris untuk detail": "Klik baris untuk detail",
+
+  // funnel / campaigns
+  "Shopping Funnel": "Funnel Belanja",
+  "Traffic → In-Cart → Orders — periode terpilih": "Kunjungan → Masuk Keranjang → Pesanan — periode terpilih",
+  "Best Campaign Performance": "Performa Kampanye Terbaik",
+  "Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)": "Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)",
 
   // misc
   "GMV": "GMV",
