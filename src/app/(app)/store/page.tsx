@@ -8,8 +8,8 @@ import StoreUpload from "./StoreUpload";
 export const dynamic = "force-dynamic";
 
 const TABS = [
-  { v: "dashboard", l: "Store Performance" },
-  { v: "upload", l: "Upload Store Performance" },
+  { v: "dashboard", l: "Operational Performance" },
+  { v: "upload", l: "Upload Operational Performance" },
 ] as const;
 
 export default function Page() {

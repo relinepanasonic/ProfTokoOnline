@@ -71,7 +71,7 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
 
   return (
     <div className="panel">
-      <h3>Upload Store Performance</h3>
+      <h3>Upload Operational Performance</h3>
       <div className="hint" style={{ marginBottom: 16 }}>
         Upload the Shopee &quot;Order.completed&quot; (order-level) export — the sheet is read automatically.
         Week is auto-detected per order from its completion date (Week 1 = days 1–7 of the month you pick).

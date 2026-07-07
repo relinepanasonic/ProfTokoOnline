@@ -93,8 +93,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       <div className="panel">
         <div className="coming">
           <div className="big">🏬</div>
-          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Upload Data Store Performance First</h3>
-          <p style={{ maxWidth: 420, margin: 0 }}>No Shopee Order.completed data has been uploaded yet. Go to the &quot;Upload Store Performance&quot; tab to import one.</p>
+          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Upload Data Operational Performance First</h3>
+          <p style={{ maxWidth: 420, margin: 0 }}>No Shopee Order.completed data has been uploaded yet. Go to the &quot;Upload Operational Performance&quot; tab to import one.</p>
         </div>
       </div>
     );
@@ -105,13 +105,17 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
 
   return (
     <>
-      {/* filters — Owner then Store first: this is a store-per-store dashboard, not combined */}
+      {/* filters — Owner + Store only at first; Year/Month/Week auto-reveal once a store is picked */}
       <div className="filterbar">
         <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
         <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="Pick a store…" />
-        <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
-        <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
-        <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
+        {sel.store && (
+          <>
+            <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
+            <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
+            <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
+          </>
+        )}
         <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", store: "" })}>Reset</button>
         {loading && <Loader />}
       </div>
@@ -121,7 +125,7 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
           <div className="coming">
             <div className="big">🏬</div>
             <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Pilih Store</h3>
-            <p style={{ maxWidth: 420, margin: 0 }}>Store Performance ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.</p>
+            <p style={{ maxWidth: 420, margin: 0 }}>Operational Performance ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.</p>
           </div>
         </div>
       ) : (
