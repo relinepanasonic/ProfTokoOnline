@@ -167,8 +167,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         <Panel title="Status Pembatalan" hint="Jumlah pesanan per status pembatalan/pengembalian">
           <DonutChart data={(d?.cancel_status || []).map((p) => ({ name: p.status, value: p.cnt }))} />
         </Panel>
-        <Panel title="Jenis Kurir / Opsi Kirim" hint="Jumlah pesanan per opsi pengiriman">
-          <DonutChart data={(d?.shipping_option || []).map((p) => ({ name: p.option, value: p.cnt }))} />
+        <Panel title="Jenis Kurir / Opsi Kirim" hint="Jumlah pesanan per opsi pengiriman — top 10, sisanya digabung jadi Lainnya">
+          <DonutChart data={topNPlusOthers((d?.shipping_option || []).map((p) => ({ name: p.option, value: p.cnt })), 10)} />
         </Panel>
       </div>
 
@@ -342,6 +342,15 @@ function SimpleBarChart({ data, dataKey, xKey, color }: { data: Record<string, u
       </ResponsiveContainer>
     </div>
   );
+}
+// Caps a category chart to its top N slices, folding the long tail into
+// "Lainnya" — keeps a legend of 20+ shipping options readable.
+function topNPlusOthers(data: { name: string; value: number }[], n: number) {
+  const sorted = [...data].sort((a, b) => b.value - a.value);
+  if (sorted.length <= n) return sorted;
+  const top = sorted.slice(0, n);
+  const rest = sorted.slice(n).reduce((s, x) => s + x.value, 0);
+  return rest > 0 ? [...top, { name: "Lainnya", value: rest }] : top;
 }
 function DonutChart({ data }: { data: { name: string; value: number }[] }) {
   const filtered = data.filter((x) => x.value > 0);
