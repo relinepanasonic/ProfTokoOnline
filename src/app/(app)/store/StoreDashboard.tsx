@@ -216,9 +216,21 @@ function SlaLine({ label, value, bold }: { label: string; value: string; bold?: 
 /* ── day drill-down overlay ── */
 type DetailRow = {
   order_no: string | null; product_name: string | null; variant_name: string | null; qty: number | null;
+  paid_at: string | null; ship_deadline: string | null; completed_at: string | null;
   payment_method: string | null; shipping_option: string | null; city: string | null; province: string | null;
   total_payment: number | null; order_status: string | null; cancel_return_status: string | null;
 };
+function fmtDT(s: string | null): string {
+  if (!s) return "—";
+  const d = new Date(s.replace(" ", "T"));
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+function slaFor(paid: string | null, completed: string | null): string {
+  if (!paid || !completed) return "—";
+  const h = (new Date(completed.replace(" ", "T")).getTime() - new Date(paid.replace(" ", "T")).getTime()) / 3600000;
+  return Number.isFinite(h) ? fmtHours(h) : "—";
+}
 function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   day: string; clientId: string;
   sel: { year: string; month: string; week: string; owner: string; store: string };
@@ -229,7 +241,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   useEffect(() => {
     (async () => {
       let q = supabase.from("order_rows")
-        .select("order_no,product_name,variant_name,qty,payment_method,shipping_option,city,province,total_payment,order_status,cancel_return_status")
+        .select("order_no,product_name,variant_name,qty,paid_at,ship_deadline,completed_at,payment_method,shipping_option,city,province,total_payment,order_status,cancel_return_status")
         .eq("client_id", clientId).gte("completed_at", `${day} 00:00:00`).lte("completed_at", `${day} 23:59:59`);
       if (sel.year) q = q.eq("year", Number(sel.year));
       if (sel.month) q = q.eq("month", sel.month);
@@ -245,32 +257,41 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
     <div style={overlay} onClick={onClose}>
       <div style={drawer} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>Transaksi — {fmtDate(day)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Transaksi — {fmtDate(day)}</div>
           <button className="btn-ghost" onClick={onClose}>✕ Close</button>
         </div>
         {rows === null ? <Loader center /> : (
-          <div className="tbl-wrap" style={{ maxHeight: "65vh" }}>
-            <table className="tbl" style={{ color: "#e8edf8" }}>
+          <div className="tbl-wrap" style={{ maxHeight: "72vh" }}>
+            <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
               <thead><tr>
                 <th>No. Pesanan</th><th>Produk</th><th>Variasi</th><th className="num">Qty</th>
-                <th>Metode Bayar</th><th>Opsi Kirim</th><th>Kota / Provinsi</th>
-                <th className="num">Total Pembayaran</th><th>Status</th>
+                <th>Pesanan Dibayar</th><th>Pesanan di Kirim</th><th>Pesanan Selesai</th><th>SLA</th>
+                <th>Metode Bayar</th><th>Kurir</th><th>Kota</th><th>Provinsi</th>
+                <th className="num">Total Sales</th><th>Status</th>
               </tr></thead>
               <tbody>
-                {rows.map((r, i) => (
-                  <tr key={i}>
-                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.order_no || "—"}</td>
-                    <td style={{ maxWidth: 200, whiteSpace: "normal" }}>{r.product_name || "—"}</td>
-                    <td>{r.variant_name || "—"}</td>
-                    <td className="num">{r.qty ?? "—"}</td>
-                    <td style={{ fontSize: 12 }}>{r.payment_method || "—"}</td>
-                    <td style={{ fontSize: 12 }}>{r.shipping_option || "—"}</td>
-                    <td style={{ fontSize: 12 }}>{r.city || "—"}{r.province ? `, ${r.province}` : ""}</td>
-                    <td className="num">{rpFull(r.total_payment || 0)}</td>
-                    <td style={{ fontSize: 12 }}>{r.cancel_return_status || r.order_status || "—"}</td>
-                  </tr>
-                ))}
-                {rows.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No transactions</td></tr>}
+                {rows.map((r, i) => {
+                  const showOrderNo = i === 0 || rows[i - 1].order_no !== r.order_no;
+                  return (
+                    <tr key={i}>
+                      <td style={{ fontFamily: "monospace", fontSize: 12.5, whiteSpace: "nowrap" }}>{showOrderNo ? (r.order_no || "—") : ""}</td>
+                      <td style={{ maxWidth: 220, whiteSpace: "normal" }}>{r.product_name || "—"}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>{r.variant_name || "—"}</td>
+                      <td className="num">{r.qty ?? "—"}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtDT(r.paid_at)}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtDT(r.ship_deadline)}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{fmtDT(r.completed_at)}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap", fontWeight: 700, color: GOLD }}>{slaFor(r.paid_at, r.completed_at)}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{r.payment_method || "—"}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{r.shipping_option || "—"}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{r.city || "—"}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{r.province || "—"}</td>
+                      <td className="num">{rpFull(r.total_payment || 0)}</td>
+                      <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{r.cancel_return_status || r.order_status || "—"}</td>
+                    </tr>
+                  );
+                })}
+                {rows.length === 0 && <tr><td colSpan={14} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No transactions</td></tr>}
               </tbody>
             </table>
           </div>
@@ -347,4 +368,4 @@ function DonutChart({ data }: { data: { name: string; value: number }[] }) {
 }
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" };
-const drawer: React.CSSProperties = { width: "min(96vw,1200px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 24, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
+const drawer: React.CSSProperties = { width: "min(98vw,1900px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 28, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
