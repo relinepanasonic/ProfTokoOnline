@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 
 type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "advertiser";
 
@@ -38,10 +39,21 @@ const ROLE_LABEL: Record<Role, string> = {
 // Mobile bottom-nav: 6 most-used destinations
 const BOTTOM = ["/", "/product", "/ads", "/store", "/upload", "/calc"];
 
+function LangToggle() {
+  const { lang, setLang } = useLang();
+  return (
+    <div className="lang-toggle">
+      <button className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>EN</button>
+      <button className={lang === "id" ? "active" : ""} onClick={() => setLang("id")}>ID</button>
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const path = usePathname();
   const [supabase] = useState(() => createClient());
+  const { t } = useLang();
   const [role, setRole] = useState<Role>();
   const [name, setName] = useState("—");
   const [clientName, setClientName] = useState("");
@@ -102,7 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {visible.map((n) => (
             <li key={n.href} className={path === n.href ? "active" : ""}>
               <Link href={n.href} style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", color: "inherit", textDecoration: "none" }}>
-                <span className="ic">{n.icon}</span> {n.label}
+                <span className="ic">{n.icon}</span> {t(n.label)}
               </Link>
             </li>
           ))}
@@ -122,21 +134,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="mob-sub">{clientName}</div>
             </div>
           </div>
-          <button className="btn-logout" onClick={logout}>Logout</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <LangToggle />
+            <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
+          </div>
         </div>
 
         {/* Desktop topbar */}
         <div className="topbar">
           <div>
-            <div className="page-title">{current?.label || "Dashboard"}</div>
-            <div className="page-sub">Marketplace performance overview — Shopee</div>
+            <div className="page-title">{t(current?.label || "Dashboard")}</div>
+            <div className="page-sub">{t("Marketplace performance overview — Shopee")}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <LangToggle />
             <div className="user-badge">
               <span>{name}</span>
               {role && <span className="user-role">{ROLE_LABEL[role]}</span>}
             </div>
-            <button className="btn-logout" onClick={logout}>Logout</button>
+            <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
           </div>
         </div>
 
@@ -150,7 +166,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           return (
             <Link key={href} href={href} className={`bn-item ${path === href ? "active" : ""}`}>
               <span style={{ fontSize: 20 }}>{n.icon}</span>
-              <span>{n.label.split(" ")[0]}</span>
+              <span>{t(n.label).split(" ")[0]}</span>
             </Link>
           );
         })}

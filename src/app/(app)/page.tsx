@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
+import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +99,23 @@ function ChartDefs() {
   );
 }
 
+/* ─── Radial gauge (ROAS) — glowing ring, replaces the old linear bar ─── */
+function RadialGauge({ pct, size = 42, stroke = 5, color = GOLD }: { pct: number; size?: number; stroke?: number; color?: string }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.min(Math.max(pct, 0), 100);
+  const offset = c * (1 - clamped / 100);
+  return (
+    <svg width={size} height={size} style={{ display: "block" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={offset} strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        style={{ filter: `drop-shadow(0 0 6px ${color})`, transition: "stroke-dashoffset 1s cubic-bezier(.34,1.4,.64,1)" }} />
+    </svg>
+  );
+}
+
 /* ─── 3-D bar shape ─── */
 function Bar3D(props: Record<string, unknown>) {
   const x = props.x as number ?? 0;
@@ -176,6 +194,7 @@ const TIP_STYLE: React.CSSProperties = {
 const axis = { fontSize: 10, fill: "#7089aa" };
 
 export default function DashboardPage() {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], cities: [], stores: [] });
@@ -289,13 +308,13 @@ export default function DashboardPage() {
 
       {/* ── Filters ── */}
       <div className="filterbar">
-        <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={filters.years.map(String)} all="All Years" />
-        <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all="All Months" />
-        <Sel label="City"  value={sel.city}  onChange={(v) => setSel((s) => ({ ...s, city: v }))}  opts={filters.cities} all="All Cities" />
-        {owners.length > 0 && <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />}
-        {brandsForOwner.length > 0 && <Sel label="Brand" value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all="All Brands" />}
-        <Sel label={storeLabel} value={sel.store} onChange={pickStore} opts={filteredStores} all={`All ${storeLabel}s`} />
-        <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>Reset</button>
+        <Sel label={t("Year")}  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={filters.years.map(String)} all={t("All Years")} />
+        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
+        <Sel label={t("City")}  value={sel.city}  onChange={(v) => setSel((s) => ({ ...s, city: v }))}  opts={filters.cities} all={t("All Cities")} />
+        {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
+        {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
+        <Sel label={storeLabel} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${storeLabel}s`} />
+        <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>{t("Reset")}</button>
         {loading && <Loader />}
       </div>
 
@@ -304,12 +323,15 @@ export default function DashboardPage() {
         const kv = (node: React.ReactNode) => k ? node : <span className="pt-skel" style={{ display:"inline-block", width:64, height:20, verticalAlign:"middle" }} />;
         return (
       <div className="kpi-grid">
-        <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">Total Sales</div><div className="val">{kv(idr(k?.sales ?? 0))}</div><div className="kpi-sub">SPOS · siap dikirim</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">Total GMV</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div><div className="kpi-sub">Performa</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">Traffic</div><div className="val">{kv(num(k?.traffic ?? 0))}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">In-Cart</div><div className="val">{kv(num(k?.in_cart ?? 0))}</div><div className="kpi-sub">{k ? cartRate.toFixed(1)+"% cart rate" : ""}</div></div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">Ads Cost</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div></div>
-        <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">⚡</div><div className="lbl">ROAS</div><div className="val">{kv((k?.roas ? k.roas.toFixed(2) : "0.00")+"×")}</div><div className="roas-bar"><div className="roas-fill" style={{ width: roasPct+"%" }} /></div></div>
+        <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div><div className="kpi-sub">{t("SPOS · siap dikirim")}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">{t("Total GMV")}</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div><div className="kpi-sub">{t("Performa")}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.in_cart ?? 0))}</div><div className="kpi-sub">{k ? cartRate.toFixed(1)+"% "+t("cart rate") : ""}</div></div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div></div>
+        <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}>
+          <div style={{ position: "absolute", right: 13, top: 12 }}><RadialGauge pct={roasPct} /></div>
+          <div className="lbl">{t("ROAS")}</div><div className="val">{kv((k?.roas ? k.roas.toFixed(2) : "0.00")+"×")}</div>
+        </div>
       </div>
         );
       })()}
@@ -319,54 +341,54 @@ export default function DashboardPage() {
 
       {/* ── Monthly sales ── */}
       <div className="row">
-        <Panel title="Monthly Sales" hint="Penjualan per bulan · SPOS">
+        <Panel title={t("Monthly Sales")} hint={t("Penjualan per bulan · SPOS")}>
           <Bars3DChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} x="month" y="sales" grad="url(#gGold)" accent={GOLD} />
         </Panel>
       </div>
 
       {/* ── Top products + brand share ── */}
       <div className="row c2">
-        <Panel title="Top 10 Best-Selling Products" hint="Sales · SPOS parent rows">
+        <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title="Brand Share of Sales" hint="Sales mix by brand · SPOS">
+        <Panel title={t("Brand Share of Sales")} hint={t("Sales mix by brand · SPOS")}>
           <DonutChart data={(d?.brand_share||[]).map((b) => ({ name: b.brand, value: b.sales }))} />
         </Panel>
       </div>
 
       {/* ── Cost vs ROAS + traffic ── */}
       <div className="row c2b">
-        <Panel title="Monthly Ads Cost vs ROAS" hint="Bars = cost · line = ROAS">
+        <Panel title={t("Monthly Ads Cost vs ROAS")} hint={t("Bars = cost · line = ROAS")}>
           <CostRoasChart data={byMonth((d?.cost_roas||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} />
         </Panel>
-        <Panel title="Traffic vs Add-to-Cart" hint="Funnel trend per month">
+        <Panel title={t("Traffic vs Add-to-Cart")} hint={t("Funnel trend per month")}>
           <TrafficChart data={byMonth((d?.traffic_trend||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} />
         </Panel>
       </div>
 
       {/* ── Sales per Store ── */}
       <div className="row">
-        <Panel title="Sales per Store" hint="Total SPOS sales per store · baseline excluded">
+        <Panel title={t("Sales per Store")} hint={t("Total SPOS sales per store · baseline excluded")}>
           <StoreSalesChart data={d?.dealers||[]} />
         </Panel>
       </div>
 
       {/* ── Dealer table ── */}
       <div className="panel">
-        <h3>Detail Data per {storeLabel}</h3>
-        <div className="hint">Sorted by sales · Baseline excluded · line shows SPOS sales trend</div>
+        <h3>{t("Detail Data per")} {storeLabel}</h3>
+        <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
-              <th>{storeLabel}</th><th>Trend</th>
-              <th className="num">Sales</th><th className="num">Traffic</th>
-              <th className="num">In-Cart</th><th className="num">Cart Rate</th>
-              <th className="num">Ads Cost</th><th className="num">ROAS Trend</th><th className="num">ROAS</th>
+              <th>{storeLabel}</th><th>{t("Trend")}</th>
+              <th className="num">{t("Sales")}</th><th className="num">{t("Traffic")}</th>
+              <th className="num">{t("In-Cart")}</th><th className="num">{t("Cart Rate")}</th>
+              <th className="num">{t("Ads Cost")}</th><th className="num">{t("ROAS Trend")}</th><th className="num">{t("ROAS")}</th>
             </tr></thead>
             <tbody>
               {(d?.dealers||[]).map((r, i) => {
                 const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
-                const roasTrend = r.trend?.map((t) => ({ month: t.month, value: t.ad_cost ? t.sales / t.ad_cost : 0 }));
+                const roasTrend = r.trend?.map((tr) => ({ month: tr.month, value: tr.ad_cost ? tr.sales / tr.ad_cost : 0 }));
                 return (
                   <tr key={i}>
                     <td>{r.store_name}</td>
@@ -386,7 +408,7 @@ export default function DashboardPage() {
                 );
               })}
               {(!d?.dealers||d.dealers.length===0) && (
-                <tr><td colSpan={9} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>No data yet</td></tr>
+                <tr><td colSpan={9} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>{t("No data yet")}</td></tr>
               )}
             </tbody>
           </table>
