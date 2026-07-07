@@ -67,23 +67,27 @@ export default function IndonesiaMap({ data }: { data: { province: string; gmv: 
   }, [data]);
 
   const max = Math.max(1, ...Array.from(gmvByProvince.values()));
-  const projection = useMemo(() => (geo ? geoMercator().fitSize([680, 380], geo) : null), [geo]);
+  const W = 460, H = 260;
+  const projection = useMemo(() => (geo ? geoMercator().fitSize([W, H], geo) : null), [geo]);
   const path = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
 
   if (!geo || !path) {
-    return <div style={{ height: 380, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>Memuat peta…</div>;
+    return <div style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>Memuat peta…</div>;
   }
 
   return (
-    <div style={{ position: "relative" }}>
-      <svg viewBox="0 0 680 380" style={{ width: "100%", height: "auto" }}>
+    <div style={{ position: "relative", maxWidth: 520, margin: "0 auto" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {(geo.features as Feat[]).map((f, i) => {
           const name = f.properties?.name ?? null;
           const gmv = name ? gmvByProvince.get(name) ?? 0 : 0;
           const t = gmv / max;
           const fill = gmv > 0 ? `rgba(201,162,39,${(0.15 + t * 0.75).toFixed(2)})` : "rgba(255,255,255,0.045)";
+          // Higher-GMV provinces get a soft gold glow, intensity scaled to their share of the max.
+          const glow = t > 0.04 ? `drop-shadow(0 0 ${(3 + t * 9).toFixed(1)}px rgba(240,208,112,${(0.35 + t * 0.55).toFixed(2)}))` : "none";
           return (
             <path key={i} d={path(f) || undefined} fill={fill} stroke="rgba(6,14,33,0.75)" strokeWidth={0.6}
+              style={{ filter: glow, transition: "filter .2s" }}
               onMouseMove={(e) => name && setHover({ name, gmv, x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHover(null)} />
           );
