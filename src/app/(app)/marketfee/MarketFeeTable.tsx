@@ -20,15 +20,20 @@ type MarketFee = {
 };
 type Filters = { platforms: string[]; jenis_toko: string[] };
 
-const DETAIL_FIELDS: { key: keyof MarketFee; label: string; type: "percent" | "rupiah" }[] = [
-  { key: "min_go_biasa",   label: "Min Gratis Ongkir Uk Biasa",  type: "percent" },
-  { key: "max_go_biasa",   label: "Max Gratis Ongkir Uk Biasa",  type: "rupiah" },
-  { key: "min_go_khusus",  label: "Min Gratis Ongkir Uk Khusus", type: "percent" },
-  { key: "max_go_khusus",  label: "Max Gratis Ongkir Uk Khusus", type: "rupiah" },
-  { key: "min_promo_xtra", label: "Min Promo Xtra | XBP",        type: "percent" },
-  { key: "max_promo_xtra", label: "Max Promo Xtra | XBP",        type: "rupiah" },
-  { key: "spaylater_3mo",  label: "Spaylater Xtra 3 bln",        type: "percent" },
-  { key: "spaylater_6mo",  label: "Spaylater Xtra 6 bln",        type: "percent" },
+// Every editable numeric column from the CSV, in the same order as the
+// source file — all shown inline now, nothing hidden behind an expand.
+const FEE_FIELDS: { key: keyof MarketFee; label: string; type: "percent" | "rupiah" }[] = [
+  { key: "platform_fee",         label: "Platform Fee",                type: "percent" },
+  { key: "biaya_proses_pesanan", label: "Biaya Proses Pesanan",        type: "rupiah" },
+  { key: "biaya_layanan_mall",   label: "Biaya Layanan Mall",          type: "percent" },
+  { key: "min_go_biasa",         label: "Min Gratis Ongkir Uk Biasa",  type: "percent" },
+  { key: "max_go_biasa",         label: "Max Gratis Ongkir Uk Biasa",  type: "rupiah" },
+  { key: "min_go_khusus",        label: "Min Gratis Ongkir Uk Khusus", type: "percent" },
+  { key: "max_go_khusus",        label: "Max Gratis Ongkir Uk Khusus", type: "rupiah" },
+  { key: "min_promo_xtra",       label: "Min Promo Xtra | XBP",        type: "percent" },
+  { key: "max_promo_xtra",       label: "Max Promo Xtra | XBP",        type: "rupiah" },
+  { key: "spaylater_3mo",        label: "Spaylater Xtra 3 bln",        type: "percent" },
+  { key: "spaylater_6mo",        label: "Spaylater Xtra 6 bln",        type: "percent" },
 ];
 
 export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { clientId: string; onEdited: () => void; refreshKey: number }) {
@@ -43,7 +48,6 @@ export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { cli
   const [rows, setRows] = useState<MarketFee[] | null>(null);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
@@ -76,10 +80,6 @@ export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { cli
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(0, false); }, [load, refreshKey]);
-
-  function toggleExpand(id: number) {
-    setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  }
 
   async function saveField(row: MarketFee, field: string, value: number | null) {
     const { data, error } = await supabase.rpc("update_market_fee_field", {
@@ -121,19 +121,20 @@ export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { cli
         {loading && <Loader />}
       </div>
 
-      <div className="tbl-wrap" style={{ maxHeight: 560 }}>
-        <table className="tbl">
+      <div className="tbl-wrap" style={{ maxHeight: 640 }}>
+        <table className="tbl" style={{ fontSize: 12.5 }}>
           <thead><tr>
-            <th></th><th>Category</th><th>Sub Category</th><th>Jenis Product</th><th>Platform</th><th>Jenis Toko</th>
-            <th className="num">Platform Fee</th><th className="num">Biaya Proses Pesanan</th><th className="num">Biaya Layanan Mall</th>
+            <th>Category</th><th>Sub Category</th><th>Jenis Product</th><th>Platform</th><th>Jenis Toko</th>
+            <th>Kategori Kirim</th>
+            {FEE_FIELDS.map((f) => <th key={f.key} className="num" style={{ whiteSpace: "nowrap" }}>{f.label}</th>)}
+            <th style={{ whiteSpace: "nowrap" }}>Terakhir Diubah</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (
-              <FeeRow key={r.id} row={r} expanded={expanded.has(r.id)} onToggle={() => toggleExpand(r.id)}
-                canEdit={canEdit} onSave={saveField} />
+              <FeeRow key={r.id} row={r} canEdit={canEdit} onSave={saveField} />
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No products found</td></tr>
+              <tr><td colSpan={FEE_FIELDS.length + 7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No products found</td></tr>
             )}
           </tbody>
         </table>
@@ -151,43 +152,25 @@ export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { cli
   );
 }
 
-function FeeRow({ row, expanded, onToggle, canEdit, onSave }: {
-  row: MarketFee; expanded: boolean; onToggle: () => void; canEdit: boolean;
+function FeeRow({ row, canEdit, onSave }: {
+  row: MarketFee; canEdit: boolean;
   onSave: (row: MarketFee, field: string, value: number | null) => void;
 }) {
   return (
-    <>
-      <tr>
-        <td style={{ width: 24, cursor: "pointer", color: "var(--gold)" }} onClick={onToggle}>{expanded ? "▾" : "▸"}</td>
-        <td>{row.category}</td>
-        <td>{row.sub_category}</td>
-        <td style={{ maxWidth: 260, whiteSpace: "normal" }}>{row.jenis_product}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{row.platform}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{row.jenis_toko}</td>
-        <td className="num"><EditableCell value={row.platform_fee} type="percent" canEdit={canEdit} onSave={(v) => onSave(row, "platform_fee", v)} /></td>
-        <td className="num"><EditableCell value={row.biaya_proses_pesanan} type="rupiah" canEdit={canEdit} onSave={(v) => onSave(row, "biaya_proses_pesanan", v)} /></td>
-        <td className="num"><EditableCell value={row.biaya_layanan_mall} type="percent" canEdit={canEdit} onSave={(v) => onSave(row, "biaya_layanan_mall", v)} /></td>
-      </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={9} style={{ background: "rgba(10,22,40,.4)", padding: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Kategori Kirim</div>
-                <div style={{ fontSize: 13, color: "#e8edf8" }}>{row.kategori_kirim || "—"}</div>
-              </div>
-              {DETAIL_FIELDS.map((f) => (
-                <div key={f.key}>
-                  <div style={{ fontSize: 10.5, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>{f.label}</div>
-                  <EditableCell value={row[f.key] as number | null} type={f.type} canEdit={canEdit} onSave={(v) => onSave(row, f.key, v)} />
-                </div>
-              ))}
-            </div>
-            {row.updated_month && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10 }}>Terakhir diubah: {row.updated_month}</div>}
-          </td>
-        </tr>
-      )}
-    </>
+    <tr>
+      <td style={{ whiteSpace: "nowrap" }}>{row.category}</td>
+      <td style={{ whiteSpace: "nowrap" }}>{row.sub_category}</td>
+      <td style={{ maxWidth: 240, whiteSpace: "normal" }}>{row.jenis_product}</td>
+      <td style={{ whiteSpace: "nowrap" }}>{row.platform}</td>
+      <td style={{ whiteSpace: "nowrap" }}>{row.jenis_toko}</td>
+      <td style={{ whiteSpace: "nowrap" }}>{row.kategori_kirim || "—"}</td>
+      {FEE_FIELDS.map((f) => (
+        <td key={f.key} className="num">
+          <EditableCell value={row[f.key] as number | null} type={f.type} canEdit={canEdit} onSave={(v) => onSave(row, f.key, v)} />
+        </td>
+      ))}
+      <td style={{ whiteSpace: "nowrap", fontSize: 11.5, color: "var(--muted)" }}>{row.updated_month || "—"}</td>
+    </tr>
   );
 }
 
