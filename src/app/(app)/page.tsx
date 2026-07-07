@@ -340,10 +340,10 @@ export default function DashboardPage() {
       {/* first-load spinner (no cached data yet) */}
       {loading && !d && <Loader center />}
 
-      {/* ── Monthly sales ── */}
+      {/* ── Monthly performance: Traffic vs In-Cart vs Sales ── */}
       <div className="row">
-        <Panel title={t("Monthly Sales")} hint={t("Penjualan per bulan · SPOS")}>
-          <MonthlySalesChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} />
+        <Panel title={t("Monthly Performance")} hint={t("Traffic vs In-Cart vs Sales · SPOS")}>
+          <MonthlySalesChart data={buildMonthlyPerf(d)} />
         </Panel>
       </div>
 
@@ -352,7 +352,7 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Traffic → In-Cart → Orders — periode terpilih")}>
+        <Panel title={t("Shopping Funnel")} hint={t("Traffic → In-Cart → Sales (pc) — Klik produk belum tersedia di data")}>
           <FunnelChart traffic={k?.traffic ?? 0} inCart={k?.in_cart ?? 0} orders={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
@@ -372,7 +372,7 @@ export default function DashboardPage() {
         <Panel title={t("Sales per Store")} hint={t("Total SPOS sales per store · baseline excluded")}>
           <StoreSalesChart data={d?.dealers||[]} />
         </Panel>
-        <Panel title={t("Best Campaign Performance")} hint={t("Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)")}>
+        <Panel title={t("Best Campaign Performance")} hint={t("Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)")}>
           <CampaignChart data={d?.top_campaigns||[]} />
         </Panel>
       </div>
@@ -457,10 +457,26 @@ function Empty() {
   );
 }
 
-/* ── Monthly Sales — smooth flowing gradient area + glowing gold line
-     (blue "wave" fill for the volume, gold line ties back to the Total
-     Sales hero KPI, the same duo used everywhere else on this page) ── */
-function MonthlySalesChart({ data }: { data: { month: string; sales: number }[] }) {
+// Merge monthly_sales + traffic_trend into one series for the combined chart.
+function buildMonthlyPerf(d: Summary | null): { month: string; sales: number; traffic: number; in_cart: number }[] {
+  const salesByMonth = new Map((d?.monthly_sales || []).map((x) => [x.month, x.sales]));
+  const trafficByMonth = new Map((d?.traffic_trend || []).map((x) => [x.month, x]));
+  const months = [...new Set([...salesByMonth.keys(), ...trafficByMonth.keys()])]
+    .filter((m) => m?.toLowerCase().trim() !== "baseline");
+  return byMonth(months.map((month) => ({ month }))).map(({ month }) => ({
+    month,
+    sales: salesByMonth.get(month) ?? 0,
+    traffic: trafficByMonth.get(month)?.traffic ?? 0,
+    in_cart: trafficByMonth.get(month)?.in_cart ?? 0,
+  }));
+}
+
+/* ── Monthly Performance — Sales as a glowing gold area/line (primary, Rp
+     axis) + Traffic and In-Cart as blue lines (secondary, count axis).
+     Sales uses ONE <Area> (fill + stroke together) instead of a separate
+     Area+Line pair on the same dataKey — that duplicate was showing "Sales"
+     twice in the tooltip. ── */
+function MonthlySalesChart({ data }: { data: { month: string; sales: number; traffic: number; in_cart: number }[] }) {
   if (!data.length) return <Empty />;
   return (
     <div style={{ width:"100%", height:290 }}>
@@ -468,24 +484,28 @@ function MonthlySalesChart({ data }: { data: { month: string; sales: number }[] 
         <ComposedChart data={data} margin={{ left:4, right:20, top:18, bottom:8 }}>
           <defs>
             <linearGradient id="gMonthlyWave" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={BLUE_L} stopOpacity="0.55" />
-              <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
+              <stop offset="0%" stopColor={GOLD} stopOpacity="0.4" />
+              <stop offset="100%" stopColor={GOLD} stopOpacity="0.02" />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
-          <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+          <YAxis yAxisId="l" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+          <YAxis yAxisId="r" orientation="right" tick={axis} tickFormatter={(v) => num(Number(v))} axisLine={false} tickLine={false} width={44} />
           <Tooltip
             contentStyle={TIP_STYLE}
             cursor={{ stroke: "rgba(201,162,39,0.35)", strokeWidth: 1 }}
-            formatter={(v) => [idrF(Number(v)), "Sales"]}
-            labelFormatter={(l) => `📅 ${l}`}
+            formatter={(v, n) => n === "sales" ? [idrF(Number(v)), "Sales"] : [num(Number(v)), n === "traffic" ? "Traffic" : "In-Cart"]}
           />
-          <Area type="monotone" dataKey="sales" stroke="none" fill="url(#gMonthlyWave)" />
-          <Line type="monotone" dataKey="sales" stroke={GOLD} strokeWidth={3}
+          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc" }} formatter={(v) => v === "sales" ? "Sales" : v === "traffic" ? "Traffic" : "In-Cart"} />
+          <Area yAxisId="l" type="monotone" dataKey="sales" name="sales" stroke={GOLD} strokeWidth={3} fill="url(#gMonthlyWave)"
             dot={{ r:5, fill:GOLD, stroke:"#0a1628", strokeWidth:2 }}
             activeDot={{ r:7, fill:GOLD_L, stroke:"#0a1628", strokeWidth:2 }}
           />
+          <Line yAxisId="r" type="monotone" dataKey="traffic" name="traffic" stroke="#8fc4ff" strokeWidth={2}
+            dot={{ r:3, fill:"#8fc4ff" }} activeDot={{ r:5 }} />
+          <Line yAxisId="r" type="monotone" dataKey="in_cart" name="in_cart" stroke={BLUE} strokeWidth={2}
+            dot={{ r:3, fill:BLUE }} activeDot={{ r:5 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -497,7 +517,7 @@ function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
   if (!data.length) return <Empty />;
   const rows = data.map((p, i) => ({
     ...p,
-    label: (i+1)+". "+(p.name.length>28 ? p.name.slice(0,28)+"…" : p.name),
+    label: (i+1)+". "+(p.name.length>46 ? p.name.slice(0,46)+"…" : p.name),
   }));
   const max = Math.max(...rows.map((r) => r.sales), 1);
   return (
@@ -506,7 +526,7 @@ function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
         <BarChart layout="vertical" data={rows} barSize={16} margin={{ left:8, right:24, top:4, bottom:4 }} barCategoryGap="18%">
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
           <XAxis type="number" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} domain={[0, max * 1.12]} />
-          <YAxis type="category" dataKey="label" tick={{ fontSize:10, fill:"#9ab0cc" }} width={170} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="label" tick={{ fontSize:10, fill:"#9ab0cc" }} width={280} axisLine={false} tickLine={false} />
           <Tooltip
             contentStyle={TIP_STYLE}
             formatter={(v) => [idrF(Number(v)), "Sales"]}
@@ -541,7 +561,7 @@ function CostRoasChart({ data }: { data: { month:string; cost:number; roas:numbe
               ? [(Number(v)||0).toFixed(2)+"×", "ROAS"]
               : [idrF(Number(v)), "Ads Cost"]
             }
-            labelFormatter={(l) => `📅 ${l}`}
+            labelFormatter={(l) => l}
           />
           <Bar yAxisId="l" dataKey="cost" shape={<Bar3D fill="url(#gNavy)" />} radius={[4,4,0,0]}>
             {data.map((_, i) => <Cell key={i} fill="url(#gNavy)" />)}
@@ -566,12 +586,13 @@ function StoreSalesChart({ data }: { data: { store_name: string; sales: number }
   return (
     <div style={{ width: "100%", height: 290 }}>
       <ResponsiveContainer>
-        <BarChart data={rows} barSize={barW} margin={{ left: 4, right: 20, top: 18, bottom: 8 }} barCategoryGap="6%">
+        <BarChart data={rows} barSize={barW} margin={{ left: 4, right: 20, top: 18, bottom: 28 }} barCategoryGap="6%">
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis
             dataKey="store_name"
-            tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
-            tick={axis} interval={0} axisLine={false} tickLine={false} height={28}
+            tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 18) + "…" : v}
+            tick={axis} interval={0} axisLine={false} tickLine={false} height={70}
+            angle={-45} textAnchor="end"
           />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip
@@ -602,7 +623,7 @@ function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:
           <Tooltip
             contentStyle={TIP_STYLE}
             formatter={(v, n) => [num(Number(v)), n==="in_cart"?"In-Cart":"Traffic"]}
-            labelFormatter={(l) => `📅 ${l}`}
+            labelFormatter={(l) => l}
           />
           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:10, color:"#9ab0cc", paddingTop:4 }} />
           <Area type="monotone" dataKey="traffic"
@@ -702,46 +723,56 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 function FunnelChart({ traffic, inCart, orders, t }: { traffic: number; inCart: number; orders: number; t: (k: string) => string }) {
   if (!traffic) return <Empty />;
   const stages = [
-    { label: t("Traffic"), value: traffic, top: "#8fc4ff", bottom: BLUE },
-    { label: t("In-Cart"), value: inCart, top: BLUE, bottom: "#1d4ed8" },
-    { label: "Orders", value: orders, top: GOLD_L, bottom: GOLD },
+    { label: t("Traffic"), value: traffic },
+    { label: t("In-Cart"), value: inCart },
+    { label: t("Sales") + " (pc)", value: orders },
   ];
-  const W = 190, H = 176;
+  const W = 240, H = 260;
   const segH = H / stages.length;
-  const minW = W * 0.24;
+  const minW = W * 0.26;
   const max = stages[0].value || 1;
   const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.1));
-  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 8);
+  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 10);
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "center", padding: "10px 4px" }}>
+    <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
       <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible" }}>
         <defs>
-          {stages.map((s, i) => (
-            <linearGradient key={i} id={`funnel-g-${i}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={s.top} />
-              <stop offset="100%" stopColor={s.bottom} />
-            </linearGradient>
-          ))}
+          {/* One continuous gradient sweep spanning the full funnel — gold (top,
+              broad reach) flowing into blue (bottom, the narrower converted
+              slice) — our own identity, not a disjoint per-segment palette. */}
+          <linearGradient id="funnel-sweep" x1="0" y1="0" x2="0" y2={H} gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={GOLD_L} />
+            <stop offset="50%" stopColor={GOLD} />
+            <stop offset="100%" stopColor={BLUE} />
+          </linearGradient>
         </defs>
         {stages.map((s, i) => {
           const y = i * segH;
           const wTop = widths[i], wBot = widths[i + 1] ?? widths[i] * 0.62;
           const xTop = (W - wTop) / 2, xBot = (W - wBot) / 2;
-          const gap = 3;
+          const gap = 4;
           const pts = `${xTop},${y} ${xTop + wTop},${y} ${xBot + wBot},${y + segH - gap} ${xBot},${y + segH - gap}`;
-          return <polygon key={i} points={pts} fill={`url(#funnel-g-${i})`} style={{ filter: `drop-shadow(0 0 10px ${s.bottom}88)` }} />;
+          const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : 100;
+          return (
+            <g key={i}>
+              <polygon points={pts} fill="url(#funnel-sweep)" style={{ filter: "drop-shadow(0 0 10px rgba(201,162,39,0.4))" }} />
+              <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize="15" fontWeight={800} fill="#0a1628">
+                {prevPct.toFixed(0)}%
+              </text>
+            </g>
+          );
         })}
       </svg>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
         {stages.map((s, i) => {
           const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : null;
           return (
             <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
+              <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
               <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{num(s.value)}</span>
-                {prevPct != null && <span style={{ marginLeft: 7, fontSize: 11, fontWeight: 700, color: s.bottom }}>{prevPct.toFixed(0)}%</span>}
+                <span style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{num(s.value)}</span>
+                {prevPct != null && <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: GOLD }}>{prevPct.toFixed(0)}%</span>}
               </span>
             </div>
           );

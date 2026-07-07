@@ -40,6 +40,8 @@ const ID_DICT: Record<string, string> = {
   "Monthly Sales": "Penjualan Bulanan", "Penjualan per bulan · SPOS": "Penjualan per bulan · SPOS",
   "Top 10 Best-Selling Products": "10 Produk Terlaris",
   "Sales · SPOS parent rows": "Penjualan · baris induk SPOS",
+  "Monthly Performance": "Performa Bulanan",
+  "Traffic vs In-Cart vs Sales · SPOS": "Kunjungan vs Masuk Keranjang vs Penjualan · SPOS",
   "Brand Share of Sales": "Pangsa Penjualan per Merek",
   "Sales mix by brand · SPOS": "Komposisi penjualan per merek · SPOS",
   "Monthly Ads Cost vs ROAS": "Biaya Iklan vs ROAS Bulanan",
@@ -58,9 +60,9 @@ const ID_DICT: Record<string, string> = {
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",
-  "Traffic → In-Cart → Orders — periode terpilih": "Kunjungan → Masuk Keranjang → Pesanan — periode terpilih",
+  "Traffic → In-Cart → Sales (pc) — Klik produk belum tersedia di data": "Kunjungan → Masuk Keranjang → Penjualan (pc) — Klik produk belum tersedia di data",
   "Best Campaign Performance": "Performa Kampanye Terbaik",
-  "Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)": "Top 8 · Dilihat + Penjualan · sumber Ads (klik tidak tersedia di data)",
+  "Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)": "Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)",
 
   // misc
   "GMV": "GMV",
