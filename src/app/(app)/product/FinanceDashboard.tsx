@@ -122,16 +122,30 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const totalModal = pd?.total_modal ?? 0;
   const nettProfit = (k?.gross_profit ?? 0) - (k?.ads_cost ?? 0) - totalModal;
   const grossNettData = buildGrossNettData(d, pd);
+  const salesSeries = seriesFrom(d?.monthly, "sales");
+  const profitSeries = seriesFrom(d?.monthly, "profit");
+  const adsSeries = seriesFrom(d?.monthly_ads_cost, "ad_cost");
+  const modalSeries = seriesFrom(pd?.monthly_modal, "modal");
+  const nettSeries = grossNettData.map((x) => x.nett_profit);
+  const promoSeries = seriesFrom(d?.monthly_costs, "promotion_cost");
+  const refundSeries = seriesFrom(d?.monthly_costs, "refund");
+  const deliverySeries = seriesFrom(d?.monthly_costs, "delivery_cost");
+  const affiliateSeries = seriesFrom(d?.monthly_costs, "affiliate_cost");
+  const feeSeries = seriesFrom(d?.monthly_costs, "marketplace_fee");
 
   return (
     <>
-      {/* filters — Owner then Store first: this dashboard is store-per-store, not a combined view */}
+      {/* filters — Owner + Store only at first; Year/Month/Week auto-reveal once a store is picked */}
       <div className="filterbar">
         <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
         <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="Pick a store…" />
-        <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
-        <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
-        <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
+        {sel.store && (
+          <>
+            <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
+            <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
+            <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
+          </>
+        )}
         <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", store: "" })}>Reset</button>
         {loading && <Loader />}
       </div>
@@ -148,20 +162,20 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       <>
       {/* Row 1 — headline P&L */}
       <div className="kpi-grid kpi-grid-5">
-        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><div className="kpi-sub">Harga Asli Produk (H)</div></div>
-        <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><div className="kpi-sub">= Total Penghasilan (AG)</div></div>
-        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><div className="kpi-sub">sama seperti Dashboard Ads Cost</div></div>
-        <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><div className="kpi-sub">Harga Modal × unit terjual</div></div>
-        <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><div className="kpi-sub">Gross Profit − Ads − Modal</div></div>
+        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><MiniSparkline data={salesSeries} color={GOLD} /></div>
+        <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><MiniSparkline data={profitSeries} color={GOLD} /></div>
+        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><MiniSparkline data={adsSeries} color="#657f9c" /></div>
+        <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><MiniSparkline data={modalSeries} color="#c98f4a" /></div>
+        <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><MiniSparkline data={nettSeries} color={nettProfit >= 0 ? "#4ade80" : "#f87171"} /></div>
       </div>
 
       {/* Row 2 — cost breakdown (red glow on hover) */}
       <div className="kpi-grid kpi-grid-5">
-        <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><div className="kpi-sub">I, K, L, M, N, O</div></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><div className="kpi-sub">J</div></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><div className="kpi-sub">P – V</div></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><div className="kpi-sub">W</div></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><div className="kpi-sub">X – AE</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><MiniSparkline data={promoSeries} color="#d17e7e" /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><MiniSparkline data={refundSeries} color="#d17e7e" /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><MiniSparkline data={deliverySeries} color="#d17e7e" /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><MiniSparkline data={affiliateSeries} color="#d17e7e" /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><MiniSparkline data={feeSeries} color="#d17e7e" /></div>
       </div>
 
       {/* Monthly Gross Sales vs Nett Profit */}
@@ -301,9 +315,10 @@ function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
 
 /* ── day drill-down overlay ── */
 type DetailRow = {
-  order_no: string | null; buyer_username: string | null; payment_method: string | null;
-  sales: number | null; promotion_cost: number | null; marketplace_fee: number | null;
-  net_income: number | null; refund: number | null; jasa_kirim: string | null; nama_kurir: string | null;
+  order_no: string | null; buyer_username: string | null;
+  sales: number | null; promotion_cost: number | null; refund: number | null;
+  delivery_cost: number | null; affiliate_cost: number | null; marketplace_fee: number | null;
+  net_income: number | null;
 };
 function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   day: string; clientId: string;
@@ -315,7 +330,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   useEffect(() => {
     (async () => {
       let q = supabase.from("finance_rows")
-        .select("order_no,buyer_username,payment_method,sales,promotion_cost,marketplace_fee,net_income,refund,jasa_kirim,nama_kurir")
+        .select("order_no,buyer_username,sales,promotion_cost,refund,delivery_cost,affiliate_cost,marketplace_fee,net_income")
         .eq("client_id", clientId).eq("release_date", day);
       if (sel.year) q = q.eq("year", Number(sel.year));
       if (sel.month) q = q.eq("month", sel.month);
@@ -331,29 +346,31 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
     <div style={overlay} onClick={onClose}>
       <div style={drawer} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>Transaksi — {fmtDate(day)}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Transaksi — {fmtDate(day)}</div>
           <button className="btn-ghost" onClick={onClose}>✕ Close</button>
         </div>
         {rows === null ? <Loader center /> : (
-          <div className="tbl-wrap" style={{ maxHeight: "65vh" }}>
-            <table className="tbl" style={{ color: "#e8edf8" }}>
+          <div className="tbl-wrap" style={{ maxHeight: "70vh" }}>
+            <table className="tbl" style={{ color: "#e8edf8", fontSize: 14.5 }}>
               <thead><tr>
-                <th>No. Pesanan</th><th>Pembeli</th><th>Metode Bayar</th>
-                <th className="num">Sales</th><th className="num">Discount</th><th className="num">Fee</th>
-                <th className="num">Net Income</th><th className="num">Refund</th><th>Jasa Kirim</th>
+                <th>No. Pesanan</th><th>Pembeli</th>
+                <th className="num">Sales</th><th className="num">Promotional Cost</th>
+                <th className="num">Pengembalian Dana</th><th className="num">Delivery Cost</th>
+                <th className="num">Affiliate</th><th className="num">Market Place Fee</th>
+                <th className="num">Gross Profit</th>
               </tr></thead>
               <tbody>
                 {rows.map((r, i) => (
-                  <tr key={i}>
-                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.order_no || "—"}</td>
+                  <tr key={i} style={{ height: 48 }}>
+                    <td style={{ fontFamily: "monospace", fontSize: 13 }}>{r.order_no || "—"}</td>
                     <td>{r.buyer_username || "—"}</td>
-                    <td>{r.payment_method || "—"}</td>
                     <td className="num">{rpFull(r.sales || 0)}</td>
                     <td className="num">{rpFull(Math.abs(r.promotion_cost || 0))}</td>
-                    <td className="num">{rpFull(Math.abs(r.marketplace_fee || 0))}</td>
-                    <td className="num" style={{ color: (r.net_income || 0) >= 0 ? "#86efac" : "#f87171" }}>{rpFull(r.net_income || 0)}</td>
                     <td className="num">{rpFull(Math.abs(r.refund || 0))}</td>
-                    <td style={{ fontSize: 12 }}>{r.jasa_kirim || "—"}{r.nama_kurir ? ` · ${r.nama_kurir}` : ""}</td>
+                    <td className="num">{rpFull(Math.abs(r.delivery_cost || 0))}</td>
+                    <td className="num">{rpFull(Math.abs(r.affiliate_cost || 0))}</td>
+                    <td className="num">{rpFull(Math.abs(r.marketplace_fee || 0))}</td>
+                    <td className="num" style={{ color: (r.net_income || 0) >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income || 0)}</td>
                   </tr>
                 ))}
                 {rows.length === 0 && <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No transactions</td></tr>}
@@ -368,6 +385,26 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
 
 /* ── building blocks ── */
 const byMonth = <T extends { month: string }>(a: T[]) => [...(a || [])].sort((x, y) => MONTH_ORDER.indexOf(x.month) - MONTH_ORDER.indexOf(y.month));
+function seriesFrom<T extends { month: string }>(arr: T[] | undefined, key: keyof T): number[] {
+  return byMonth(arr || []).map((x) => Number(x[key]) || 0);
+}
+// Tiny inline trend line for a KPI card — replaces the old text sub-label.
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return <div style={{ height: 26 }} />;
+  const w = 100, h = 26, pad = 2;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const stepX = (w - 2 * pad) / (data.length - 1);
+  const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
+  const pts = data.map((v, i) => `${pad + i * stepX},${y(v)}`).join(" ");
+  const lastX = pad + (data.length - 1) * stepX;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 26, marginTop: 6, display: "block" }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
+      <circle cx={lastX} cy={y(data[data.length - 1])} r={2.3} fill={color} />
+    </svg>
+  );
+}
 const axis = { fontSize: 10, fill: "#7089aa" };
 const TIP_STYLE: React.CSSProperties = { background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 10, color: "#e8edf8", fontSize: 12, padding: "8px 14px" };
 
@@ -484,4 +521,4 @@ function DonutChart({ data }: { data: { name: string; value: number }[] }) {
 }
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" };
-const drawer: React.CSSProperties = { width: "min(96vw,1100px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 24, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
+const drawer: React.CSSProperties = { width: "min(98vw,1600px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 28, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
