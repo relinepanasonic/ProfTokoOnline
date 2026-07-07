@@ -281,7 +281,7 @@ export default function DashboardPage() {
           ⚠ Dashboard query failed: {loadErr}
           {loadErr.includes("57014") && (
             <div style={{ marginTop: 4, color: "#f87171" }}>
-              Statement timeout — run migration 0024 + <b>VACUUM (FULL, ANALYZE) sales_rows;</b> in Supabase to speed up the query.
+              Statement timeout — table bloat from repeated uploads is slowing this query down again. Run <b>VACUUM (FULL, ANALYZE) sales_rows;</b> in the Supabase SQL Editor (as its own query, not inside a migration) to fix it.
             </div>
           )}
         </div>
