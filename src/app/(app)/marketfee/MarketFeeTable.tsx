@@ -95,7 +95,8 @@ export default function MarketFeeTable({ clientId, refreshKey }: { clientId: str
         {loading && <Loader />}
       </div>
 
-      <div className="tbl-wrap" style={{ maxHeight: 640, overflowX: "auto" }}>
+      <div style={{ fontSize: 11, color: "var(--gold)", margin: "4px 0 6px", opacity: 0.8 }}>← geser tabel untuk melihat semua kolom →</div>
+      <div className="tbl-wrap scroll-x" style={{ maxHeight: "min(600px, 62vh)", overflow: "auto" }}>
         <table className="tbl" style={{ fontSize: 12.5, width: "max-content", minWidth: "100%" }}>
           <thead><tr>
             <th>Category</th><th>Sub Category</th><th>Jenis Product</th><th>Platform</th><th>Jenis Toko</th>

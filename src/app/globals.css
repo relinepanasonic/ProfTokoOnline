@@ -145,6 +145,12 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 
 /* Table */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* always-visible gold scrollbar for wide read-only tables (Market Fee) */
+.scroll-x{scrollbar-color:rgba(201,162,39,.55) rgba(255,255,255,.05);scrollbar-width:auto}
+.scroll-x::-webkit-scrollbar{height:12px;width:12px}
+.scroll-x::-webkit-scrollbar-track{background:rgba(255,255,255,.05);border-radius:8px}
+.scroll-x::-webkit-scrollbar-thumb{background:rgba(201,162,39,.55);border-radius:8px}
+.scroll-x::-webkit-scrollbar-thumb:hover{background:rgba(201,162,39,.85)}
 table.tbl{width:100%;border-collapse:collapse;font-size:13px}
 table.tbl th{text-align:left;background:linear-gradient(90deg,var(--navy2),var(--navy3));color:#fff;
   padding:10px 12px;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;position:sticky;top:0}
