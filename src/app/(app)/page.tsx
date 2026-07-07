@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useId } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, AreaChart, Area, Cell, Legend,
@@ -343,7 +343,7 @@ export default function DashboardPage() {
       {/* ── Monthly sales ── */}
       <div className="row">
         <Panel title={t("Monthly Sales")} hint={t("Penjualan per bulan · SPOS")}>
-          <Bars3DChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} x="month" y="sales" grad="url(#gNavy)" accent={BLUE} />
+          <MonthlySalesChart data={byMonth((d?.monthly_sales||[]).filter(m=>m.month?.toLowerCase().trim()!=="baseline"))} />
         </Panel>
       </div>
 
@@ -353,7 +353,7 @@ export default function DashboardPage() {
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
         <Panel title={t("Shopping Funnel")} hint={t("Traffic → In-Cart → Orders — periode terpilih")}>
-          <FunnelChart traffic={k?.traffic ?? 0} inCart={k?.in_cart ?? 0} orders={k?.orders ?? 0} />
+          <FunnelChart traffic={k?.traffic ?? 0} inCart={k?.in_cart ?? 0} orders={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
 
@@ -457,35 +457,36 @@ function Empty() {
   );
 }
 
-/* ── 3D Bar Chart (vertical) ── */
-function Bars3DChart({ data, x, y, grad, accent, short: shortLabel }:
-  { data: Record<string, unknown>[]; x:string; y:string; grad:string; accent:string; short?: boolean }) {
+/* ── Monthly Sales — smooth flowing gradient area + glowing gold line
+     (blue "wave" fill for the volume, gold line ties back to the Total
+     Sales hero KPI, the same duo used everywhere else on this page) ── */
+function MonthlySalesChart({ data }: { data: { month: string; sales: number }[] }) {
   if (!data.length) return <Empty />;
-  const barW = Math.min(Math.max(Math.floor(620 / data.length) - 10, 40), 130);
   return (
     <div style={{ width:"100%", height:290 }}>
       <ResponsiveContainer>
-        <BarChart data={data} barSize={barW} margin={{ left:4, right:20, top:18, bottom:8 }} barCategoryGap="6%">
+        <ComposedChart data={data} margin={{ left:4, right:20, top:18, bottom:8 }}>
+          <defs>
+            <linearGradient id="gMonthlyWave" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={BLUE_L} stopOpacity="0.55" />
+              <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis
-            dataKey={x}
-            tickFormatter={shortLabel ? (v:string) => v.length>7?v.slice(0,7)+"…":v : sm}
-            tick={axis} interval={0} axisLine={false} tickLine={false}
-            height={28}
-          />
+          <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip
             contentStyle={TIP_STYLE}
-            cursor={{ fill:"rgba(201,162,39,0.04)" }}
-            formatter={(v) => [idrF(Number(v)), y === "gmv" ? "GMV" : "Sales"]}
+            cursor={{ stroke: "rgba(201,162,39,0.35)", strokeWidth: 1 }}
+            formatter={(v) => [idrF(Number(v)), "Sales"]}
             labelFormatter={(l) => `📅 ${l}`}
           />
-          <Bar dataKey={y} fill={grad} shape={<Bar3D fill={grad} />} radius={[4,4,0,0]}>
-            {data.map((_, i) => (
-              <Cell key={i} fill={grad} />
-            ))}
-          </Bar>
-        </BarChart>
+          <Area type="monotone" dataKey="sales" stroke="none" fill="url(#gMonthlyWave)" />
+          <Line type="monotone" dataKey="sales" stroke={GOLD} strokeWidth={3}
+            dot={{ r:5, fill:GOLD, stroke:"#0a1628", strokeWidth:2 }}
+            activeDot={{ r:7, fill:GOLD_L, stroke:"#0a1628", strokeWidth:2 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -509,11 +510,11 @@ function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
           <Tooltip
             contentStyle={TIP_STYLE}
             formatter={(v) => [idrF(Number(v)), "Sales"]}
-            cursor={{ fill:"rgba(201,162,39,0.04)" }}
+            cursor={{ fill:"rgba(59,130,246,0.05)" }}
           />
-          <Bar dataKey="sales" shape={<HBar3D fill="url(#gGold)" />} radius={[0,4,4,0]}>
+          <Bar dataKey="sales" shape={<HBar3D fill="url(#gNavy)" />} radius={[0,4,4,0]}>
             {rows.map((_, i) => (
-              <Cell key={i} fill={i===0?"url(#gGold)":"url(#gNavy)"} />
+              <Cell key={i} fill="url(#gNavy)" />
             ))}
           </Bar>
         </BarChart>
@@ -666,56 +667,86 @@ function Sparkline({ data }: { data?: { month: string; value: number }[] }) {
 }
 
 /* ── mini trend line for a KPI card — replaces the old text sub-label ── */
+/* Mountain-style mini area sparkline (gradient fill under a glowing line) — replaces the old plain polyline */
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
-  if (data.length < 2) return <div style={{ height: 26 }} />;
-  const w = 100, h = 26, pad = 2;
+  const gid = "msg-" + useId().replace(/[^a-zA-Z0-9]/g, "");
+  if (data.length < 2) return <div style={{ height: 30 }} />;
+  const w = 100, h = 30, pad = 2;
   const min = Math.min(...data), max = Math.max(...data);
   const range = max - min || 1;
   const stepX = (w - 2 * pad) / (data.length - 1);
   const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
-  const pts = data.map((v, i) => `${pad + i * stepX},${y(v)}`).join(" ");
-  const lastX = pad + (data.length - 1) * stepX;
+  const coords = data.map((v, i) => [pad + i * stepX, y(v)] as const);
+  const line = coords.map(([x, cy], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${cy.toFixed(1)}`).join(" ");
+  const [lastX, lastY] = coords[coords.length - 1];
+  const area = `${line} L${lastX.toFixed(1)},${h} L${coords[0][0].toFixed(1)},${h} Z`;
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 26, marginTop: 6, display: "block" }}>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" opacity={0.9} />
-      <circle cx={lastX} cy={y(data[data.length - 1])} r={2.3} fill={color} />
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 30, marginTop: 6, display: "block" }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.5" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill={`url(#${gid})`} stroke="none" />
+      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" opacity={0.95} />
+      <circle cx={lastX} cy={lastY} r={2.6} fill={color} />
     </svg>
   );
 }
 
 /* ── Shopping funnel: Traffic → In-Cart → Orders (real typed fields only —
-     "clicks" isn't captured anywhere in this schema, so it's not shown) ── */
-function FunnelChart({ traffic, inCart, orders }: { traffic: number; inCart: number; orders: number }) {
-  const stages = [
-    { label: "Traffic", value: traffic, color: BLUE },
-    { label: "In-Cart", value: inCart, color: BLUE_L },
-    { label: "Orders", value: orders, color: GOLD },
-  ];
-  const max = Math.max(stages[0].value, 1);
+     "clicks" isn't captured anywhere in this schema, so it's not shown).
+     Tapered trapezoid shape, blue narrowing down to gold at the final
+     (revenue-generating) stage — our own identity, not a copied palette. ── */
+function FunnelChart({ traffic, inCart, orders, t }: { traffic: number; inCart: number; orders: number; t: (k: string) => string }) {
   if (!traffic) return <Empty />;
+  const stages = [
+    { label: t("Traffic"), value: traffic, top: "#8fc4ff", bottom: BLUE },
+    { label: t("In-Cart"), value: inCart, top: BLUE, bottom: "#1d4ed8" },
+    { label: "Orders", value: orders, top: GOLD_L, bottom: GOLD },
+  ];
+  const W = 190, H = 176;
+  const segH = H / stages.length;
+  const minW = W * 0.24;
+  const max = stages[0].value || 1;
+  const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.1));
+  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 8);
+
   return (
-    <div style={{ padding: "8px 4px" }}>
-      {stages.map((s, i) => {
-        const widthPct = Math.max((s.value / max) * 100, 4);
-        const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : null;
-        return (
-          <div key={s.label} style={{ marginBottom: 18 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, marginBottom: 5 }}>
-              <span style={{ color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
-              <span style={{ color: "#fff", fontWeight: 700 }}>
-                {num(s.value)}{prevPct != null && <span style={{ color: "var(--muted)", fontWeight: 500 }}> · {prevPct.toFixed(1)}%</span>}
+    <div style={{ display: "flex", gap: 20, alignItems: "center", padding: "10px 4px" }}>
+      <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible" }}>
+        <defs>
+          {stages.map((s, i) => (
+            <linearGradient key={i} id={`funnel-g-${i}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={s.top} />
+              <stop offset="100%" stopColor={s.bottom} />
+            </linearGradient>
+          ))}
+        </defs>
+        {stages.map((s, i) => {
+          const y = i * segH;
+          const wTop = widths[i], wBot = widths[i + 1] ?? widths[i] * 0.62;
+          const xTop = (W - wTop) / 2, xBot = (W - wBot) / 2;
+          const gap = 3;
+          const pts = `${xTop},${y} ${xTop + wTop},${y} ${xBot + wBot},${y + segH - gap} ${xBot},${y + segH - gap}`;
+          return <polygon key={i} points={pts} fill={`url(#funnel-g-${i})`} style={{ filter: `drop-shadow(0 0 10px ${s.bottom}88)` }} />;
+        })}
+      </svg>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
+        {stages.map((s, i) => {
+          const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : null;
+          return (
+            <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <span style={{ fontSize: 11.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
+              <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 17, fontWeight: 800, color: "#fff" }}>{num(s.value)}</span>
+                {prevPct != null && <span style={{ marginLeft: 7, fontSize: 11, fontWeight: 700, color: s.bottom }}>{prevPct.toFixed(0)}%</span>}
               </span>
             </div>
-            <div style={{ height: 26, background: "rgba(255,255,255,0.05)", borderRadius: 8, overflow: "hidden" }}>
-              <div style={{
-                width: `${widthPct}%`, height: "100%", borderRadius: 8,
-                background: `linear-gradient(90deg, ${s.color}dd, ${s.color})`,
-                boxShadow: `0 0 16px ${s.color}66`, transition: "width 1s cubic-bezier(.34,1.4,.64,1)",
-              }} />
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -776,22 +807,32 @@ function StoreDrillDown({ store, storeLabel, t, onClose }: {
           <div className="kpi kpi-roas"><div className="lbl">{t("ROAS")}</div><div className="val">{store.roas ? store.roas.toFixed(2) + "×" : "—"}</div></div>
         </div>
 
-        <div className="hint" style={{ marginBottom: 8 }}>{t("Monthly Sales")} vs {t("Ads Cost")}</div>
-        {trend.length ? (
+        <div className="hint" style={{ marginBottom: 8 }}>{t("Monthly Sales")} vs {t("ROAS")}</div>
+        {trend.length ? (() => {
+          const trendRoas = trend.map((row) => ({ ...row, roas: row.ad_cost ? row.sales / row.ad_cost : null }));
+          return (
           <div style={{ width: "100%", height: 260 }}>
             <ResponsiveContainer>
-              <ComposedChart data={trend} margin={{ left: 4, right: 20, top: 10, bottom: 8 }}>
+              <ComposedChart data={trendRoas} margin={{ left: 4, right: 20, top: 10, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
-                <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
-                <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [idrF(Number(v)), n === "sales" ? "Sales" : "Ads Cost"]} />
+                <YAxis yAxisId="l" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+                {/* right axis auto-fits tight to the ROAS data range (not forced to start at 0),
+                    so the line floats mid-chart and fluctuations read clearly instead of looking flat */}
+                <YAxis yAxisId="r" orientation="right" tick={axis} tickFormatter={(v) => Number(v).toFixed(1)+"×"}
+                  axisLine={false} tickLine={false} width={40}
+                  domain={[(min: number) => Math.max(0, min * 0.8), (max: number) => max * 1.15]} />
+                <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "sales" ? [idrF(Number(v)), "Sales"] : [Number(v).toFixed(2)+"×", "ROAS"]} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc" }} />
-                <Bar dataKey="sales" fill="url(#gNavy)" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="ad_cost" stroke={GOLD} strokeWidth={2.5} dot={{ r: 3, fill: GOLD }} />
+                <Bar yAxisId="l" dataKey="sales" fill="url(#gNavy)" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="r" type="monotone" dataKey="roas" stroke={GOLD} strokeWidth={2.5}
+                  dot={{ r: 4, fill: GOLD, stroke: "#0a1628", strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: GOLD_L, stroke: "#0a1628", strokeWidth: 2 }} connectNulls />
               </ComposedChart>
             </ResponsiveContainer>
           </div>
-        ) : <Empty />}
+          );
+        })() : <Empty />}
       </div>
     </div>
   );
