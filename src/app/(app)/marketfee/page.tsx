@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import MarketFeeTable from "./MarketFeeTable";
 import MarketFeeLog from "./MarketFeeLog";
+import MarketFeeUpload from "./MarketFeeUpload";
 
 export const dynamic = "force-dynamic";
 
 const TABS = [
   { v: "table", l: "Market Place Fee" },
+  { v: "upload", l: "Upload Market Fee" },
   { v: "log", l: "Edit Log" },
 ] as const;
 
@@ -32,7 +34,8 @@ export default function Page() {
           <button key={t.v} onClick={() => setTab(t.v)} style={tabBtn(tab === t.v)}>{t.l}</button>
         ))}
       </div>
-      {tab === "table" && <MarketFeeTable clientId={clientId} onEdited={() => setRefreshKey((k) => k + 1)} />}
+      {tab === "table" && <MarketFeeTable clientId={clientId} onEdited={() => setRefreshKey((k) => k + 1)} refreshKey={refreshKey} />}
+      {tab === "upload" && <MarketFeeUpload clientId={clientId} onUploaded={() => setRefreshKey((k) => k + 1)} />}
       {tab === "log" && <MarketFeeLog clientId={clientId} refreshKey={refreshKey} />}
     </>
   );

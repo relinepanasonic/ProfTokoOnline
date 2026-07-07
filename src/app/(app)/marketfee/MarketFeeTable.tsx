@@ -31,7 +31,7 @@ const DETAIL_FIELDS: { key: keyof MarketFee; label: string; type: "percent" | "r
   { key: "spaylater_6mo",  label: "Spaylater Xtra 6 bln",        type: "percent" },
 ];
 
-export default function MarketFeeTable({ clientId, onEdited }: { clientId: string; onEdited: () => void }) {
+export default function MarketFeeTable({ clientId, onEdited, refreshKey }: { clientId: string; onEdited: () => void; refreshKey: number }) {
   const [supabase] = useState(() => createClient());
   const [filters, setFilters] = useState<Filters>({ platforms: [], jenis_toko: [] });
   const [sel, setSel] = useState({ search: "", platform: "", toko: "" });
@@ -75,7 +75,7 @@ export default function MarketFeeTable({ clientId, onEdited }: { clientId: strin
   }, [supabase, sel]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(0, false); }, [load]);
+  useEffect(() => { load(0, false); }, [load, refreshKey]);
 
   function toggleExpand(id: number) {
     setExpanded((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
