@@ -22,9 +22,16 @@ import { createClient } from "@supabase/supabase-js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 
-const SHEET_ID = process.argv[2] || "18M1xxFK7aYaNf3KvvU7pMYos1GpEja9LikR-noNE7nM";
+const SHEET_ID = process.argv[2] || "1c4zhhOxruEb9xyH_TR0C06nFt7aIZFJOQ-_IK3Ivr08";
 const SHEET_TAB = "Market Place Fee";
 const CHUNK = 500;
+// This baseline import is stamped as having been "updated" this month, per
+// the user's request — a plain month label (no day), matching the monthly
+// (not daily) cadence fees actually change on. No market_fee_log rows are
+// written for it: the log tracks incremental single-field edits made after
+// this baseline exists, and a fresh bulk import has no meaningful "old
+// value" to diff against.
+const UPDATE_MONTH = process.argv[3] || "Mei 2026";
 
 function loadEnvLocal() {
   try {
@@ -116,9 +123,11 @@ async function main() {
       max_promo_xtra: parseFeeNum(row[iMaxP]),
       spaylater_3mo: parseFeeNum(row[iSp3]),
       spaylater_6mo: parseFeeNum(row[iSp6]),
+      updated_month: UPDATE_MONTH,
+      updated_at: new Date().toISOString(),
     });
   }
-  console.log(`Parsed ${rows.length} rows. Upserting in chunks of ${CHUNK}...`);
+  console.log(`Parsed ${rows.length} rows. Tagging as "${UPDATE_MONTH}". Upserting in chunks of ${CHUNK}...`);
 
   let done = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
