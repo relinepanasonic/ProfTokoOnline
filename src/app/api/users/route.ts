@@ -105,6 +105,40 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+// PUT /api/users — set an Owner's subscription tier + duration.
+// Superadmin only. days > 0 → expires now()+days; days = 0/blank → unlimited.
+const VALID_TIERS = ["signup", "juragan", "sultan", "king", "free_trial"];
+export async function PUT(req: NextRequest) {
+  const mgr = await getManager();
+  if (!mgr || mgr.role !== "superadmin")
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+
+  const { id, tier, days } = await req.json() as { id: string; tier: string; days?: number };
+  if (!id || !VALID_TIERS.includes(tier))
+    return NextResponse.json({ error: "id and a valid tier are required" }, { status: 400 });
+
+  const admin = createAdminClient();
+  const { data: target } = await admin.from("profiles").select("role").eq("id", id).single();
+  if (!target || target.role !== "branch_manager")
+    return NextResponse.json({ error: "Subscriptions apply to Owner accounts only" }, { status: 400 });
+
+  // signup = reset to pending (no dates). Otherwise start the countdown now.
+  const patch: Record<string, unknown> =
+    tier === "signup"
+      ? { tier: "signup", sub_started_at: null, sub_expires_at: null }
+      : {
+          tier,
+          sub_started_at: new Date().toISOString(),
+          sub_expires_at: days && days > 0
+            ? new Date(Date.now() + days * 86_400_000).toISOString()
+            : null,
+        };
+
+  const { error } = await admin.from("profiles").update(patch).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: NextRequest) {
   const mgr = await getManager();
   if (!mgr) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });

@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 type Profile = {
   id: string; email: string | null; display_name: string | null;
   username: string | null; role: string; scope_store: string | null; scope_owner: string | null;
+  tier: string | null; sub_expires_at: string | null;
 };
 type Invite = {
   id: string; token: string; owner_name: string;
@@ -38,6 +39,27 @@ const roleColor: Record<string, string> = {
   store_user:     "#a78bfa",
   advertiser:     "#ec4899",
 };
+
+// Owner subscription tiers. `days` is the default duration auto-filled when
+// the tier is picked (superadmin can override, incl. 0 = unlimited).
+const TIERS = [
+  { v: "juragan",    l: "Juragan · Basic",       days: 30,  color: "#94a3b8" },
+  { v: "sultan",     l: "Sultan · Premium (30d)", days: 30,  color: "#3b82f6" },
+  { v: "king",       l: "King · Premium (365d)",  days: 365, color: "#c9a227" },
+  { v: "free_trial", l: "Free Trial (30d)",       days: 30,  color: "#22c55e" },
+  { v: "signup",     l: "Pending (reset)",        days: 0,   color: "#64748b" },
+];
+const TIER_META: Record<string, { l: string; color: string }> = {
+  signup:     { l: "Pending",    color: "#64748b" },
+  juragan:    { l: "Juragan",    color: "#94a3b8" },
+  sultan:     { l: "Sultan",     color: "#3b82f6" },
+  king:       { l: "King",       color: "#c9a227" },
+  free_trial: { l: "Free Trial", color: "#22c55e" },
+};
+function daysLeft(expires: string | null): number | null {
+  if (!expires) return null;
+  return Math.ceil((new Date(expires).getTime() - Date.now()) / 86_400_000);
+}
 
 const inp: React.CSSProperties = {
   width: "100%", padding: "9px 11px", borderRadius: 10,
@@ -76,6 +98,11 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");
   const [copied, setCopied] = useState(false);
+  const [planUser, setPlanUser] = useState<Profile | null>(null);
+  const [planForm, setPlanForm] = useState({ tier: "sultan", days: 30 });
+  const [nowTs, setNowTs] = useState<number | null>(null);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setNowTs(Date.now()); }, []);
 
   const getAuthHeader = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -84,7 +111,7 @@ export default function UsersPage() {
 
   const reload = useCallback(async () => {
     const [{ data: p }, h] = await Promise.all([
-      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner").order("display_name"),
+      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner,tier,sub_expires_at").order("display_name"),
       getAuthHeader(),
     ]);
     setRows((p as Profile[]) || []);
@@ -136,6 +163,25 @@ export default function UsersPage() {
     reload();
   }
 
+  function openPlan(p: Profile) {
+    const cur = TIERS.find((t) => t.v === p.tier);
+    setPlanForm({ tier: p.tier && p.tier !== "signup" ? p.tier : "sultan", days: cur && cur.v !== "signup" ? cur.days : 30 });
+    setPlanUser(p);
+  }
+  async function savePlan() {
+    if (!planUser) return;
+    setBusy(true); setMsg("");
+    const h = await getAuthHeader();
+    const res = await fetch("/api/users", {
+      method: "PUT", headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: planUser.id, tier: planForm.tier, days: Number(planForm.days) || 0 }),
+    });
+    const j = await res.json();
+    setBusy(false);
+    if (!res.ok) { setMsg(j.error || "Failed"); return; }
+    setPlanUser(null); reload();
+  }
+
   const inviteUrl = token && typeof window !== "undefined" ? `${window.location.origin}/join/${token}` : "";
   const pending = invites.filter((i) => !i.used_at && new Date(i.expires_at) > new Date());
 
@@ -155,20 +201,42 @@ export default function UsersPage() {
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
-            <tr><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Scope</th><th></th></tr>
+            <tr><th>Name</th><th>Username</th><th>Role</th><th>Plan</th><th>Scope</th><th></th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.display_name || "—"}</td>
+            {rows.map((r) => {
+              const isOwner = r.role === "branch_manager";
+              const tm = TIER_META[r.tier || "signup"] || TIER_META.signup;
+              const dl = daysLeft(r.sub_expires_at);
+              const expired = dl != null && dl <= 0;
+              const pending = isOwner && (!r.tier || r.tier === "signup");
+              return (
+              <tr key={r.id} style={pending ? { background: "rgba(251,191,36,0.06)" } : undefined}>
+                <td>{r.display_name || "—"}{pending && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#fbbf24" }}>● NEW</span>}</td>
                 <td style={{ color: "#c9a227", fontFamily: "monospace", fontSize: 12 }}>{r.username || "—"}</td>
-                <td style={{ fontSize: 12, color: "var(--muted)" }}>{r.email || "—"}</td>
                 <td>
                   <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
                     background: `${roleColor[r.role] ?? "#888"}22`, color: roleColor[r.role] ?? "#888",
                     border: `1px solid ${roleColor[r.role] ?? "#888"}44` }}>
                     {ROLE_LABEL[r.role] || r.role}
                   </span>
+                </td>
+                <td>
+                  {isOwner ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: `${tm.color}22`, color: tm.color, border: `1px solid ${tm.color}44` }}>{tm.l}</span>
+                      {!pending && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: expired ? "#f87171" : dl != null && dl <= 7 ? "#fbbf24" : "var(--muted)" }}>
+                          {r.sub_expires_at == null ? "unlimited" : expired ? "expired" : `${dl}d left`}
+                        </span>
+                      )}
+                      <button onClick={() => openPlan(r)}
+                        style={{ padding: "3px 9px", borderRadius: 7, border: "1px solid rgba(201,162,39,0.35)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 11, cursor: "pointer" }}>
+                        Manage
+                      </button>
+                    </div>
+                  ) : <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>}
                 </td>
                 <td style={{ fontSize: 12 }}>{r.scope_owner || r.scope_store || "—"}</td>
                 <td>
@@ -178,7 +246,8 @@ export default function UsersPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {rows.length === 0 && (
               <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--muted)", padding: 24 }}>No users yet</td></tr>
             )}
@@ -303,6 +372,68 @@ export default function UsersPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Manage Plan modal ── */}
+      {planUser && typeof document !== "undefined" && createPortal(
+        <div onClick={() => setPlanUser(null)} style={overlay}>
+          <div onClick={(e) => e.stopPropagation()} style={modal}>
+            <div style={{ display: "grid", gap: 16 }}>
+              <div>
+                <h3 style={{ margin: 0, color: "#e8edf8" }}>Manage Plan</h3>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#7b8db0" }}>
+                  {planUser.display_name || planUser.email} · <strong style={{ color: "#c9a227" }}>{planUser.scope_owner}</strong>
+                </p>
+              </div>
+
+              <Fld label="Tier">
+                <Dropdown
+                  value={planForm.tier}
+                  options={TIERS.map((t) => ({ value: t.v, label: t.l }))}
+                  placeholder="Select tier"
+                  onChange={(v) => {
+                    const meta = TIERS.find((t) => t.v === v);
+                    setPlanForm({ tier: v, days: meta ? meta.days : 30 });
+                  }}
+                />
+              </Fld>
+
+              {planForm.tier !== "signup" && (
+                <Fld label="Days (0 = unlimited · override for custom free days)">
+                  <input style={inp} type="number" min={0} value={planForm.days}
+                    onChange={(e) => setPlanForm({ ...planForm, days: Number(e.target.value) })} />
+                  <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
+                    {Number(planForm.days) > 0
+                      ? `Countdown starts now — expires ${nowTs != null ? new Date(nowTs + Number(planForm.days) * 86_400_000).toLocaleDateString() : "—"}.`
+                      : "No expiry (unlimited access)."}
+                  </p>
+                </Fld>
+              )}
+              {planForm.tier === "signup" && (
+                <p style={{ margin: 0, fontSize: 12.5, color: "#fca5a5" }}>
+                  Resets this Owner to Pending — they lose access until you re-activate a tier.
+                </p>
+              )}
+
+              {msg && (
+                <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 9, padding: "10px 14px", color: "#fca5a5", fontSize: 13 }}>
+                  {msg}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button className="btn-gold" style={{ flex: 1 }} disabled={busy} onClick={savePlan}>
+                  {busy ? "Saving…" : "Activate"}
+                </button>
+                <button onClick={() => setPlanUser(null)}
+                  style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "transparent", color: "var(--muted)", cursor: "pointer" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>,
         document.body

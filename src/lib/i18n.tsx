@@ -68,6 +68,14 @@ const ID_DICT: Record<string, string> = {
   "Top 8 · Views → Clicks → Add to Cart → Sales · from Ads": "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads",
   "Views": "Dilihat", "Clicks": "Klik", "Cart": "Keranjang",
 
+  // subscription tiers
+  "days left": "hari lagi", "Expired": "Kedaluwarsa", "Unlimited": "Tanpa Batas",
+  "Your subscription has ended — read-only mode. Contact us to renew.":
+    "Langganan Anda telah berakhir — mode baca-saja. Hubungi kami untuk memperpanjang.",
+  "Account pending activation": "Akun menunggu aktivasi",
+  "Your account is registered. Our team will activate your plan shortly — you'll get full access once it's switched on.":
+    "Akun Anda sudah terdaftar. Tim kami akan segera mengaktifkan paket Anda — Anda mendapat akses penuh setelah diaktifkan.",
+
   // misc
   "GMV": "GMV",
 };

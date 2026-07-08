@@ -37,13 +37,21 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("client_id, role")
+    .select("client_id, role, scope_owner, tier, sub_expires_at")
     .eq("id", user.id)
     .single();
 
   if (!profile) return NextResponse.json({ error: "NO_PROFILE" }, { status: 403 });
-  if (!["superadmin", "client_admin"].includes(profile.role)) {
+  const isOwner = profile.role === "branch_manager";
+  if (!["superadmin", "client_admin"].includes(profile.role) && !isOwner) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  }
+  // Owners may only upload while their subscription is active (not pending,
+  // not expired) — expired owners are read-only.
+  if (isOwner) {
+    const active = profile.tier && profile.tier !== "signup"
+      && (!profile.sub_expires_at || new Date(profile.sub_expires_at) > new Date());
+    if (!active) return NextResponse.json({ error: "SUBSCRIPTION_INACTIVE" }, { status: 403 });
   }
 
   // 2. Read the multipart form: a file, its source, target client, manual fields.
@@ -52,14 +60,28 @@ export async function POST(req: NextRequest) {
   const source = String(form.get("source") || "") as DataSource;
   const manual: ManualFields = JSON.parse(String(form.get("manual") || "{}"));
 
-  // superadmin & client_admin are both global → the target client comes from
-  // the form (a dropdown sourced from Core List, never free-typed).
-  const clientId = String(form.get("client_id") || "");
+  // superadmin & client_admin are global → target client comes from the form.
+  // Owners are locked to their OWN client, ignoring any client_id in the form.
+  const clientId = isOwner ? String(profile.client_id || "") : String(form.get("client_id") || "");
 
   if (!file) return NextResponse.json({ error: "NO_FILE" }, { status: 400 });
   if (!SOURCES.includes(source))
     return NextResponse.json({ error: "BAD_SOURCE" }, { status: 400 });
   if (!clientId) return NextResponse.json({ error: "NO_CLIENT" }, { status: 400 });
+
+  // Owners can only upload for a store that belongs to THEIR Owner scope.
+  if (isOwner) {
+    const store = manual.store_name;
+    if (!store) return NextResponse.json({ error: "STORE_REQUIRED" }, { status: 400 });
+    const { data: owned } = await supabase
+      .from("store_links")
+      .select("store_name")
+      .eq("client_id", clientId)
+      .eq("owner", profile.scope_owner)
+      .eq("store_name", store)
+      .maybeSingle();
+    if (!owned) return NextResponse.json({ error: "STORE_NOT_IN_SCOPE" }, { status: 403 });
+  }
 
   // 3. Parse the file (xlsx or csv) with SheetJS.
   const buf = Buffer.from(await file.arrayBuffer());

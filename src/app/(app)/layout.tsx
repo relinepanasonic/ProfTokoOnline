@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -37,6 +37,22 @@ const ROLE_LABEL: Record<Role, string> = {
   advertiser: "Advertiser",
 };
 
+// ── Owner subscription tiers ────────────────────────────────────────────────
+// Tiers only gate the Owner (branch_manager) role. Basic = Juragan; the rest
+// are Premium. 'signup' = registered but not activated yet (pending screen).
+type Tier = "signup" | "juragan" | "sultan" | "king" | "free_trial";
+const TIER_LABEL: Record<Tier, string> = {
+  signup: "Pending", juragan: "Juragan", sultan: "Sultan", king: "King", free_trial: "Free Trial",
+};
+const PREMIUM_TIERS: Tier[] = ["sultan", "king", "free_trial"];
+// Which pages each owner tier may see.
+const OWNER_BASIC_PAGES   = ["/", "/upload", "/marketfee"];
+const OWNER_PREMIUM_PAGES = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee"];
+
+function ownerPages(tier: Tier): string[] {
+  return PREMIUM_TIERS.includes(tier) ? OWNER_PREMIUM_PAGES : OWNER_BASIC_PAGES;
+}
+
 function LangToggle() {
   const { lang, setLang } = useLang();
   return (
@@ -56,6 +72,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState("—");
   const [clientName, setClientName] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [tier, setTier] = useState<Tier>();
+  const [subExpires, setSubExpires] = useState<string | null>(null);
+  // Captured after mount so render stays pure (no Date.now() during render).
+  const [now, setNow] = useState<number | null>(null);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setNow(Date.now()); }, []);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMenuOpen(false); }, [path]);
@@ -65,9 +87,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: p } = await supabase
-        .from("profiles").select("role, display_name, client_id").eq("id", user.id).single();
+        .from("profiles").select("role, display_name, client_id, tier, sub_expires_at").eq("id", user.id).single();
       if (p) {
         setRole(p.role as Role);
+        setTier((p.tier as Tier) ?? "signup");
+        setSubExpires(p.sub_expires_at ?? null);
         setName(p.display_name || user.email?.split("@")[0] || "User");
         if (p.client_id) {
           const { data: c } = await supabase.from("clients").select("name").eq("id", p.client_id).single();
@@ -77,17 +101,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })();
   }, [supabase]);
 
-  // Route guard: once role is known, bounce away from any page the role
-  // isn't allowed to see (deep-links, back button, typed URLs).
+  // Owner subscription state (only meaningful for branch_manager).
+  const isOwner  = role === "branch_manager";
+  const isSignup = isOwner && tier === "signup";
+  const isExpired = isOwner && !!subExpires && now != null && new Date(subExpires).getTime() <= now;
+  const ownerAllowed = useMemo(() => (isOwner && tier ? ownerPages(tier) : []), [isOwner, tier]);
+  const daysLeft = subExpires && now != null
+    ? Math.ceil((new Date(subExpires).getTime() - now) / 86_400_000)
+    : null;
+
+  // Which pages this login may see. Owners are driven by their tier's page
+  // set (which intentionally differs from the base NAV.roles); everyone else
+  // by the role list.
+  const canSee = (href: string): boolean => {
+    if (isOwner) return ownerAllowed.includes(href);
+    const entry = NAV.find((n) => n.href === href);
+    return !entry?.roles || (!!role && entry.roles.includes(role));
+  };
+
+  // Route guard: bounce away from any page this login can't see. A pending
+  // (signup) owner is held on the pending screen regardless of path.
   useEffect(() => {
     if (!role) return;
+    if (isSignup) return; // pending screen replaces content; no redirect needed
     const entry = NAV.find((n) => n.href === path);
-    const allowed = !entry?.roles || entry.roles.includes(role);
+    const allowed = isOwner ? ownerAllowed.includes(path) : (!entry?.roles || entry.roles.includes(role));
     if (!allowed) {
-      const fallback = NAV.find((n) => !n.roles || n.roles.includes(role));
-      router.replace(fallback?.href || "/login");
+      const fallback = isOwner ? (ownerAllowed[0] || "/") : (NAV.find((n) => !n.roles || n.roles.includes(role))?.href || "/login");
+      router.replace(fallback);
     }
-  }, [role, path, router]);
+  }, [role, path, router, isOwner, isSignup, ownerAllowed]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -95,7 +138,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  const visible = NAV.filter((n) => !n.roles || (role && n.roles.includes(role)));
+  const visible = NAV.filter((n) => canSee(n.href));
   const current = NAV.find((n) => n.href === path);
 
   return (
@@ -137,6 +180,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {isOwner && tier && !isSignup && <SubPill tier={tier} daysLeft={daysLeft} expired={isExpired} t={t} compact />}
             <LangToggle />
             <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
           </div>
@@ -150,15 +194,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <LangToggle />
+            {isOwner && tier && !isSignup && <SubPill tier={tier} daysLeft={daysLeft} expired={isExpired} t={t} />}
             <div className="user-badge">
               <span>{name}</span>
-              {role && <span className="user-role">{ROLE_LABEL[role]}</span>}
+              {role && <span className="user-role">{isOwner && tier && tier !== "signup" ? TIER_LABEL[tier] : ROLE_LABEL[role]}</span>}
             </div>
             <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
           </div>
         </div>
 
-        {children}
+        {isSignup
+          ? <PendingScreen t={t} />
+          : <>
+              {isExpired && (
+                <div className="sub-expired-banner">
+                  ⏳ {t("Your subscription has ended — read-only mode. Contact us to renew.")}
+                </div>
+              )}
+              {children}
+            </>}
       </main>
 
       {/* Mobile bottom nav: single hamburger opening the full sidebar-order menu */}
@@ -202,6 +256,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </>,
         document.body
       )}
+    </div>
+  );
+}
+
+// Countdown / tier pill shown to Owners. Green while active, amber when
+// under a week, red once expired.
+function SubPill({ tier, daysLeft, expired, t, compact }: {
+  tier: Tier; daysLeft: number | null; expired: boolean; t: (k: string) => string; compact?: boolean;
+}) {
+  const color = expired ? "#f87171" : daysLeft != null && daysLeft <= 7 ? "#fbbf24" : "#34d399";
+  const label = expired
+    ? t("Expired")
+    : daysLeft == null
+    ? t("Unlimited")
+    : `${daysLeft} ${t("days left")}`;
+  return (
+    <span title={TIER_LABEL[tier]} style={{
+      display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
+      padding: compact ? "3px 8px" : "5px 11px", borderRadius: 999,
+      fontSize: compact ? 10.5 : 12, fontWeight: 700,
+      background: `${color}1a`, color, border: `1px solid ${color}44`,
+    }}>
+      {!compact && <span style={{ opacity: .85 }}>{TIER_LABEL[tier]} ·</span>} {label}
+    </span>
+  );
+}
+
+// Holding screen for a freshly-signed-up Owner whose tier hasn't been
+// activated by a Superadmin yet.
+function PendingScreen({ t }: { t: (k: string) => string }) {
+  return (
+    <div style={{ display: "grid", placeItems: "center", minHeight: "70vh", padding: 24 }}>
+      <div className="panel" style={{ maxWidth: 460, textAlign: "center", padding: "40px 32px" }}>
+        <div style={{ fontSize: 46, marginBottom: 14 }}>⏳</div>
+        <h2 style={{ margin: "0 0 10px", color: "#fff" }}>{t("Account pending activation")}</h2>
+        <p style={{ margin: 0, color: "var(--muted)", fontSize: 14, lineHeight: 1.6 }}>
+          {t("Your account is registered. Our team will activate your plan shortly — you'll get full access once it's switched on.")}
+        </p>
+      </div>
     </div>
   );
 }
