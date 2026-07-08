@@ -12,7 +12,7 @@ import { useLang } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 type Summary = {
-  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null };
+  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; orders_created: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null };
   monthly_sales: { month: string; sales: number }[];
   store_monthly: { month: string; gmv: number }[];
   top_products: { name: string; sales: number }[];
@@ -285,11 +285,9 @@ export default function DashboardPage() {
 
   const k = d?.kpis;
   const roasPct  = k?.roas ? Math.min((k.roas / 5) * 100, 100) : 0;
-  const cartRate = k && k.traffic ? (k.in_cart / k.traffic) * 100 : 0;
   const salesSeries   = byMonth(d?.monthly_sales || []).map((x) => x.sales);
   const transactionSeries = byMonth(d?.traffic_trend || []).map((x) => x.transactions);
   const trafficSeries  = byMonth(d?.traffic_trend || []).map((x) => x.traffic);
-  const inCartSeries   = byMonth(d?.traffic_trend || []).map((x) => x.in_cart);
   const adCostSeries   = byMonth(d?.cost_roas || []).map((x) => x.cost);
   const [drillStore, setDrillStore] = useState<Summary["dealers"][number] | null>(null);
 
@@ -328,7 +326,6 @@ export default function DashboardPage() {
         <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div>{k && <MiniSparkline data={salesSeries} color={GOLD} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{kv(num(k?.transactions ?? 0))}</div>{k && <MiniSparkline data={transactionSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div>{k && <MiniSparkline data={trafficSeries} color={BLUE_L} />}</div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.in_cart ?? 0))} {k ? <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>· {cartRate.toFixed(1)}%</span> : null}</div>{k && <MiniSparkline data={inCartSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div>{k && <MiniSparkline data={adCostSeries} color={BLUE_L} />}</div>
         <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}>
           <div style={{ position: "absolute", right: 13, top: 12 }}><RadialGauge pct={roasPct} /></div>
@@ -353,8 +350,8 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → Masuk Keranjang → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
-          <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} inCart={k?.visitor_cart_adds ?? 0} transaksi={k?.orders ?? 0} t={t} />
+        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
+          <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} ordersCreated={k?.orders_created ?? 0} transaksi={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
 
@@ -723,19 +720,19 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
      "clicks" isn't captured anywhere in this schema, so it's not shown).
      Tapered trapezoid shape, blue narrowing down to gold at the final
      (revenue-generating) stage — our own identity, not a copied palette. ── */
-function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
-  productViews: number; pengunjung: number; inCart: number; transaksi: number; t: (k: string) => string;
+function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: {
+  productViews: number; pengunjung: number; ordersCreated: number; transaksi: number; t: (k: string) => string;
 }) {
   // Gate on ANY stage having data, not just productViews specifically —
-  // productViews/inCart are brand-new fields (migration 0042) that read 0
-  // for every pre-existing upload, which was blanking the whole chart even
-  // when Pengunjung/Transaksi (older fields) have real data.
-  if (!productViews && !pengunjung && !inCart && !transaksi) return <Empty />;
+  // productViews/ordersCreated are brand-new fields that read 0 for every
+  // pre-existing upload, which was blanking the whole chart even when
+  // Pengunjung/Transaksi (older fields) have real data.
+  if (!productViews && !pengunjung && !ordersCreated && !transaksi) return <Empty />;
   const stages = [
-    { label: t("Produk Dilihat"), value: productViews },
-    { label: t("Pengunjung"), value: pengunjung },
-    { label: t("Masuk Keranjang"), value: inCart },
-    { label: t("Transaksi"), value: transaksi },
+    { label: t("Product Views"), value: productViews },
+    { label: t("Visitors"), value: pengunjung },
+    { label: t("Orders Created"), value: ordersCreated },
+    { label: t("Transactions"), value: transaksi },
   ];
   const W = 240, H = 300;
   const segH = H / stages.length;
@@ -746,7 +743,7 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
   // WIDER than the one above it — a funnel must taper monotonically, even
   // when a brand-new field (0 for old uploads) sits between two stages that
   // both have real data, which previously made it flare back out.
-  const max = Math.max(productViews, pengunjung, inCart, transaksi, 1);
+  const max = Math.max(productViews, pengunjung, ordersCreated, transaksi, 1);
   const widths: number[] = [];
   stages.forEach((s, i) => {
     const raw = minW + (W - minW) * Math.max(s.value / max, 0.06);
@@ -792,18 +789,12 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
         })}
       </svg>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
-        {stages.map((s, i) => {
-          const pct = i === 0 ? null : pctOfTop(s.value);
-          return (
-            <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-              <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
-              <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{num(s.value)}</span>
-                {pct != null && <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: GOLD }}>{fmtPct(pct)}%</span>}
-              </span>
-            </div>
-          );
-        })}
+        {stages.map((s) => (
+          <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+            <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: "#fff", textAlign: "right", whiteSpace: "nowrap" }}>{num(s.value)}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -60,10 +60,10 @@ const ID_DICT: Record<string, string> = {
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",
-  "Produk Dilihat": "Produk Dilihat", "Pengunjung": "Pengunjung", "Transaksi": "Transaksi",
-  "Masuk Keranjang": "Masuk Keranjang",
-  "Produk Dilihat → Pengunjung → Masuk Keranjang → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru":
-    "Produk Dilihat → Pengunjung → Masuk Keranjang → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru",
+  "Product Views": "Produk Dilihat", "Visitors": "Pengunjung",
+  "Orders Created": "Transaksi Dibuat", "Transactions": "Transaksi",
+  "Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru":
+    "Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru",
   "Best Ads Performance": "Performa Iklan Terbaik",
   "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads": "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads",
   "Dilihat": "Dilihat", "Klik": "Klik", "Cart": "Keranjang",

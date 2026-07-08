@@ -121,6 +121,7 @@ export function mapRow(
   // every pre-existing row, so there is nothing to backfill from).
   let product_views: number | null = null;      // SPOS K  "Jumlah Produk Dilihat"
   let orders_ready: number | null = null;        // SPOS Q  "Pesanan Siap Dikirim" (true transaction count)
+  let orders_created: number | null = null;      // SPOS T  "Total Pembeli (Pesanan Dibuat)" (funnel stage 3)
   let visitor_cart_adds: number | null = null;   // SPOS AH "Pengunjung Produk (Menambahkan Produk ke Keranjang)"
   let clicks: number | null = null;              // Ads "Jumlah Klik"
   let add_to_cart: number | null = null;         // Ads "Add to Cart"
@@ -137,6 +138,7 @@ export function mapRow(
     in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)"));
     product_views     = toNum(get("__COL_K")) ?? toNum(get("Jumlah Produk Dilihat"));
     orders_ready      = toNum(get("__COL_Q")) ?? toNum(get("Pesanan Siap Dikirim"));
+    orders_created    = toNum(get("__COL_T")) ?? toNum(get("Total Pembeli (Pesanan Dibuat)"));
     visitor_cart_adds = toNum(get("__COL_AH")) ?? toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
   } else if (source === "ads") {
     sales_idr = toNum(get("Omzet Penjualan"));
@@ -176,6 +178,7 @@ export function mapRow(
     in_cart,
     product_views,
     orders_ready,
+    orders_created,
     visitor_cart_adds,
     clicks,
     add_to_cart,
