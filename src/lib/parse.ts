@@ -103,7 +103,9 @@ export function mapRow(
   const product_type = nameCol ? detectCategory(name) : null;
 
   // SPOS parent-row rule: count only rows where traffic (visitors) is present.
-  const visitorsSpos = toNum(get("Pengunjung Produk (Kunjungan)"));
+  // Column letter first (position AB), name as fallback — header text isn't
+  // reliably consistent across SPOS export variants (same issue found in Ads).
+  const visitorsSpos = toNum(get("__COL_AB")) ?? toNum(get("Pengunjung Produk (Kunjungan)"));
   const isParent =
     source === "spos" ? visitorsSpos !== null && visitorsSpos !== undefined : true;
 
@@ -119,21 +121,23 @@ export function mapRow(
   // every pre-existing row, so there is nothing to backfill from).
   let product_views: number | null = null;      // SPOS K  "Jumlah Produk Dilihat"
   let orders_ready: number | null = null;        // SPOS Q  "Pesanan Siap Dikirim" (true transaction count)
-  let visitor_cart_adds: number | null = null;   // SPOS H1 "Pengunjung Produk (Menambahkan Produk ke Keranjang)"
+  let visitor_cart_adds: number | null = null;   // SPOS AH "Pengunjung Produk (Menambahkan Produk ke Keranjang)"
   let clicks: number | null = null;              // Ads "Jumlah Klik"
   let add_to_cart: number | null = null;         // Ads "Add to Cart"
 
   if (source === "spos") {
     // "Siap Dikirim" (Ready to Ship) matches the GAS dashboard — differs from "Pesanan Dibuat" (all created orders)
+    // All four funnel columns + orders read by exact column letter first,
+    // name as fallback — confirmed exact positions: K, Q, U, AH.
     sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
-    orders    = toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
+    orders    = toNum(get("__COL_U")) ?? toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
     units     = toNum(get("Produk Terjual (Pesanan Siap Dikirim)"))
              ?? toNum(get("Produk (Pesanan Siap Dikirim)"));
     visitors  = visitorsSpos;
     in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)"));
-    product_views     = toNum(get("Jumlah Produk Dilihat"));
-    orders_ready      = toNum(get("Pesanan Siap Dikirim"));
-    visitor_cart_adds = toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
+    product_views     = toNum(get("__COL_K")) ?? toNum(get("Jumlah Produk Dilihat"));
+    orders_ready      = toNum(get("__COL_Q")) ?? toNum(get("Pesanan Siap Dikirim"));
+    visitor_cart_adds = toNum(get("__COL_AH")) ?? toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
   } else if (source === "ads") {
     sales_idr = toNum(get("Omzet Penjualan"));
     orders    = toNum(get("Konversi"));

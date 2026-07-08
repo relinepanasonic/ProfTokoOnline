@@ -20,7 +20,7 @@ type Summary = {
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
   traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number }[];
-  avg_store_trend: { month: string; avg_sales: number }[];
+  avg_store_trend: { store_name: string; avg_sales: number }[];
   top_campaigns: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
@@ -370,8 +370,8 @@ export default function DashboardPage() {
 
       {/* ── Sales per Store + Best Campaign Performance ── */}
       <div className="row c2">
-        <Panel title={t("AVG Store Sales Performa")} hint={t("Rata-rata penjualan per toko aktif, per bulan · SPOS")}>
-          <AvgStoreTrendChart data={byMonth(d?.avg_store_trend||[])} />
+        <Panel title={t("AVG Store Sales Performa")} hint={t("Rata-rata penjualan bulanan per toko · SPOS")}>
+          <AvgStoreTrendChart data={d?.avg_store_trend||[]} />
         </Panel>
         <Panel title={t("Best Ads Performance")} hint={t("Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads")}>
           <CampaignChart data={d?.top_campaigns||[]} t={t} />
@@ -579,33 +579,34 @@ function CostRoasChart({ data }: { data: { month:string; cost:number; roas:numbe
   );
 }
 
-/* ── AVG Store Sales Performa — smooth flowing area, average of each
-     active store's own monthly SPOS sales (not a total-per-store ranking
-     snapshot) ── */
-function AvgStoreTrendChart({ data }: { data: { month: string; avg_sales: number }[] }) {
+/* ── AVG Store Sales Performa — one bar per store: that store's total SPOS
+     sales across its own active (non-baseline) months, divided by how many
+     months it actually has data for. E.g. Japarutomo: Feb-Jun (5 months),
+     total 1,000,000 -> 200,000/month. ── */
+function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_sales: number }[] }) {
   if (!data.length) return <Empty />;
   return (
     <div style={{ width: "100%", height: 290 }}>
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
-          <defs>
-            <linearGradient id="gAvgStoreWave" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={BLUE_L} stopOpacity="0.5" />
-              <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
-            </linearGradient>
-          </defs>
+        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 48 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
+          <XAxis
+            dataKey="store_name"
+            tick={{ ...axis, fontSize: 10.5 }}
+            interval={0}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            axisLine={false}
+            tickLine={false}
+          />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip
             contentStyle={TIP_STYLE}
-            cursor={{ stroke: "rgba(59,130,246,0.35)", strokeWidth: 1 }}
-            formatter={(v) => [idrF(Number(v)), "AVG Sales / Store"]}
+            cursor={{ fill: "rgba(59,130,246,0.08)" }}
+            formatter={(v) => [idrF(Number(v)), "AVG Sales / Bulan"]}
           />
-          <Area type="monotone" dataKey="avg_sales" stroke={BLUE_L} strokeWidth={3} fill="url(#gAvgStoreWave)"
-            dot={{ r: 5, fill: BLUE_L, stroke: "#0a1628", strokeWidth: 2 }}
-            activeDot={{ r: 7, fill: "#fff", stroke: BLUE, strokeWidth: 2 }}
-          />
+          <Bar dataKey="avg_sales" shape={<Bar3D fill="url(#gNavy)" />} radius={[4, 4, 0, 0]} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
