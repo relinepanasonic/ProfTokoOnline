@@ -31,7 +31,7 @@ const ID_DICT: Record<string, string> = {
   "Pick a store…": "Pilih toko…",
 
   // KPIs
-  "Total Sales": "Total Penjualan", "Total GMV": "Total GMV", "Traffic": "Kunjungan",
+  "Total Sales": "Total Penjualan", "Total Transaction": "Total Transaksi", "Traffic": "Kunjungan",
   "In-Cart": "Masuk Keranjang", "Ads Cost": "Biaya Iklan", "ROAS": "ROAS",
   "SPOS · siap dikirim": "SPOS · siap dikirim", "Performa": "Performa",
   "cart rate": "tingkat keranjang",
@@ -60,9 +60,12 @@ const ID_DICT: Record<string, string> = {
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",
-  "Traffic → In-Cart → Sales (pc) — Klik produk belum tersedia di data": "Kunjungan → Masuk Keranjang → Penjualan (pc) — Klik produk belum tersedia di data",
-  "Best Campaign Performance": "Performa Kampanye Terbaik",
-  "Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)": "Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)",
+  "Produk Dilihat": "Produk Dilihat", "Pengunjung": "Pengunjung", "Transaksi": "Transaksi",
+  "Produk Dilihat → Pengunjung → In-Cart → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru":
+    "Produk Dilihat → Pengunjung → In-Cart → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru",
+  "Best Ads Performance": "Performa Iklan Terbaik",
+  "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads": "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads",
+  "Dilihat": "Dilihat", "Klik": "Klik", "Cart": "Keranjang",
 
   // misc
   "GMV": "GMV",

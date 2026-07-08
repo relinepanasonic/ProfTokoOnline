@@ -12,15 +12,15 @@ import { useLang } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 type Summary = {
-  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null };
+  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null };
   monthly_sales: { month: string; sales: number }[];
   store_monthly: { month: string; gmv: number }[];
   top_products: { name: string; sales: number }[];
   brand_share: { brand: string; sales: number }[];
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
-  traffic_trend: { month: string; traffic: number; in_cart: number }[];
-  top_campaigns: { name: string; views: number; orders: number; sales: number; ad_cost: number }[];
+  traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number }[];
+  top_campaigns: { name: string; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
@@ -286,7 +286,7 @@ export default function DashboardPage() {
   const roasPct  = k?.roas ? Math.min((k.roas / 5) * 100, 100) : 0;
   const cartRate = k && k.traffic ? (k.in_cart / k.traffic) * 100 : 0;
   const salesSeries   = byMonth(d?.monthly_sales || []).map((x) => x.sales);
-  const gmvSeries      = byMonth(d?.store_monthly || []).map((x) => x.gmv);
+  const transactionSeries = byMonth(d?.traffic_trend || []).map((x) => x.transactions);
   const trafficSeries  = byMonth(d?.traffic_trend || []).map((x) => x.traffic);
   const inCartSeries   = byMonth(d?.traffic_trend || []).map((x) => x.in_cart);
   const adCostSeries   = byMonth(d?.cost_roas || []).map((x) => x.cost);
@@ -325,7 +325,7 @@ export default function DashboardPage() {
         return (
       <div className="kpi-grid">
         <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div>{k && <MiniSparkline data={salesSeries} color={GOLD} />}</div>
-        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🏪</div><div className="lbl">{t("Total GMV")}</div><div className="val">{kv(idr(k?.gmv ?? 0))}</div>{k && <MiniSparkline data={gmvSeries} color={BLUE_L} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{kv(num(k?.transactions ?? 0))}</div>{k && <MiniSparkline data={transactionSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div>{k && <MiniSparkline data={trafficSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.in_cart ?? 0))} {k ? <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)" }}>· {cartRate.toFixed(1)}%</span> : null}</div>{k && <MiniSparkline data={inCartSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div>{k && <MiniSparkline data={adCostSeries} color={BLUE_L} />}</div>
@@ -352,8 +352,8 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Traffic → In-Cart → Sales (pc) — Klik produk belum tersedia di data")}>
-          <FunnelChart traffic={k?.traffic ?? 0} inCart={k?.in_cart ?? 0} orders={k?.orders ?? 0} t={t} />
+        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → In-Cart → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
+          <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} inCart={k?.visitor_cart_adds ?? 0} transaksi={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
 
@@ -372,8 +372,8 @@ export default function DashboardPage() {
         <Panel title={t("Sales per Store")} hint={t("Total SPOS sales per store · baseline excluded")}>
           <StoreSalesChart data={d?.dealers||[]} />
         </Panel>
-        <Panel title={t("Best Campaign Performance")} hint={t("Top 8 · Dilihat + Penjualan · sumber Ads (Klik & Masuk Keranjang belum tersedia — perlu upload Grup Iklan)")}>
-          <CampaignChart data={d?.top_campaigns||[]} />
+        <Panel title={t("Best Ads Performance")} hint={t("Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads")}>
+          <CampaignChart data={d?.top_campaigns||[]} t={t} />
         </Panel>
       </div>
 
@@ -720,31 +720,34 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
      "clicks" isn't captured anywhere in this schema, so it's not shown).
      Tapered trapezoid shape, blue narrowing down to gold at the final
      (revenue-generating) stage — our own identity, not a copied palette. ── */
-function FunnelChart({ traffic, inCart, orders, t }: { traffic: number; inCart: number; orders: number; t: (k: string) => string }) {
-  if (!traffic) return <Empty />;
+function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
+  productViews: number; pengunjung: number; inCart: number; transaksi: number; t: (k: string) => string;
+}) {
+  if (!productViews) return <Empty />;
   const stages = [
-    { label: t("Traffic"), value: traffic },
+    { label: t("Produk Dilihat"), value: productViews },
+    { label: t("Pengunjung"), value: pengunjung },
     { label: t("In-Cart"), value: inCart },
-    { label: t("Sales") + " (pc)", value: orders },
+    { label: t("Transaksi"), value: transaksi },
   ];
-  const W = 240, H = 260;
+  const W = 240, H = 300;
   const segH = H / stages.length;
-  const minW = W * 0.26;
+  const minW = W * 0.24;
   const max = stages[0].value || 1;
   const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.1));
-  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 10);
+  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 8);
 
   return (
     <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
       <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible" }}>
         <defs>
-          {/* One continuous gradient sweep spanning the full funnel — gold (top,
-              broad reach) flowing into blue (bottom, the narrower converted
-              slice) — our own identity, not a disjoint per-segment palette. */}
+          {/* One continuous gradient sweep spanning the full funnel — blue (top,
+              broad reach) flowing down into a muted gold (bottom, the
+              narrower converted slice) — our own identity, no bright yellow. */}
           <linearGradient id="funnel-sweep" x1="0" y1="0" x2="0" y2={H} gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={GOLD_L} />
-            <stop offset="50%" stopColor={GOLD} />
-            <stop offset="100%" stopColor={BLUE} />
+            <stop offset="0%" stopColor={BLUE_L} />
+            <stop offset="55%" stopColor={BLUE} />
+            <stop offset="100%" stopColor={GOLD} />
           </linearGradient>
         </defs>
         {stages.map((s, i) => {
@@ -756,8 +759,8 @@ function FunnelChart({ traffic, inCart, orders, t }: { traffic: number; inCart: 
           const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : 100;
           return (
             <g key={i}>
-              <polygon points={pts} fill="url(#funnel-sweep)" style={{ filter: "drop-shadow(0 0 10px rgba(201,162,39,0.4))" }} />
-              <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize="15" fontWeight={800} fill="#0a1628">
+              <polygon points={pts} fill="url(#funnel-sweep)" style={{ filter: "drop-shadow(0 0 10px rgba(59,130,246,0.35))" }} />
+              <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize="15" fontWeight={800} fill="#fff" style={{ textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
                 {prevPct.toFixed(0)}%
               </text>
             </g>
@@ -783,30 +786,38 @@ function FunnelChart({ traffic, inCart, orders, t }: { traffic: number; inCart: 
 }
 
 /* ── Best Campaign Performance: horizontal bars ranked by sales, views annotated ── */
-function CampaignChart({ data }: { data: { name: string; views: number; orders: number; sales: number; ad_cost: number }[] }) {
+/* ── Best Ads Performance — ranked list with the full funnel per campaign
+     (Dilihat -> Klik -> Add to Cart -> Omzet), not just a single bar, so it
+     doubles as a recommendation view: a campaign with high Dilihat but weak
+     CTR/cart-rate stands out immediately against one that converts well. ── */
+function CampaignChart({ data, t }: { data: { name: string; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[]; t: (k: string) => string }) {
   if (!data.length) return <Empty />;
-  const rows = data.map((c, i) => ({
-    ...c,
-    label: (i + 1) + ". " + (c.name.length > 30 ? c.name.slice(0, 30) + "…" : c.name),
-  }));
-  const max = Math.max(...rows.map((r) => r.sales), 1);
+  const max = Math.max(...data.map((r) => r.sales), 1);
   return (
-    <div style={{ width: "100%", height: 320 }}>
-      <ResponsiveContainer>
-        <BarChart layout="vertical" data={rows} barSize={16} margin={{ left: 8, right: 24, top: 4, bottom: 4 }} barCategoryGap="18%">
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
-          <XAxis type="number" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} domain={[0, max * 1.12]} />
-          <YAxis type="category" dataKey="label" tick={{ fontSize: 10, fill: "#9ab0cc" }} width={190} axisLine={false} tickLine={false} />
-          <Tooltip
-            contentStyle={TIP_STYLE}
-            formatter={(v, n) => n === "sales" ? [idrF(Number(v)), "Penjualan"] : [num(Number(v)), "Dilihat"]}
-            cursor={{ fill: "rgba(59,130,246,0.04)" }}
-          />
-          <Bar dataKey="sales" shape={<HBar3D fill="url(#gNavy)" />} radius={[0, 4, 4, 0]}>
-            {rows.map((_, i) => <Cell key={i} fill={i === 0 ? "url(#gGold)" : "url(#gNavy)"} />)}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 2px", maxHeight: 320, overflowY: "auto" }}>
+      {data.map((c, i) => {
+        const ctr = c.views ? (c.clicks / c.views) * 100 : 0;
+        const cartRate = c.clicks ? (c.add_to_cart / c.clicks) * 100 : 0;
+        const widthPct = Math.max((c.sales / max) * 100, 3);
+        return (
+          <div key={i} style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
+              <span style={{ fontSize: 12, color: "#e8edf8", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {i + 1}. {c.name}
+              </span>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, whiteSpace: "nowrap" }}>{idr(c.sales)}</span>
+            </div>
+            <div style={{ height: 5, background: "rgba(255,255,255,0.05)", borderRadius: 99, overflow: "hidden", marginBottom: 6 }}>
+              <div style={{ width: `${widthPct}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${BLUE}, ${BLUE_L})`, boxShadow: `0 0 8px ${BLUE}66` }} />
+            </div>
+            <div style={{ display: "flex", gap: 14, fontSize: 10.5, color: "var(--muted)" }}>
+              <span>👁 {num(c.views)} {t("Dilihat")}</span>
+              <span>🖱 {num(c.clicks)} {t("Klik")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
+              <span>🛒 {num(c.add_to_cart)} {t("Cart")} <span style={{ color: GOLD_L }}>({cartRate.toFixed(1)}%)</span></span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

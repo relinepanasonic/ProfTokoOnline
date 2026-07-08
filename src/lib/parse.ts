@@ -114,6 +114,14 @@ export function mapRow(
   let visitors: number | null = null;
   let ad_cost: number | null = null;
   let in_cart: number | null = null;
+  // Added 2026-07 (migration 0042) — only populated for SPOS/Ads rows
+  // uploaded from here on; historical rows stay null (raw is empty on
+  // every pre-existing row, so there is nothing to backfill from).
+  let product_views: number | null = null;      // SPOS K  "Jumlah Produk Dilihat"
+  let orders_ready: number | null = null;        // SPOS Q  "Pesanan Siap Dikirim" (true transaction count)
+  let visitor_cart_adds: number | null = null;   // SPOS H1 "Pengunjung Produk (Menambahkan Produk ke Keranjang)"
+  let clicks: number | null = null;              // Ads "Jumlah Klik"
+  let add_to_cart: number | null = null;         // Ads "Add to Cart"
 
   if (source === "spos") {
     // "Siap Dikirim" (Ready to Ship) matches the GAS dashboard — differs from "Pesanan Dibuat" (all created orders)
@@ -123,12 +131,17 @@ export function mapRow(
              ?? toNum(get("Produk (Pesanan Siap Dikirim)"));
     visitors  = visitorsSpos;
     in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)"));
+    product_views     = toNum(get("Jumlah Produk Dilihat"));
+    orders_ready      = toNum(get("Pesanan Siap Dikirim"));
+    visitor_cart_adds = toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
   } else if (source === "ads") {
     sales_idr = toNum(get("Omzet Penjualan"));
     orders    = toNum(get("Konversi"));
     units     = toNum(get("Produk Terjual"));
     visitors  = toNum(get("Dilihat"));
     ad_cost   = toNum(get("Biaya"));
+    clicks       = toNum(get("Jumlah Klik"));
+    add_to_cart  = toNum(get("Add to Cart"));
   } else {
     // perf — same "Siap Dikirim" column as SPOS
     sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
@@ -155,6 +168,11 @@ export function mapRow(
     visitors,
     ad_cost,
     in_cart,
+    product_views,
+    orders_ready,
+    visitor_cart_adds,
+    clicks,
+    add_to_cart,
     is_parent: isParent,
     raw,
   };

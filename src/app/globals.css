@@ -235,7 +235,10 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
     font-weight:900;font-size:11px;color:var(--navy-deep);background:linear-gradient(135deg,var(--gold),var(--gold-soft))}
   .mob-title{font-weight:800;font-size:15px;color:#fff;line-height:1.1}
   .mob-sub{font-size:10px;color:var(--muted)}
-  .topbar{padding:0 14px}
+  /* .topbar duplicated everything mob-header already shows (logo, name,
+     lang toggle, logout) — it was never hidden on mobile, so both rendered
+     stacked, including the oversized role badge. */
+  .topbar{display:none!important}
   .filterbar{margin:12px 14px;border-radius:14px}
   .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px 6px;margin-bottom:2px}
   .kpi:hover{transform:none}
