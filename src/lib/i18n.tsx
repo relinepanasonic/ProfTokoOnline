@@ -48,8 +48,8 @@ const ID_DICT: Record<string, string> = {
   "Bars = cost · line = ROAS": "Batang = biaya · garis = ROAS",
   "Traffic vs Add-to-Cart": "Kunjungan vs Masuk Keranjang",
   "Funnel trend per month": "Tren funnel per bulan",
-  "Sales per Store": "Penjualan per Toko",
-  "Total SPOS sales per store · baseline excluded": "Total penjualan SPOS per toko · baseline dikecualikan",
+  "AVG Store Sales Performa": "Rata-rata Performa Sales Toko",
+  "Rata-rata penjualan per toko aktif, per bulan · SPOS": "Rata-rata penjualan per toko aktif, per bulan · SPOS",
   "Detail Data per": "Detail Data per",
   "Sorted by sales · Baseline excluded · line shows SPOS sales trend": "Diurutkan berdasarkan penjualan · Baseline dikecualikan · garis menunjukkan tren penjualan SPOS",
 

@@ -20,7 +20,8 @@ type Summary = {
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
   traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number }[];
-  top_campaigns: { name: string; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
+  avg_store_trend: { month: string; avg_sales: number }[];
+  top_campaigns: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
@@ -369,8 +370,8 @@ export default function DashboardPage() {
 
       {/* ── Sales per Store + Best Campaign Performance ── */}
       <div className="row c2">
-        <Panel title={t("Sales per Store")} hint={t("Total SPOS sales per store · baseline excluded")}>
-          <StoreSalesChart data={d?.dealers||[]} />
+        <Panel title={t("AVG Store Sales Performa")} hint={t("Rata-rata penjualan per toko aktif, per bulan · SPOS")}>
+          <AvgStoreTrendChart data={byMonth(d?.avg_store_trend||[])} />
         </Panel>
         <Panel title={t("Best Ads Performance")} hint={t("Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads")}>
           <CampaignChart data={d?.top_campaigns||[]} t={t} />
@@ -578,33 +579,34 @@ function CostRoasChart({ data }: { data: { month:string; cost:number; roas:numbe
   );
 }
 
-/* ── Sales per Store bar chart ── */
-function StoreSalesChart({ data }: { data: { store_name: string; sales: number }[] }) {
+/* ── AVG Store Sales Performa — smooth flowing area, average of each
+     active store's own monthly SPOS sales (not a total-per-store ranking
+     snapshot) ── */
+function AvgStoreTrendChart({ data }: { data: { month: string; avg_sales: number }[] }) {
   if (!data.length) return <Empty />;
-  const rows = [...data].sort((a, b) => b.sales - a.sales);
-  const barW = Math.min(Math.max(Math.floor(560 / rows.length) - 10, 32), 120);
   return (
     <div style={{ width: "100%", height: 290 }}>
       <ResponsiveContainer>
-        <BarChart data={rows} barSize={barW} margin={{ left: 4, right: 20, top: 18, bottom: 28 }} barCategoryGap="6%">
+        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+          <defs>
+            <linearGradient id="gAvgStoreWave" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={BLUE_L} stopOpacity="0.5" />
+              <stop offset="100%" stopColor={BLUE_L} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis
-            dataKey="store_name"
-            tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 18) + "…" : v}
-            tick={axis} interval={0} axisLine={false} tickLine={false} height={70}
-            angle={-45} textAnchor="end"
-          />
+          <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip
             contentStyle={TIP_STYLE}
-            cursor={{ fill: "rgba(201,162,39,0.04)" }}
-            formatter={(v) => [idrF(Number(v)), "Sales"]}
-            labelFormatter={(l) => `🏪 ${l}`}
+            cursor={{ stroke: "rgba(59,130,246,0.35)", strokeWidth: 1 }}
+            formatter={(v) => [idrF(Number(v)), "AVG Sales / Store"]}
           />
-          <Bar dataKey="sales" shape={<Bar3D fill="url(#gNavy)" />} radius={[4, 4, 0, 0]}>
-            {rows.map((_, i) => <Cell key={i} fill="url(#gNavy)" />)}
-          </Bar>
-        </BarChart>
+          <Area type="monotone" dataKey="avg_sales" stroke={BLUE_L} strokeWidth={3} fill="url(#gAvgStoreWave)"
+            dot={{ r: 5, fill: BLUE_L, stroke: "#0a1628", strokeWidth: 2 }}
+            activeDot={{ r: 7, fill: "#fff", stroke: BLUE, strokeWidth: 2 }}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -723,7 +725,11 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
   productViews: number; pengunjung: number; inCart: number; transaksi: number; t: (k: string) => string;
 }) {
-  if (!productViews) return <Empty />;
+  // Gate on ANY stage having data, not just productViews specifically —
+  // productViews/inCart are brand-new fields (migration 0042) that read 0
+  // for every pre-existing upload, which was blanking the whole chart even
+  // when Pengunjung/Transaksi (older fields) have real data.
+  if (!productViews && !pengunjung && !inCart && !transaksi) return <Empty />;
   const stages = [
     { label: t("Produk Dilihat"), value: productViews },
     { label: t("Pengunjung"), value: pengunjung },
@@ -733,9 +739,12 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
   const W = 240, H = 300;
   const segH = H / stages.length;
   const minW = W * 0.24;
-  const max = stages[0].value || 1;
-  const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.1));
-  for (let i = 1; i < widths.length; i++) widths[i] = Math.min(widths[i], widths[i - 1] - 8);
+  // Scale against whichever stage is actually largest (not always stage 0 —
+  // productViews reads 0 until re-uploaded, so Pengunjung is often the real
+  // peak right now) instead of forcing every later segment strictly
+  // narrower, which would visually lie about a 0-value new field.
+  const max = Math.max(productViews, pengunjung, inCart, transaksi, 1);
+  const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.06));
 
   return (
     <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
@@ -790,7 +799,7 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
      (Dilihat -> Klik -> Add to Cart -> Omzet), not just a single bar, so it
      doubles as a recommendation view: a campaign with high Dilihat but weak
      CTR/cart-rate stands out immediately against one that converts well. ── */
-function CampaignChart({ data, t }: { data: { name: string; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[]; t: (k: string) => string }) {
+function CampaignChart({ data, t }: { data: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[]; t: (k: string) => string }) {
   if (!data.length) return <Empty />;
   const max = Math.max(...data.map((r) => r.sales), 1);
   return (
@@ -803,7 +812,7 @@ function CampaignChart({ data, t }: { data: { name: string; views: number; click
           <div key={i} style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
               <span style={{ fontSize: 12, color: "#e8edf8", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {i + 1}. {c.name}
+                {i + 1}. {c.store_name && <span style={{ color: BLUE_L }}>{c.store_name}</span>} {c.store_name && "· "}{c.name}
               </span>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, whiteSpace: "nowrap" }}>{idr(c.sales)}</span>
             </div>
