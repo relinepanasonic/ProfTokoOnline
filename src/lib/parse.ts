@@ -140,8 +140,10 @@ export function mapRow(
     units     = toNum(get("Produk Terjual"));
     visitors  = toNum(get("Dilihat"));
     ad_cost   = toNum(get("Biaya"));
-    clicks       = toNum(get("Jumlah Klik"));
-    add_to_cart  = toNum(get("Add to Cart"));
+    // Header text for these two isn't reliable across ads export variants
+    // (was reading 0 for real uploads) — column position is: L = Klik, N = In Cart.
+    clicks       = toNum(get("__COL_L")) ?? toNum(get("Jumlah Klik"));
+    add_to_cart  = toNum(get("__COL_N")) ?? toNum(get("Add to Cart"));
   } else {
     // perf — same "Siap Dikirim" column as SPOS
     sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));

@@ -110,8 +110,13 @@ export async function POST(req: NextRequest) {
     .map((r) => {
       const raw: Record<string, unknown> = {};
       headers.forEach((h, i) => {
-        if (!h) return;
         const val = (r as unknown[])[i] ?? null;
+        // Column-letter key (A, B, ... Z, AA, ...) alongside the header-text
+        // key. Some Shopee ads exports don't reliably carry a stable header
+        // name for every metric, so a few fields are looked up by their
+        // fixed column position instead — see mapRow()'s ads branch.
+        raw[`__COL_${XLSX.utils.encode_col(i)}`] = val;
+        if (!h) return;
         raw[h] = val;
         raw[bqCol(h)] = val; // also store sanitized key so mapRow's get() hits
       });

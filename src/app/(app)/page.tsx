@@ -353,7 +353,7 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → In-Cart → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
+        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → Masuk Keranjang → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
           <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} inCart={k?.visitor_cart_adds ?? 0} transaksi={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
@@ -733,7 +733,7 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
   const stages = [
     { label: t("Produk Dilihat"), value: productViews },
     { label: t("Pengunjung"), value: pengunjung },
-    { label: t("In-Cart"), value: inCart },
+    { label: t("Masuk Keranjang"), value: inCart },
     { label: t("Transaksi"), value: transaksi },
   ];
   const W = 240, H = 300;
@@ -741,10 +741,16 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
   const minW = W * 0.24;
   // Scale against whichever stage is actually largest (not always stage 0 —
   // productViews reads 0 until re-uploaded, so Pengunjung is often the real
-  // peak right now) instead of forcing every later segment strictly
-  // narrower, which would visually lie about a 0-value new field.
+  // peak right now). Then cascade-clamp so every later segment is never
+  // WIDER than the one above it — a funnel must taper monotonically, even
+  // when a brand-new field (0 for old uploads) sits between two stages that
+  // both have real data, which previously made it flare back out.
   const max = Math.max(productViews, pengunjung, inCart, transaksi, 1);
-  const widths = stages.map((s) => minW + (W - minW) * Math.max(s.value / max, 0.06));
+  const widths: number[] = [];
+  stages.forEach((s, i) => {
+    const raw = minW + (W - minW) * Math.max(s.value / max, 0.06);
+    widths.push(i === 0 ? raw : Math.min(raw, widths[i - 1]));
+  });
 
   return (
     <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
