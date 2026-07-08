@@ -365,7 +365,7 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru")}>
+        <Panel title={t("Shopping Funnel")} hint={t("Product Views → Visitors → Orders Created → Transactions — older months partly 0 until new SPOS upload")}>
           <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} ordersCreated={k?.orders_created ?? 0} transaksi={k?.orders ?? 0} t={t} />
         </Panel>
       </div>
@@ -382,18 +382,18 @@ export default function DashboardPage() {
 
       {/* ── Sales per Store + Best Campaign Performance ── */}
       <div className="row c2">
-        <Panel title={t("AVG Store Sales Performa")} hint={t("Rata-rata penjualan bulanan per toko · SPOS")}>
+        <Panel title={t("AVG Store Sales Performa")} hint={t("Average monthly sales per store · SPOS")}>
           <AvgStoreTrendChart data={d?.avg_store_trend||[]} />
         </Panel>
-        <Panel title={t("Best Ads Performance")} hint={t("Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads")}>
+        <Panel title={t("Best Ads Performance")} hint={t("Top 8 · Views → Clicks → Add to Cart → Sales · from Ads")}>
           <CampaignChart data={d?.top_campaigns||[]} t={t} />
         </Panel>
       </div>
 
       {/* ── Dealer table ── */}
       <div className="panel">
-        <h3>{t("Detail Data per")} {t(storeLabel)}</h3>
-        <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")} · {t("Klik baris untuk detail")}</div>
+        <h3>{t("Store Data per")} {t(storeLabel)}</h3>
+        <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")} · {t("Click row for details")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
@@ -853,8 +853,8 @@ function CampaignChart({ data, t }: { data: { name: string; store_name: string |
               <div style={{ width: `${widthPct}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${BLUE}, ${BLUE_L})`, boxShadow: `0 0 8px ${BLUE}66` }} />
             </div>
             <div style={{ display: "flex", gap: 14, fontSize: 10.5, color: "var(--muted)" }}>
-              <span>👁 {num(c.views)} {t("Dilihat")}</span>
-              <span>🖱 {num(c.clicks)} {t("Klik")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
+              <span>👁 {num(c.views)} {t("Views")}</span>
+              <span>🖱 {num(c.clicks)} {t("Clicks")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
               <span>🛒 {num(c.add_to_cart)} {t("Cart")} <span style={{ color: GOLD_L }}>({cartRate.toFixed(1)}%)</span></span>
             </div>
           </div>

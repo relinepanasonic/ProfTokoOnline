@@ -33,7 +33,6 @@ const ID_DICT: Record<string, string> = {
   // KPIs
   "Total Sales": "Total Penjualan", "Total Transaction": "Total Transaksi", "Traffic": "Kunjungan",
   "In-Cart": "Masuk Keranjang", "Ads Cost": "Biaya Iklan", "ROAS": "ROAS",
-  "SPOS · siap dikirim": "SPOS · siap dikirim", "Performa": "Performa",
   "cart rate": "tingkat keranjang",
 
   // panels
@@ -49,24 +48,25 @@ const ID_DICT: Record<string, string> = {
   "Traffic vs Add-to-Cart": "Kunjungan vs Masuk Keranjang",
   "Funnel trend per month": "Tren funnel per bulan",
   "AVG Store Sales Performa": "Rata-rata Performa Sales Toko",
-  "Rata-rata penjualan bulanan per toko · SPOS": "Rata-rata penjualan bulanan per toko · SPOS",
+  "Average monthly sales per store · SPOS": "Rata-rata penjualan bulanan per toko · SPOS",
   "Detail Data per": "Detail Data per",
   "Sorted by sales · Baseline excluded · line shows SPOS sales trend": "Diurutkan berdasarkan penjualan · Baseline dikecualikan · garis menunjukkan tren penjualan SPOS",
 
   // table
   "Trend": "Tren", "Sales": "Penjualan", "Cart Rate": "Tingkat Keranjang",
   "ROAS Trend": "Tren ROAS", "No data yet": "Belum ada data",
-  "Klik baris untuk detail": "Klik baris untuk detail",
+  "Click row for details": "Klik baris untuk detail",
+  "Store Data per": "Detail Data per",
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",
   "Product Views": "Produk Dilihat", "Visitors": "Pengunjung",
-  "Orders Created": "Transaksi Dibuat", "Transactions": "Transaksi",
-  "Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru":
+  "Orders Created": "Transaksi Dibuat", "Transactions": "Transaksi Dikirim",
+  "Product Views → Visitors → Orders Created → Transactions — older months partly 0 until new SPOS upload":
     "Produk Dilihat → Pengunjung → Transaksi Dibuat → Transaksi — bulan lama sebagian 0 sampai upload SPOS baru",
   "Best Ads Performance": "Performa Iklan Terbaik",
-  "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads": "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads",
-  "Dilihat": "Dilihat", "Klik": "Klik", "Cart": "Keranjang",
+  "Top 8 · Views → Clicks → Add to Cart → Sales · from Ads": "Top 8 · Dilihat → Klik → Add to Cart → Omzet · sumber Ads",
+  "Views": "Dilihat", "Clicks": "Klik", "Cart": "Keranjang",
 
   // misc
   "GMV": "GMV",
