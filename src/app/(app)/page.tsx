@@ -34,7 +34,7 @@ type Summary = {
   brand_share: { brand: string; sales: number }[];
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
-  traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number }[];
+  traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number; visitor_cart_adds: number }[];
   avg_store_trend: { store_name: string; avg_sales: number }[];
   top_campaigns: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
@@ -303,6 +303,7 @@ export default function DashboardPage() {
   const salesSeries   = byMonth(d?.monthly_sales || []).map((x) => x.sales);
   const transactionSeries = byMonth(d?.traffic_trend || []).map((x) => x.transactions);
   const trafficSeries  = byMonth(d?.traffic_trend || []).map((x) => x.traffic);
+  const cartAddsSeries = byMonth(d?.traffic_trend || []).map((x) => x.visitor_cart_adds);
   const adCostSeries   = byMonth(d?.cost_roas || []).map((x) => x.cost);
   const [drillStore, setDrillStore] = useState<Summary["dealers"][number] | null>(null);
 
@@ -341,6 +342,7 @@ export default function DashboardPage() {
         <div className={`kpi kpi-hero${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">💰</div><div className="lbl">{t("Total Sales")}</div><div className="val">{kv(idr(k?.sales ?? 0))}</div>{k && <MiniSparkline data={salesSeries} color={GOLD} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{kv(num(k?.transactions ?? 0))}</div>{k && <MiniSparkline data={transactionSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">👁</div><div className="lbl">{t("Traffic")}</div><div className="val">{kv(num(k?.traffic ?? 0))}</div>{k && <MiniSparkline data={trafficSeries} color={BLUE_L} />}</div>
+        <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">🛒</div><div className="lbl">{t("In-Cart")}</div><div className="val">{kv(num(k?.visitor_cart_adds ?? 0))}</div>{k && <MiniSparkline data={cartAddsSeries} color={BLUE_L} />}</div>
         <div className={`kpi${!k && loading ? " pt-loading-card" : ""}`}><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{kv(idr(k?.ad_cost ?? 0))}</div>{k && <MiniSparkline data={adCostSeries} color={BLUE_L} />}</div>
         <div className={`kpi kpi-roas${!k && loading ? " pt-loading-card" : ""}`}>
           <div style={{ position: "absolute", right: 13, top: 12 }}><RadialGauge pct={roasPct} /></div>
