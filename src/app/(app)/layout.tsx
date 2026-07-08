@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -36,9 +37,6 @@ const ROLE_LABEL: Record<Role, string> = {
   advertiser: "Advertiser",
 };
 
-// Mobile bottom-nav: 6 most-used destinations
-const BOTTOM = ["/", "/product", "/ads", "/store", "/upload", "/calc"];
-
 function LangToggle() {
   const { lang, setLang } = useLang();
   return (
@@ -57,6 +55,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role>();
   const [name, setName] = useState("—");
   const [clientName, setClientName] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setMenuOpen(false); }, [path]);
 
   useEffect(() => {
     (async () => {
@@ -159,18 +161,47 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav: single hamburger opening the full sidebar-order menu */}
       <nav className="bottom-nav">
-        {BOTTOM.filter((href) => visible.some((v) => v.href === href)).map((href) => {
-          const n = NAV.find((x) => x.href === href)!;
-          return (
-            <Link key={href} href={href} className={`bn-item ${path === href ? "active" : ""}`}>
-              <span style={{ fontSize: 20 }}>{n.icon}</span>
-              <span>{t(n.label).split(" ")[0]}</span>
-            </Link>
-          );
-        })}
+        <button className="bn-hamburger" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          <span /><span /><span />
+        </button>
+        <span className="bn-current">
+          <span style={{ fontSize: 18 }}>{current?.icon}</span>
+          {t(current?.label || "Dashboard")}
+        </span>
       </nav>
+
+      {menuOpen && typeof document !== "undefined" && createPortal(
+        <>
+          <div className="mobile-drawer-backdrop" onClick={() => setMenuOpen(false)} />
+          <div className="mobile-drawer">
+            <div className="mobile-drawer-head">
+              <div className="brand">
+                <div className="logo">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/logo.png" alt="logo" style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 8 }} />
+                </div>
+                <div>
+                  <div className="t1">Prof Toko Online</div>
+                  <div className="t2">{clientName}</div>
+                </div>
+              </div>
+              <button className="mobile-drawer-close" onClick={() => setMenuOpen(false)} aria-label="Close menu">✕</button>
+            </div>
+            <ul className="nav-list">
+              {visible.map((n) => (
+                <li key={n.href} className={path === n.href ? "active" : ""}>
+                  <Link href={n.href} style={{ display: "flex", alignItems: "center", gap: 11, width: "100%", color: "inherit", textDecoration: "none" }}>
+                    <span className="ic">{n.icon}</span> {t(n.label)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }

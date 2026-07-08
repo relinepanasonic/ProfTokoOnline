@@ -11,6 +11,21 @@ import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
+// Shared with globals.css's mobile breakpoint (max-width:760px) so chart
+// internals (label truncation, axis widths, layout direction) match the
+// same point the rest of the UI switches to its mobile layout.
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width:760px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isMobile;
+}
+
 type Summary = {
   kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; orders_created: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null };
   monthly_sales: { month: string; sales: number }[];
@@ -512,10 +527,17 @@ function MonthlySalesChart({ data }: { data: { month: string; sales: number; tra
 
 /* ── Horizontal 3D Bar Chart (top products) ── */
 function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
+  const isMobile = useIsMobile();
   if (!data.length) return <Empty />;
+  // The label column was a fixed 280px, which on a narrow mobile chart
+  // (panels go full-width single-column) ate almost the whole SVG, leaving
+  // no room for bars at all. Shrink both the column width and the label
+  // truncation length together on mobile.
+  const labelMax = isMobile ? 20 : 46;
+  const yWidth = isMobile ? 118 : 280;
   const rows = data.map((p, i) => ({
     ...p,
-    label: (i+1)+". "+(p.name.length>46 ? p.name.slice(0,46)+"…" : p.name),
+    label: (i+1)+". "+(p.name.length>labelMax ? p.name.slice(0,labelMax)+"…" : p.name),
   }));
   const max = Math.max(...rows.map((r) => r.sales), 1);
   return (
@@ -524,7 +546,7 @@ function HBarsChart({ data }: { data: { name:string; sales:number }[] }) {
         <BarChart layout="vertical" data={rows} barSize={16} margin={{ left:8, right:24, top:4, bottom:4 }} barCategoryGap="18%">
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" horizontal={false} />
           <XAxis type="number" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} domain={[0, max * 1.12]} />
-          <YAxis type="category" dataKey="label" tick={{ fontSize:10, fill:"#9ab0cc" }} width={280} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="label" tick={{ fontSize: isMobile ? 9 : 10, fill:"#9ab0cc" }} width={yWidth} axisLine={false} tickLine={false} />
           <Tooltip
             contentStyle={TIP_STYLE}
             formatter={(v) => [idrF(Number(v)), "Sales"]}
@@ -581,6 +603,7 @@ function CostRoasChart({ data }: { data: { month:string; cost:number; roas:numbe
      months it actually has data for. E.g. Japarutomo: Feb-Jun (5 months),
      total 1,000,000 -> 200,000/month. ── */
 function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_sales: number }[] }) {
+  const isMobile = useIsMobile();
   if (!data.length) return <Empty />;
   return (
     <div style={{ width: "100%", height: 290 }}>
@@ -589,7 +612,7 @@ function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_sales: n
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis
             dataKey="store_name"
-            tick={{ ...axis, fontSize: 10.5 }}
+            tick={{ ...axis, fontSize: isMobile ? 7.5 : 10.5 }}
             interval={0}
             angle={-45}
             textAnchor="end"
@@ -723,6 +746,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: {
   productViews: number; pengunjung: number; ordersCreated: number; transaksi: number; t: (k: string) => string;
 }) {
+  const isMobile = useIsMobile();
   // Gate on ANY stage having data, not just productViews specifically —
   // productViews/ordersCreated are brand-new fields that read 0 for every
   // pre-existing upload, which was blanking the whole chart even when
@@ -734,7 +758,10 @@ function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: 
     { label: t("Orders Created"), value: ordersCreated },
     { label: t("Transactions"), value: transaksi },
   ];
-  const W = 240, H = 300;
+  // On mobile the side-by-side layout squeezed the label column to nothing
+  // (labels/numbers were getting clipped) — shrink the SVG and stack it
+  // above a full-width list instead of beside it.
+  const W = isMobile ? 150 : 240, H = isMobile ? 190 : 300;
   const segH = H / stages.length;
   const minW = W * 0.24;
   // Scale against whichever stage is actually largest (not always stage 0 —
@@ -759,8 +786,8 @@ function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: 
   const fmtPct = (p: number) => (p >= 10 ? p.toFixed(0) : p.toFixed(1));
 
   return (
-    <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
-      <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible" }}>
+    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 14 : 22, alignItems: isMobile ? "flex-start" : "center", padding: "6px 4px" }}>
+      <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible", alignSelf: isMobile ? "center" : undefined }}>
         <defs>
           {/* One continuous gradient sweep spanning the full funnel — blue (top,
               broad reach) flowing down into a muted gold (bottom, the
@@ -781,18 +808,18 @@ function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: 
           return (
             <g key={i}>
               <polygon points={pts} fill="url(#funnel-sweep)" style={{ filter: "drop-shadow(0 0 10px rgba(59,130,246,0.35))" }} />
-              <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize="15" fontWeight={800} fill="#fff" style={{ textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
+              <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize={isMobile ? 11 : 15} fontWeight={800} fill="#fff" style={{ textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
                 {pct == null ? "—" : `${fmtPct(pct)}%`}
               </text>
             </g>
           );
         })}
       </svg>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+      <div style={{ flex: 1, width: isMobile ? "100%" : undefined, display: "flex", flexDirection: "column", gap: isMobile ? 14 : 22, minWidth: 0 }}>
         {stages.map((s) => (
           <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-            <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
-            <span style={{ fontSize: 20, fontWeight: 800, color: "#fff", textAlign: "right", whiteSpace: "nowrap" }}>{num(s.value)}</span>
+            <span style={{ fontSize: isMobile ? 11 : 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
+            <span style={{ fontSize: isMobile ? 16 : 20, fontWeight: 800, color: "#fff", textAlign: "right", whiteSpace: "nowrap" }}>{num(s.value)}</span>
           </div>
         ))}
       </div>

@@ -245,13 +245,22 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
   .row,.row.c2,.row.c2b{display:flex;flex-direction:column;gap:10px;margin:0;padding:0 14px}
   .panel{border-radius:18px;padding:14px;margin-bottom:10px}
   table.tbl{min-width:520px}
-  .bottom-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;z-index:60;
+  .bottom-nav{display:flex!important;align-items:center;gap:12px;position:fixed;bottom:0;left:0;right:0;z-index:60;
     background:rgba(7,13,26,.97);backdrop-filter:blur(26px);border-top:1px solid var(--card-border);
-    padding:8px 0 max(8px,env(safe-area-inset-bottom))}
-  .bn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-    background:none;border:none;color:var(--muted);padding:4px 0;cursor:pointer;transition:.2s;text-decoration:none}
-  .bn-item svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-  .bn-item span{font-size:9.5px;font-weight:600}
-  .bn-item.active{color:var(--gold)}
-  .bn-item.active svg{stroke:var(--gold)}
+    padding:10px 16px max(10px,env(safe-area-inset-bottom))}
+  .bn-hamburger{display:flex;flex-direction:column;justify-content:center;gap:4px;
+    width:34px;height:34px;background:var(--glass);border:1px solid var(--card-border);border-radius:9px;
+    cursor:pointer;flex-shrink:0}
+  .bn-hamburger span{display:block;width:16px;height:2px;margin:0 auto;background:#fff;border-radius:2px}
+  .bn-current{display:flex;align-items:center;gap:8px;color:#fff;font-weight:700;font-size:14px}
+
+  .mobile-drawer-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);z-index:200}
+  .mobile-drawer{position:fixed;top:0;left:0;bottom:0;width:78vw;max-width:300px;z-index:201;
+    background:linear-gradient(160deg,#0c1830,#070d1a);border-right:1px solid var(--card-border);
+    display:flex;flex-direction:column;padding:16px 12px;overflow-y:auto;
+    animation:drawer-in .22s ease-out}
+  @keyframes drawer-in{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+  .mobile-drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding:0 4px}
+  .mobile-drawer-close{width:30px;height:30px;border-radius:9px;background:var(--glass);border:1px solid var(--card-border);
+    color:#fff;font-size:14px;cursor:pointer}
 }
