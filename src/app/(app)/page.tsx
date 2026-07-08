@@ -753,6 +753,14 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
     widths.push(i === 0 ? raw : Math.min(raw, widths[i - 1]));
   });
 
+  // Standard funnel convention: each stage as a % of the TOP stage, so it's
+  // always monotonic and reads cleanly (no confusing >100% steps that a
+  // relative-to-previous calc produces when a later stage happens to be
+  // larger). Small values keep one decimal so they don't all collapse to 0%.
+  const topVal = stages[0].value || 0;
+  const pctOfTop = (v: number): number | null => (topVal ? (v / topVal) * 100 : null);
+  const fmtPct = (p: number) => (p >= 10 ? p.toFixed(0) : p.toFixed(1));
+
   return (
     <div style={{ display: "flex", gap: 22, alignItems: "center", padding: "6px 4px" }}>
       <svg width={W} height={H} style={{ flexShrink: 0, overflow: "visible" }}>
@@ -772,12 +780,12 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
           const xTop = (W - wTop) / 2, xBot = (W - wBot) / 2;
           const gap = 4;
           const pts = `${xTop},${y} ${xTop + wTop},${y} ${xBot + wBot},${y + segH - gap} ${xBot},${y + segH - gap}`;
-          const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : 100;
+          const pct = pctOfTop(s.value);
           return (
             <g key={i}>
               <polygon points={pts} fill="url(#funnel-sweep)" style={{ filter: "drop-shadow(0 0 10px rgba(59,130,246,0.35))" }} />
               <text x={W / 2} y={y + segH / 2 - gap / 2 + 5} textAnchor="middle" fontSize="15" fontWeight={800} fill="#fff" style={{ textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>
-                {prevPct.toFixed(0)}%
+                {pct == null ? "—" : `${fmtPct(pct)}%`}
               </text>
             </g>
           );
@@ -785,13 +793,13 @@ function FunnelChart({ productViews, pengunjung, inCart, transaksi, t }: {
       </svg>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
         {stages.map((s, i) => {
-          const prevPct = i > 0 && stages[i - 1].value ? (s.value / stages[i - 1].value) * 100 : null;
+          const pct = i === 0 ? null : pctOfTop(s.value);
           return (
             <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
               <span style={{ fontSize: 12.5, color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{s.label}</span>
               <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <span style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{num(s.value)}</span>
-                {prevPct != null && <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: GOLD }}>{prevPct.toFixed(0)}%</span>}
+                {pct != null && <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, color: GOLD }}>{fmtPct(pct)}%</span>}
               </span>
             </div>
           );
