@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import FinanceDashboard from "./FinanceDashboard";
-import FinanceUpload from "./FinanceUpload";
-import ModalProduct from "./ModalProduct";
+import Loader from "@/components/Loader";
 
 export const dynamic = "force-dynamic";
+
+// FinanceDashboard pulls in recharts (~430KB); loaded client-side on demand
+// instead of bundled into every /product page load.
+const FinanceDashboard = dynamicImport(() => import("./FinanceDashboard"), { ssr: false, loading: () => <Loader center /> });
+const FinanceUpload = dynamicImport(() => import("./FinanceUpload"), { ssr: false });
+const ModalProduct = dynamicImport(() => import("./ModalProduct"), { ssr: false });
 
 const TABS = [
   { v: "dashboard", l: "Dashboard Keuangan" },

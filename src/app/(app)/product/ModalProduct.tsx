@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/client";
 import { toNum } from "@/lib/parse";
 import Loader from "@/components/Loader";
@@ -99,8 +98,11 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
 
   // Export scoped strictly to the picked Store — the client fills in one
   // store's price list at a time, not a mixed multi-store dump.
-  function exportExcel() {
+  // xlsx (~400KB) is only needed once the user actually exports/imports a
+  // file, so it's loaded on demand here instead of bundled into the page.
+  async function exportExcel() {
     if (!rows || !sel.store) return;
+    const XLSX = await import("xlsx");
     const data = rows.map((r) => {
       const digits = costs.get(key(r.kode_produk, r.kode_variasi));
       return {
@@ -122,6 +124,7 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
   async function importExcel(file: File) {
     setImporting(true);
     setImportMsg("");
+    const XLSX = await import("xlsx");
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array" });
     const ws = wb.Sheets[wb.SheetNames[0]];

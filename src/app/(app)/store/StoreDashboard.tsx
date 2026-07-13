@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
-import IndonesiaMap from "./IndonesiaMap";
+
+// d3-geo + topojson-client only matter to this one map — loaded client-side
+// on demand instead of bundled eagerly with the rest of this dashboard.
+const IndonesiaMap = dynamic(() => import("./IndonesiaMap"), { ssr: false });
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];

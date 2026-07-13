@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
-import StoreDashboard from "./StoreDashboard";
-import StoreUpload from "./StoreUpload";
+import Loader from "@/components/Loader";
 
 export const dynamic = "force-dynamic";
+
+// StoreDashboard pulls in recharts + the d3-geo/topojson Indonesia map;
+// loaded client-side on demand instead of bundled into every /store load.
+const StoreDashboard = dynamicImport(() => import("./StoreDashboard"), { ssr: false, loading: () => <Loader center /> });
+const StoreUpload = dynamicImport(() => import("./StoreUpload"), { ssr: false });
 
 const TABS = [
   { v: "dashboard", l: "Operational Performance" },
