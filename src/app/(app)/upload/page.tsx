@@ -92,11 +92,19 @@ export default function UploadPage() {
       : stores;
 
   // ---------- data loading ----------
+  // The "uploads" table is shared by every upload flow in the app (Finance,
+  // Operational, Market Fee, Ads-Group all write to it too, with source
+  // values "finance"/"orders"/"market_fee"/"ads_group"). This page only
+  // manages SPOS/Ads/Performa, so scope the log to just those — otherwise
+  // unrelated uploads show up here with broken styling (no SRC_LABEL/
+  // SRC_COLOR entry for those sources) and their Set-based badge grouping
+  // renders in inconsistent order row to row.
   const loadUploads = useCallback(async (cid: string) => {
     if (!cid) { setUploads([]); return; }
     const { data } = await supabase.from("uploads")
       .select("id,source,filename,row_count,created_at,meta")
       .eq("client_id", cid)
+      .in("source", ["spos", "ads", "perf"])
       .order("created_at", { ascending: false });
     setUploads((data as UploadRow[]) || []);
   }, [supabase]);
@@ -183,20 +191,6 @@ export default function UploadPage() {
     (!flt.store  || u.meta?.store_name === flt.store) &&
     (!flt.source || u.source === flt.source)
   );
-
-  // ---------- data per store summary ----------
-  const storeStats = (() => {
-    const map = new Map<string, { owner: string; rows: number; sources: Set<string>; periods: Set<string> }>();
-    for (const u of uploads) {
-      const key = u.meta?.store_name || "—";
-      if (!map.has(key)) map.set(key, { owner: u.meta?.pic_client || "—", rows: 0, sources: new Set(), periods: new Set() });
-      const s = map.get(key)!;
-      s.rows += u.row_count || 0;
-      s.sources.add(u.source);
-      if (u.meta?.bulan) s.periods.add(`${u.meta.bulan}${u.meta.year ? " " + u.meta.year : ""}`);
-    }
-    return [...map.values()].map((s, i) => ({ ...s, store: [...map.keys()][i] })).sort((a, b) => b.rows - a.rows);
-  })();
 
   const isBaseline = manual.bulan === "Baseline";
 
@@ -312,42 +306,6 @@ export default function UploadPage() {
         )}
       </div>
 
-      {/* ───── Data per Store summary ───── */}
-      {storeStats.length > 0 && (
-        <div className="panel" style={{ marginTop: 18 }}>
-          <h3 style={{ margin: "0 0 4px" }}>Data per Store</h3>
-          <div className="hint">Total rows uploaded per store across all sources and periods.</div>
-          <div className="tbl-wrap" style={{ marginTop: 14 }}>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Store</th><th>Owner</th><th>Total Rows</th>
-                  <th>Sources</th><th>Months</th>
-                </tr>
-              </thead>
-              <tbody>
-                {storeStats.map((s) => (
-                  <tr key={s.store}>
-                    <td style={{ fontWeight: 600 }}>{s.store}</td>
-                    <td>{s.owner}</td>
-                    <td className="num">{s.rows.toLocaleString("id-ID")}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                        {[...s.sources].map((src) => (
-                          <span key={src} style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[src] + "22", color: SRC_COLOR[src], border: `1px solid ${SRC_COLOR[src]}44` }}>
-                            {SRC_LABEL[src] || src}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 12, color: "var(--muted)" }}>{[...s.periods].slice(0, 4).join(", ")}{s.periods.size > 4 ? ` +${s.periods.size - 4}` : ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {/* ───── Upload Log ───── */}
       <div className="panel" style={{ marginTop: 18 }}>
