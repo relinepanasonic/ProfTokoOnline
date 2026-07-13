@@ -102,36 +102,43 @@ export function mapRow(
   let clicks: number | null = null;              // Ads "Jumlah Klik"
   let add_to_cart: number | null = null;         // Ads "Add to Cart"
 
+  // Shopee exports the SAME report in whatever language the seller's account
+  // is set to — column ORDER is identical across languages, only the header
+  // text changes. So every metric is read by Indonesian header name first,
+  // then falls back to the fixed column LETTER, which makes the parser
+  // bilingual (handles English "Sales (Confirmed Order) (IDR)" exports too).
   if (source === "spos") {
-    // "Siap Dikirim" (Ready to Ship) matches the GAS dashboard — differs from "Pesanan Dibuat" (all created orders)
-    // All four funnel columns + orders read by exact column letter first,
-    // name as fallback — confirmed exact positions: K, Q, U, AH.
-    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
+    // "Siap Dikirim" (Ready to Ship) = English "Confirmed Order". Fixed
+    // positions (verified against real ID + EN exports): J sales, S units,
+    // K product_views, Q orders_ready, T orders_created, U orders,
+    // AB visitors, AH cart-adds, AI in-cart.
+    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)")) ?? toNum(get("__COL_J"));
     orders    = toNum(get("__COL_U")) ?? toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
     units     = toNum(get("Produk Terjual (Pesanan Siap Dikirim)"))
-             ?? toNum(get("Produk (Pesanan Siap Dikirim)"));
+             ?? toNum(get("Produk (Pesanan Siap Dikirim)")) ?? toNum(get("__COL_S"));
     visitors  = visitorsSpos;
-    in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)"));
+    in_cart   = toNum(get("Dimasukkan ke Keranjang (Produk)")) ?? toNum(get("__COL_AI"));
     product_views     = toNum(get("__COL_K")) ?? toNum(get("Jumlah Produk Dilihat"));
     orders_ready      = toNum(get("__COL_Q")) ?? toNum(get("Pesanan Siap Dikirim"));
     orders_created    = toNum(get("__COL_T")) ?? toNum(get("Total Pembeli (Pesanan Dibuat)"));
     visitor_cart_adds = toNum(get("__COL_AH")) ?? toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
   } else if (source === "ads") {
-    sales_idr = toNum(get("Omzet Penjualan"));
-    orders    = toNum(get("Konversi"));
-    units     = toNum(get("Produk Terjual"));
-    visitors  = toNum(get("Dilihat"));
-    ad_cost   = toNum(get("Biaya"));
-    // Header text for these two isn't reliable across ads export variants
-    // (was reading 0 for real uploads) — column position is: L = Klik, N = In Cart.
+    // Fixed positions (EN export): K impressions, L clicks, N add-to-cart,
+    // P conversions, V items, X GMV, Z expense.
+    sales_idr = toNum(get("Omzet Penjualan")) ?? toNum(get("__COL_X"));
+    orders    = toNum(get("Konversi")) ?? toNum(get("__COL_P"));
+    units     = toNum(get("Produk Terjual")) ?? toNum(get("__COL_V"));
+    visitors  = toNum(get("Dilihat")) ?? toNum(get("__COL_K"));
+    ad_cost   = toNum(get("Biaya")) ?? toNum(get("__COL_Z"));
     clicks       = toNum(get("__COL_L")) ?? toNum(get("Jumlah Klik"));
     add_to_cart  = toNum(get("__COL_N")) ?? toNum(get("Add to Cart"));
   } else {
-    // perf — same "Siap Dikirim" column as SPOS
-    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)"));
-    orders    = toNum(get("Total Pembeli (Pesanan Siap Dikirim)"));
+    // perf ("Tinjauan Penjualan" / Sales Overview) — EN positions:
+    // B visitors, E buyers, F sales.
+    sales_idr = toNum(get("Penjualan (Pesanan Siap Dikirim) (IDR)")) ?? toNum(get("__COL_F"));
+    orders    = toNum(get("Total Pembeli (Pesanan Siap Dikirim)")) ?? toNum(get("__COL_E"));
     units     = toNum(get("Total Produk Dipesan"));
-    visitors  = toNum(get("Total Pengunjung (Kunjungan)"));
+    visitors  = toNum(get("Total Pengunjung (Kunjungan)")) ?? toNum(get("__COL_B"));
   }
 
   return {

@@ -21,10 +21,14 @@ function findHeaderRow(rows: unknown[][], mustInclude: string[]): number {
   return 0;
 }
 
+// Header-row hints include the English column names too — Shopee exports in
+// whatever language the seller's account uses, and English files have their
+// header below a preamble (esp. Ads at ~line 7). Without an English hint the
+// detector never finds the header and mis-parses the whole file.
 const HEADER_HINTS: Record<DataSource, string[]> = {
-  spos: ["Produk", "Kode Produk"],
-  ads: ["Nama Iklan"],
-  perf: ["Total Pengunjung", "Kunjungan"],
+  spos: ["Kode Produk", "Produk", "Item ID"],
+  ads:  ["Nama Iklan", "Ad Name"],
+  perf: ["Total Pengunjung", "Kunjungan", "Visitors (Visit)", "Visitors(Visit)"],
 };
 
 export async function POST(req: NextRequest) {
