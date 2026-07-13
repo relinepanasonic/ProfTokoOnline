@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
+import StoreSalesTable from "../StoreSalesTable";
 
 export const dynamic = "force-dynamic";
 
@@ -306,6 +307,7 @@ export default function UploadPage() {
         )}
       </div>
 
+      <StoreSalesTable />
 
       {/* ───── Upload Log ───── */}
       <div className="panel" style={{ marginTop: 18 }}>
