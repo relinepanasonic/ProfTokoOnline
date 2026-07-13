@@ -221,7 +221,7 @@ export default function UploadPage() {
             )}
           </div>
         </div>
-        <div className="hint" style={{ marginBottom: 16 }}>Attach one or more Shopee exports — Brand &amp; Tipe Produk are auto-detected from the file.</div>
+        <div className="hint" style={{ marginBottom: 16 }}>Attach one or more Shopee exports — Brand comes from your Owner → Brand → Store selection above.</div>
 
         {/* Row 1: Year · Month · Week */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>

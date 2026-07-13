@@ -1,35 +1,9 @@
-// Ported from the GAS Upload.gs brand/category detection — behaviour-identical.
-
-export const BRAND_LIST = [
-  "Panasonic", "Sharp", "Polytron", "Gree", "Daikin", "LG", "Samsung", "Midea",
-  "Modena", "Bosch", "Electrolux", "Beko", "Hitachi", "Ariston", "Gea", "Philips",
-  "Toshiba", "TCL", "Reiwa", "AQUA", "Xiaomi", "Teka", "Changhong", "Mitsubishi",
-];
-
-// Multi-word phrases first so the more specific one wins; "AC" last & boundary-safe.
-export const CATEGORY_LIST = [
-  "Mesin Cuci", "Kipas Angin", "Hair Dryer", "Rice Cooker", "Water Heater",
-  "Magic Com", "Kulkas", "Dispenser", "Blender", "Setrika", "Frezzer", "Fan", "TV", "AC",
-];
-
-// Case-insensitive whole-word regex; \b means "AC" won't match inside "Hitachi".
-function wordRe(term: string): RegExp {
-  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp("\\b" + esc + "\\b", "i");
-}
-
-export function detectBrand(name: unknown): string {
-  const s = String(name ?? "");
-  if (/non\s*panasonic|bukan\s*panasonic/i.test(s)) return "Others";
-  for (const b of BRAND_LIST) if (wordRe(b).test(s)) return b;
-  return "Others";
-}
-
-export function detectCategory(name: unknown): string {
-  const s = String(name ?? "");
-  for (const c of CATEGORY_LIST) if (wordRe(c).test(s)) return c;
-  return "Others";
-}
+// NOTE: brand/category are no longer DERIVED from the product name. This is a
+// multi-brand UMKM app — the authoritative brand is the one the uploader picks
+// in the Owner→Brand→Store dropdown (manual.brand). "Tipe Produk" (category)
+// detection was removed entirely. The old name-based BRAND_LIST/CATEGORY_LIST
+// detection (a Panasonic-appliance leftover from the GAS app) tagged everything
+// as "Others"/"AQUA"/"Gea", which was wrong for every store here.
 
 // Mimic BigQuery's column-name sanitization (kept so raw keys match the old data).
 export function bqCol(h: unknown): string {
@@ -99,8 +73,10 @@ export function mapRow(
 
   const nameCol = NAME_COL[source];
   const name = nameCol ? get(nameCol) : null;
-  const brand = nameCol ? detectBrand(name) : null;
-  const product_type = nameCol ? detectCategory(name) : null;
+  // Brand follows the uploader's Owner→Brand→Store selection, not the product
+  // name. Category ("Tipe Produk") is no longer derived at all.
+  const brand = manual.brand ?? null;
+  const product_type = null;
 
   // SPOS parent-row rule: count only rows where traffic (visitors) is present.
   // Column letter first (position AB), name as fallback — header text isn't
