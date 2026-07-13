@@ -165,5 +165,10 @@ export async function POST(req: NextRequest) {
     .update({ row_count: inserted })
     .eq("id", upload.id);
 
+  // Rebuild the pre-aggregated dashboard rollup once, now that every chunk
+  // has landed (migration 0052). This is what keeps the dashboard reading a
+  // small, bloat-free summary table instead of scanning all of sales_rows.
+  await admin.rpc("refresh_dashboard_rollup");
+
   return NextResponse.json({ ok: true, upload_id: upload.id, rows: inserted });
 }

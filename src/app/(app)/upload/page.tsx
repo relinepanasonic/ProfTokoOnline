@@ -134,6 +134,9 @@ export default function UploadPage() {
     if (!confirm("Delete this upload and all its rows? This cannot be undone.")) return;
     const { error } = await supabase.from("uploads").delete().eq("id", id);
     if (error) { alert(error.message); return; }
+    // Rebuild the dashboard rollup so the deleted rows drop out immediately
+    // (otherwise they'd linger until the hourly pg_cron refresh — migration 0052).
+    await supabase.rpc("refresh_dashboard_rollup");
     loadUploads(clientId);
   }
 
