@@ -37,20 +37,19 @@ const ROLE_LABEL: Record<Role, string> = {
   advertiser: "Advertiser",
 };
 
-// ── Owner subscription tiers ────────────────────────────────────────────────
-// Tiers only gate the Owner (branch_manager) role. Basic = Juragan; the rest
-// are Premium. 'signup' = registered but not activated yet (pending screen).
-type Tier = "signup" | "juragan" | "sultan" | "king" | "free_trial";
-const TIER_LABEL: Record<Tier, string> = {
-  signup: "Pending", juragan: "Juragan", sultan: "Sultan", king: "King", free_trial: "Free Trial",
-};
-const PREMIUM_TIERS: Tier[] = ["sultan", "king", "free_trial"];
-// Which pages each owner tier may see.
-const OWNER_BASIC_PAGES   = ["/", "/upload", "/marketfee"];
-const OWNER_PREMIUM_PAGES = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee"];
+// ── Owner subscription plans ────────────────────────────────────────────────
+// Plans only gate the Owner (branch_manager) role. New owners get a 30-day
+// Sultan free trial on registration (set in /api/join); a Superadmin can
+// change the plan anytime on the Users page.
+type Plan = "lapak" | "sultan" | "king";
+const PLAN_LABEL: Record<Plan, string> = { lapak: "Lapak", sultan: "Sultan", king: "King" };
+const PREMIUM_PLANS: Plan[] = ["sultan", "king"];
+// Which pages each owner plan may see.
+const LAPAK_PAGES   = ["/", "/upload", "/marketfee"];
+const SULTAN_PAGES  = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee"];
 
-function ownerPages(tier: Tier): string[] {
-  return PREMIUM_TIERS.includes(tier) ? OWNER_PREMIUM_PAGES : OWNER_BASIC_PAGES;
+function ownerPages(plan: Plan): string[] {
+  return PREMIUM_PLANS.includes(plan) ? SULTAN_PAGES : LAPAK_PAGES;
 }
 
 function LangToggle() {
@@ -72,8 +71,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState("—");
   const [clientName, setClientName] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [tier, setTier] = useState<Tier>();
-  const [subExpires, setSubExpires] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Plan>();
+  const [subEnd, setSubEnd] = useState<string | null>(null);
   // Captured after mount so render stays pure (no Date.now() during render).
   const [now, setNow] = useState<number | null>(null);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -87,11 +86,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const { data: p } = await supabase
-        .from("profiles").select("role, display_name, client_id, tier, sub_expires_at").eq("id", user.id).single();
+        .from("profiles").select("role, display_name, client_id, plan_type, subscription_end").eq("id", user.id).single();
       if (p) {
         setRole(p.role as Role);
-        setTier((p.tier as Tier) ?? "signup");
-        setSubExpires(p.sub_expires_at ?? null);
+        setPlan((p.plan_type as Plan) ?? undefined);
+        setSubEnd(p.subscription_end ?? null);
         setName(p.display_name || user.email?.split("@")[0] || "User");
         if (p.client_id) {
           const { data: c } = await supabase.from("clients").select("name").eq("id", p.client_id).single();
@@ -101,16 +100,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     })();
   }, [supabase]);
 
-  // Owner subscription state (only meaningful for branch_manager).
+  // Owner subscription state (only meaningful for branch_manager). A missing
+  // plan_type falls back to Lapak for page access so a data glitch never fully
+  // locks an owner out; the time gate is handled separately by isExpired.
   const isOwner  = role === "branch_manager";
-  const isSignup = isOwner && tier === "signup";
-  const isExpired = isOwner && !!subExpires && now != null && new Date(subExpires).getTime() <= now;
-  const ownerAllowed = useMemo(() => (isOwner && tier ? ownerPages(tier) : []), [isOwner, tier]);
-  const daysLeft = subExpires && now != null
-    ? Math.ceil((new Date(subExpires).getTime() - now) / 86_400_000)
+  const effectivePlan: Plan = plan ?? "lapak";
+  const isExpired = isOwner && !!subEnd && now != null && new Date(subEnd).getTime() <= now;
+  const ownerAllowed = useMemo(() => (isOwner ? ownerPages(effectivePlan) : []), [isOwner, effectivePlan]);
+  const daysLeft = subEnd && now != null
+    ? Math.ceil((new Date(subEnd).getTime() - now) / 86_400_000)
     : null;
 
-  // Which pages this login may see. Owners are driven by their tier's page
+  // Which pages this login may see. Owners are driven by their plan's page
   // set (which intentionally differs from the base NAV.roles); everyone else
   // by the role list.
   const canSee = (href: string): boolean => {
@@ -119,18 +120,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return !entry?.roles || (!!role && entry.roles.includes(role));
   };
 
-  // Route guard: bounce away from any page this login can't see. A pending
-  // (signup) owner is held on the pending screen regardless of path.
+  // Route guard: bounce away from any page this login can't see (blocked
+  // Lapak pages, or pages the role isn't allowed).
   useEffect(() => {
     if (!role) return;
-    if (isSignup) return; // pending screen replaces content; no redirect needed
     const entry = NAV.find((n) => n.href === path);
     const allowed = isOwner ? ownerAllowed.includes(path) : (!entry?.roles || entry.roles.includes(role));
     if (!allowed) {
       const fallback = isOwner ? (ownerAllowed[0] || "/") : (NAV.find((n) => !n.roles || n.roles.includes(role))?.href || "/login");
       router.replace(fallback);
     }
-  }, [role, path, router, isOwner, isSignup, ownerAllowed]);
+  }, [role, path, router, isOwner, ownerAllowed]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -180,7 +180,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {isOwner && tier && !isSignup && <SubPill tier={tier} daysLeft={daysLeft} expired={isExpired} t={t} compact />}
+            {isOwner && plan && <SubPill plan={plan} daysLeft={daysLeft} expired={isExpired} t={t} compact />}
             <LangToggle />
             <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
           </div>
@@ -194,25 +194,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <LangToggle />
-            {isOwner && tier && !isSignup && <SubPill tier={tier} daysLeft={daysLeft} expired={isExpired} t={t} />}
+            {isOwner && plan && <SubPill plan={plan} daysLeft={daysLeft} expired={isExpired} t={t} />}
             <div className="user-badge">
               <span>{name}</span>
-              {role && <span className="user-role">{isOwner && tier && tier !== "signup" ? TIER_LABEL[tier] : ROLE_LABEL[role]}</span>}
+              {role && <span className="user-role">{isOwner && plan ? PLAN_LABEL[plan] : ROLE_LABEL[role]}</span>}
             </div>
             <button className="btn-logout" onClick={logout}>{t("Logout")}</button>
           </div>
         </div>
 
-        {isSignup
-          ? <PendingScreen t={t} />
-          : <>
-              {isExpired && (
-                <div className="sub-expired-banner">
-                  ⏳ {t("Your subscription has ended — read-only mode. Contact us to renew.")}
-                </div>
-              )}
-              {children}
-            </>}
+        {isExpired && (
+          <div className="sub-expired-banner">
+            ⏳ {t("Your subscription has ended — read-only mode. Contact us to renew.")}
+          </div>
+        )}
+        {children}
       </main>
 
       {/* Mobile bottom nav: single hamburger opening the full sidebar-order menu */}
@@ -260,10 +256,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Countdown / tier pill shown to Owners. Green while active, amber when
+// Countdown / plan pill shown to Owners. Green while active, amber when
 // under a week, red once expired.
-function SubPill({ tier, daysLeft, expired, t, compact }: {
-  tier: Tier; daysLeft: number | null; expired: boolean; t: (k: string) => string; compact?: boolean;
+function SubPill({ plan, daysLeft, expired, t, compact }: {
+  plan: Plan; daysLeft: number | null; expired: boolean; t: (k: string) => string; compact?: boolean;
 }) {
   const color = expired ? "#f87171" : daysLeft != null && daysLeft <= 7 ? "#fbbf24" : "#34d399";
   const label = expired
@@ -272,29 +268,13 @@ function SubPill({ tier, daysLeft, expired, t, compact }: {
     ? t("Unlimited")
     : `${daysLeft} ${t("days left")}`;
   return (
-    <span title={TIER_LABEL[tier]} style={{
+    <span title={PLAN_LABEL[plan]} style={{
       display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
       padding: compact ? "3px 8px" : "5px 11px", borderRadius: 999,
       fontSize: compact ? 10.5 : 12, fontWeight: 700,
       background: `${color}1a`, color, border: `1px solid ${color}44`,
     }}>
-      {!compact && <span style={{ opacity: .85 }}>{TIER_LABEL[tier]} ·</span>} {label}
+      {!compact && <span style={{ opacity: .85 }}>{PLAN_LABEL[plan]} ·</span>} {label}
     </span>
-  );
-}
-
-// Holding screen for a freshly-signed-up Owner whose tier hasn't been
-// activated by a Superadmin yet.
-function PendingScreen({ t }: { t: (k: string) => string }) {
-  return (
-    <div style={{ display: "grid", placeItems: "center", minHeight: "70vh", padding: 24 }}>
-      <div className="panel" style={{ maxWidth: 460, textAlign: "center", padding: "40px 32px" }}>
-        <div style={{ fontSize: 46, marginBottom: 14 }}>⏳</div>
-        <h2 style={{ margin: "0 0 10px", color: "#fff" }}>{t("Account pending activation")}</h2>
-        <p style={{ margin: 0, color: "var(--muted)", fontSize: 14, lineHeight: 1.6 }}>
-          {t("Your account is registered. Our team will activate your plan shortly — you'll get full access once it's switched on.")}
-        </p>
-      </div>
-    </div>
   );
 }

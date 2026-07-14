@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("client_id, role, scope_owner, tier, sub_expires_at")
+    .select("client_id, role, scope_owner, plan_type, subscription_end")
     .eq("id", user.id)
     .single();
 
@@ -50,11 +50,11 @@ export async function POST(req: NextRequest) {
   if (!["superadmin", "client_admin"].includes(profile.role) && !isOwner) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  // Owners may only upload while their subscription is active (not pending,
-  // not expired) — expired owners are read-only.
+  // Owners may only upload while their subscription is active (has a plan and
+  // isn't expired) — expired owners are read-only.
   if (isOwner) {
-    const active = profile.tier && profile.tier !== "signup"
-      && (!profile.sub_expires_at || new Date(profile.sub_expires_at) > new Date());
+    const active = !!profile.plan_type
+      && (!profile.subscription_end || new Date(profile.subscription_end) > new Date());
     if (!active) return NextResponse.json({ error: "SUBSCRIPTION_INACTIVE" }, { status: 403 });
   }
 

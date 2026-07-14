@@ -63,6 +63,12 @@ export async function POST(req: NextRequest) {
 
   const uid = authData.user.id;
 
+  // New Owner (branch_manager) accounts start on a 30-day Sultan free trial
+  // (migration 0055). A Superadmin can change the plan later on the Users
+  // page. Non-owner roles carry no plan.
+  const isOwner = inv.role === "branch_manager";
+  const trialEnd = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
   // Update profile (trigger creates the row; we patch it)
   // For Owner (branch_manager) logins, owner_name IS the Core List Owner
   // entity — scope_owner drives RLS so this one login sees every Brand &
@@ -76,7 +82,9 @@ export async function POST(req: NextRequest) {
     role:         inv.role,
     client_id:    inv.client_id,
     scope_store:  inv.store_name ?? null,
-    scope_owner:  inv.role === "branch_manager" ? inv.owner_name : null,
+    scope_owner:  isOwner ? inv.owner_name : null,
+    plan_type:        isOwner ? "sultan" : null,
+    subscription_end: isOwner ? trialEnd : null,
   });
 
   if (pe) {

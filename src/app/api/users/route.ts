@@ -105,36 +105,31 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
-// PUT /api/users — set an Owner's subscription tier + duration.
-// Superadmin only. days > 0 → expires now()+days; days = 0/blank → unlimited.
-const VALID_TIERS = ["signup", "juragan", "sultan", "king", "free_trial"];
+// PUT /api/users — set an Owner's subscription plan + duration. Superadmin only.
+// Each plan has a fixed default duration (Lapak/Sultan = 30d, King = 395d); the
+// caller may override with an explicit `days` (custom free days). days = 0 →
+// unlimited (no expiry).
+const PLAN_DAYS: Record<string, number> = { lapak: 30, sultan: 30, king: 395 };
 export async function PUT(req: NextRequest) {
   const mgr = await getManager();
   if (!mgr || mgr.role !== "superadmin")
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
-  const { id, tier, days } = await req.json() as { id: string; tier: string; days?: number };
-  if (!id || !VALID_TIERS.includes(tier))
-    return NextResponse.json({ error: "id and a valid tier are required" }, { status: 400 });
+  const { id, plan_type, days } = await req.json() as { id: string; plan_type: string; days?: number };
+  if (!id || !(plan_type in PLAN_DAYS))
+    return NextResponse.json({ error: "id and a valid plan_type (lapak/sultan/king) are required" }, { status: 400 });
 
   const admin = createAdminClient();
   const { data: target } = await admin.from("profiles").select("role").eq("id", id).single();
   if (!target || target.role !== "branch_manager")
     return NextResponse.json({ error: "Subscriptions apply to Owner accounts only" }, { status: 400 });
 
-  // signup = reset to pending (no dates). Otherwise start the countdown now.
-  const patch: Record<string, unknown> =
-    tier === "signup"
-      ? { tier: "signup", sub_started_at: null, sub_expires_at: null }
-      : {
-          tier,
-          sub_started_at: new Date().toISOString(),
-          sub_expires_at: days && days > 0
-            ? new Date(Date.now() + days * 86_400_000).toISOString()
-            : null,
-        };
+  // Recalculate subscription_end from now: use the override days if provided,
+  // else the plan's default; days === 0 means unlimited.
+  const dur = days === undefined ? PLAN_DAYS[plan_type] : days;
+  const subscription_end = dur > 0 ? new Date(Date.now() + dur * 86_400_000).toISOString() : null;
 
-  const { error } = await admin.from("profiles").update(patch).eq("id", id);
+  const { error } = await admin.from("profiles").update({ plan_type, subscription_end }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

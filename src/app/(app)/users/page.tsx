@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 type Profile = {
   id: string; email: string | null; display_name: string | null;
   username: string | null; role: string; scope_store: string | null; scope_owner: string | null;
-  tier: string | null; sub_expires_at: string | null;
+  plan_type: string | null; subscription_end: string | null;
 };
 type Invite = {
   id: string; token: string; owner_name: string;
@@ -40,21 +40,17 @@ const roleColor: Record<string, string> = {
   advertiser:     "#ec4899",
 };
 
-// Owner subscription tiers. `days` is the default duration auto-filled when
-// the tier is picked (superadmin can override, incl. 0 = unlimited).
-const TIERS = [
-  { v: "juragan",    l: "Juragan · Basic",       days: 30,  color: "#94a3b8" },
-  { v: "sultan",     l: "Sultan · Premium (30d)", days: 30,  color: "#3b82f6" },
-  { v: "king",       l: "King · Premium (365d)",  days: 365, color: "#c9a227" },
-  { v: "free_trial", l: "Free Trial (30d)",       days: 30,  color: "#22c55e" },
-  { v: "signup",     l: "Pending (reset)",        days: 0,   color: "#64748b" },
+// Owner subscription plans. `days` is the default duration auto-filled when
+// the plan is picked (superadmin can override with custom free days; 0 = unlimited).
+const PLANS = [
+  { v: "lapak",  l: "Lapak · Basic (30d)",    days: 30,  color: "#94a3b8" },
+  { v: "sultan", l: "Sultan · Premium (30d)", days: 30,  color: "#3b82f6" },
+  { v: "king",   l: "King · Premium (395d)",  days: 395, color: "#c9a227" },
 ];
-const TIER_META: Record<string, { l: string; color: string }> = {
-  signup:     { l: "Pending",    color: "#64748b" },
-  juragan:    { l: "Juragan",    color: "#94a3b8" },
-  sultan:     { l: "Sultan",     color: "#3b82f6" },
-  king:       { l: "King",       color: "#c9a227" },
-  free_trial: { l: "Free Trial", color: "#22c55e" },
+const PLAN_META: Record<string, { l: string; color: string }> = {
+  lapak:  { l: "Lapak",  color: "#94a3b8" },
+  sultan: { l: "Sultan", color: "#3b82f6" },
+  king:   { l: "King",   color: "#c9a227" },
 };
 function daysLeft(expires: string | null): number | null {
   if (!expires) return null;
@@ -99,7 +95,7 @@ export default function UsersPage() {
   const [msg,  setMsg]  = useState("");
   const [copied, setCopied] = useState(false);
   const [planUser, setPlanUser] = useState<Profile | null>(null);
-  const [planForm, setPlanForm] = useState({ tier: "sultan", days: 30 });
+  const [planForm, setPlanForm] = useState({ plan_type: "sultan", days: 30 });
   const [nowTs, setNowTs] = useState<number | null>(null);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNowTs(Date.now()); }, []);
@@ -111,7 +107,7 @@ export default function UsersPage() {
 
   const reload = useCallback(async () => {
     const [{ data: p }, h] = await Promise.all([
-      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner,tier,sub_expires_at").order("display_name"),
+      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner,plan_type,subscription_end").order("display_name"),
       getAuthHeader(),
     ]);
     setRows((p as Profile[]) || []);
@@ -164,8 +160,9 @@ export default function UsersPage() {
   }
 
   function openPlan(p: Profile) {
-    const cur = TIERS.find((t) => t.v === p.tier);
-    setPlanForm({ tier: p.tier && p.tier !== "signup" ? p.tier : "sultan", days: cur && cur.v !== "signup" ? cur.days : 30 });
+    const plan = p.plan_type && p.plan_type in PLAN_META ? p.plan_type : "sultan";
+    const cur = PLANS.find((t) => t.v === plan);
+    setPlanForm({ plan_type: plan, days: cur ? cur.days : 30 });
     setPlanUser(p);
   }
   async function savePlan() {
@@ -174,7 +171,7 @@ export default function UsersPage() {
     const h = await getAuthHeader();
     const res = await fetch("/api/users", {
       method: "PUT", headers: { ...h, "Content-Type": "application/json" },
-      body: JSON.stringify({ id: planUser.id, tier: planForm.tier, days: Number(planForm.days) || 0 }),
+      body: JSON.stringify({ id: planUser.id, plan_type: planForm.plan_type, days: Number(planForm.days) || 0 }),
     });
     const j = await res.json();
     setBusy(false);
@@ -206,13 +203,12 @@ export default function UsersPage() {
           <tbody>
             {rows.map((r) => {
               const isOwner = r.role === "branch_manager";
-              const tm = TIER_META[r.tier || "signup"] || TIER_META.signup;
-              const dl = daysLeft(r.sub_expires_at);
+              const pm = r.plan_type ? PLAN_META[r.plan_type] : null;
+              const dl = daysLeft(r.subscription_end);
               const expired = dl != null && dl <= 0;
-              const pending = isOwner && (!r.tier || r.tier === "signup");
               return (
-              <tr key={r.id} style={pending ? { background: "rgba(251,191,36,0.06)" } : undefined}>
-                <td>{r.display_name || "—"}{pending && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: "#fbbf24" }}>● NEW</span>}</td>
+              <tr key={r.id}>
+                <td>{r.display_name || "—"}</td>
                 <td style={{ color: "#c9a227", fontFamily: "monospace", fontSize: 12 }}>{r.username || "—"}</td>
                 <td>
                   <span style={{ padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700,
@@ -224,13 +220,11 @@ export default function UsersPage() {
                 <td>
                   {isOwner ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
-                        background: `${tm.color}22`, color: tm.color, border: `1px solid ${tm.color}44` }}>{tm.l}</span>
-                      {!pending && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: expired ? "#f87171" : dl != null && dl <= 7 ? "#fbbf24" : "var(--muted)" }}>
-                          {r.sub_expires_at == null ? "unlimited" : expired ? "expired" : `${dl}d left`}
-                        </span>
-                      )}
+                      {pm && <span style={{ padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700,
+                        background: `${pm.color}22`, color: pm.color, border: `1px solid ${pm.color}44` }}>{pm.l}</span>}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: expired ? "#f87171" : dl != null && dl <= 7 ? "#fbbf24" : "var(--muted)" }}>
+                        {!r.plan_type ? "no plan" : r.subscription_end == null ? "unlimited" : expired ? "expired" : `${dl}d left`}
+                      </span>
                       <button onClick={() => openPlan(r)}
                         style={{ padding: "3px 9px", borderRadius: 7, border: "1px solid rgba(201,162,39,0.35)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 11, cursor: "pointer" }}>
                         Manage
@@ -389,34 +383,27 @@ export default function UsersPage() {
                 </p>
               </div>
 
-              <Fld label="Tier">
+              <Fld label="Plan">
                 <Dropdown
-                  value={planForm.tier}
-                  options={TIERS.map((t) => ({ value: t.v, label: t.l }))}
-                  placeholder="Select tier"
+                  value={planForm.plan_type}
+                  options={PLANS.map((t) => ({ value: t.v, label: t.l }))}
+                  placeholder="Select plan"
                   onChange={(v) => {
-                    const meta = TIERS.find((t) => t.v === v);
-                    setPlanForm({ tier: v, days: meta ? meta.days : 30 });
+                    const meta = PLANS.find((t) => t.v === v);
+                    setPlanForm({ plan_type: v, days: meta ? meta.days : 30 });
                   }}
                 />
               </Fld>
 
-              {planForm.tier !== "signup" && (
-                <Fld label="Days (0 = unlimited · override for custom free days)">
-                  <input style={inp} type="number" min={0} value={planForm.days}
-                    onChange={(e) => setPlanForm({ ...planForm, days: Number(e.target.value) })} />
-                  <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
-                    {Number(planForm.days) > 0
-                      ? `Countdown starts now — expires ${nowTs != null ? new Date(nowTs + Number(planForm.days) * 86_400_000).toLocaleDateString() : "—"}.`
-                      : "No expiry (unlimited access)."}
-                  </p>
-                </Fld>
-              )}
-              {planForm.tier === "signup" && (
-                <p style={{ margin: 0, fontSize: 12.5, color: "#fca5a5" }}>
-                  Resets this Owner to Pending — they lose access until you re-activate a tier.
+              <Fld label="Days (0 = unlimited · override for custom free days)">
+                <input style={inp} type="number" min={0} value={planForm.days}
+                  onChange={(e) => setPlanForm({ ...planForm, days: Number(e.target.value) })} />
+                <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
+                  {Number(planForm.days) > 0
+                    ? `Countdown starts now — expires ${nowTs != null ? new Date(nowTs + Number(planForm.days) * 86_400_000).toLocaleDateString() : "—"}.`
+                    : "No expiry (unlimited access)."}
                 </p>
-              )}
+              </Fld>
 
               {msg && (
                 <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 9, padding: "10px 14px", color: "#fca5a5", fontSize: 13 }}>
