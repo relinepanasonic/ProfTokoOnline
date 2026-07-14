@@ -18,6 +18,7 @@ const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
 const BASELINE_WEEK = "Baseline (Week 0)";
 const SRC_LABEL: Record<string, string> = { perf: "Performa", spos: "SPOS", ads: "Ads" };
 const SRC_COLOR: Record<string, string> = { perf: "#22c55e", spos: "#3b82f6", ads: "#f59e0b" };
+const SOURCE_ORDER: DataSource[] = ["perf", "spos", "ads"];
 
 function toISODate(d: Date): string {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
@@ -139,9 +140,12 @@ export default function UploadPage() {
     })();
   }, [supabase, reload, loadUploads]);
 
-  async function delUpload(id: string) {
-    if (!confirm("Delete this upload and all its rows? This cannot be undone.")) return;
-    const { error } = await supabase.from("uploads").delete().eq("id", id);
+  // A "batch" (one row in the redesigned log) can be several underlying
+  // uploads.id rows — e.g. Performa + SPOS + Ads submitted together — so
+  // deleting one deletes all of them in a single confirm.
+  async function delUploads(ids: string[]) {
+    if (!confirm(ids.length > 1 ? `Delete this upload (${ids.length} files) and all its rows? This cannot be undone.` : "Delete this upload and all its rows? This cannot be undone.")) return;
+    const { error } = await supabase.from("uploads").delete().in("id", ids);
     if (error) { alert(error.message); return; }
     // Rebuild the dashboard rollup so the deleted rows drop out immediately
     // (otherwise they'd linger until the hourly pg_cron refresh — migration 0052).
@@ -192,6 +196,42 @@ export default function UploadPage() {
     (!flt.store  || u.meta?.store_name === flt.store) &&
     (!flt.source || u.source === flt.source)
   );
+
+  // Group the Performa/SPOS/Ads files submitted together (same submit() call)
+  // into one log row, instead of one row per file. There's no explicit batch
+  // id, so group by store+period+owner and the upload minute — files from the
+  // same submit land within the same store/month/week and a few seconds of
+  // each other; a re-upload of the same store/period on a different day (or
+  // even a different minute) correctly stays a separate row.
+  type UploadGroup = {
+    key: string; ids: string[]; created_at: string;
+    bulan?: string; week?: string; year?: number; admin?: string; pic_client?: string; store_name?: string;
+    files: { source: DataSource; filename: string | null }[];
+  };
+  const shownGroups: UploadGroup[] = (() => {
+    const map = new Map<string, UploadGroup>();
+    for (const u of shownUploads) {
+      const minute = Math.floor(new Date(u.created_at).getTime() / 60000);
+      const key = [u.meta?.store_name, u.meta?.bulan, u.meta?.week, u.meta?.year, minute].join("|");
+      let g = map.get(key);
+      if (!g) {
+        g = { key, ids: [], created_at: u.created_at, bulan: u.meta?.bulan, week: u.meta?.week, year: u.meta?.year, admin: u.meta?.admin, pic_client: u.meta?.pic_client, store_name: u.meta?.store_name, files: [] };
+        map.set(key, g);
+      }
+      g.ids.push(u.id);
+      g.files.push({ source: u.source, filename: u.filename });
+      if (new Date(u.created_at) < new Date(g.created_at)) g.created_at = u.created_at;
+    }
+    for (const g of map.values()) g.files.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
+    return [...map.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  })();
+
+  function fmtUploadTime(iso: string): string {
+    const d = new Date(iso);
+    const day = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    const time = `${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${day} ${time}`;
+  }
 
   const isBaseline = manual.bulan === "Baseline";
 
@@ -317,7 +357,7 @@ export default function UploadPage() {
             <div className="hint">Filter by period or store — delete a bad upload to remove all its rows.</div>
           </div>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--gold)", background: "rgba(201,162,39,.12)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 999, padding: "3px 12px" }}>
-            {shownUploads.length} / {uploads.length}
+            {shownGroups.length} upload{shownGroups.length === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -368,32 +408,42 @@ export default function UploadPage() {
           <table className="tbl">
             <thead>
               <tr>
-                <th>Owner</th><th>Store</th><th>Source</th>
-                <th>Month</th><th>Week</th><th>Year</th>
-                <th className="num">Rows</th><th>File</th><th>Uploaded</th><th></th>
+                <th>Time Upload</th><th>Month</th><th>Week</th><th>Admin</th>
+                <th>File</th><th>Tipe</th><th>Owner</th><th>Store</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {shownUploads.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.meta?.pic_client || "—"}</td>
-                  <td>{u.meta?.store_name || "—"}</td>
+              {shownGroups.map((g) => (
+                <tr key={g.key}>
+                  <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{fmtUploadTime(g.created_at)}</td>
+                  <td>{g.bulan || "—"}</td>
+                  <td>{g.week || "—"}</td>
+                  <td>{g.admin || "—"}</td>
                   <td>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[u.source] + "22", color: SRC_COLOR[u.source], border: `1px solid ${SRC_COLOR[u.source]}44` }}>
-                      {SRC_LABEL[u.source] || u.source}
-                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      {g.files.map((f, i) => (
+                        <span key={i} style={{ fontSize: 11.5, color: "var(--muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.filename || ""}>
+                          {f.filename || "—"}
+                        </span>
+                      ))}
+                    </div>
                   </td>
-                  <td>{u.meta?.bulan || "—"}</td>
-                  <td>{u.meta?.week || "—"}</td>
-                  <td>{u.meta?.year || "—"}</td>
-                  <td className="num">{u.row_count?.toLocaleString("id-ID") || 0}</td>
-                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u.filename || ""}>{u.filename || "—"}</td>
-                  <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString("id-ID")}</td>
-                  <td><button onClick={() => delUpload(u.id)} style={delBtnStyle}>Delete</button></td>
+                  <td>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      {g.files.map((f, i) => (
+                        <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[f.source] + "22", color: SRC_COLOR[f.source], border: `1px solid ${SRC_COLOR[f.source]}44` }}>
+                          {SRC_LABEL[f.source] || f.source}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td>{g.pic_client || "—"}</td>
+                  <td style={{ fontWeight: 700, color: "#fff" }}>{g.store_name || "—"}</td>
+                  <td><button onClick={() => delUploads(g.ids)} style={delBtnStyle}>Delete</button></td>
                 </tr>
               ))}
-              {shownUploads.length === 0 && (
-                <tr><td colSpan={10} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
+              {shownGroups.length === 0 && (
+                <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
                   {uploads.length ? "No uploads match these filters" : "No uploads yet"}
                 </td></tr>
               )}
