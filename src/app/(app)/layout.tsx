@@ -16,13 +16,13 @@ type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "a
 //   branch_manager  — Dashboard, Ads Performance, Price Calculator,
 //                     Market Place Fee (read-only, scoped to their Owner)
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
+  { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin", "advertiser"] },
   { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
-  { href: "/product",   icon: "💹", label: "Detail Keuangan",     roles: ["superadmin"] },
+  { href: "/product",   icon: "💹", label: "Finance Detail",      roles: ["superadmin"] },
   { href: "/store",     icon: "🏬", label: "Operational Performance", roles: ["superadmin"] },
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
   { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
-  { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin"] },
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
@@ -41,14 +41,15 @@ const ROLE_LABEL: Record<Role, string> = {
 // Plans only gate the Owner (branch_manager) role. Self-registered owners
 // (/register, true multi-tenant — their own clients row) get a 30-day Sultan
 // free trial at signup; a Superadmin can change the plan anytime on the
-// Users page. Core List is available on every plan — it's how an owner
-// manages their OWN business's brands/stores, not a premium feature.
+// Users page. Core List (brand/store management) is a superadmin/client_admin
+// tool only — no owner plan sees it; Upload is first in both lists so it's
+// the landing page owners hit first.
 type Plan = "lapak" | "sultan" | "king";
 const PLAN_LABEL: Record<Plan, string> = { lapak: "Lapak", sultan: "Sultan", king: "King" };
 const PREMIUM_PLANS: Plan[] = ["sultan", "king"];
 // Which pages each owner plan may see.
-const LAPAK_PAGES   = ["/", "/upload", "/marketfee", "/core"];
-const SULTAN_PAGES  = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee", "/core"];
+const LAPAK_PAGES   = ["/upload", "/", "/marketfee"];
+const SULTAN_PAGES  = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/marketfee"];
 
 function ownerPages(plan: Plan): string[] {
   return PREMIUM_PLANS.includes(plan) ? SULTAN_PAGES : LAPAK_PAGES;

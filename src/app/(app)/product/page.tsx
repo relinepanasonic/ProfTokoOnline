@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
+import UploadGate from "@/components/UploadGate";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export default function Page() {
   const tabs = canManage ? TABS : TABS.filter((t) => t.v === "dashboard");
 
   return (
+    <UploadGate>
     <>
       {canManage && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
@@ -55,6 +57,7 @@ export default function Page() {
       {canManage && tab === "upload" && <FinanceUpload clientId={clientId} onUploaded={() => setRefreshKey((k) => k + 1)} />}
       {canManage && tab === "modal" && <ModalProduct clientId={clientId} />}
     </>
+    </UploadGate>
   );
 }
 

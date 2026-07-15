@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useId } from "react";
 import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
+import UploadGate from "@/components/UploadGate";
 import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
@@ -184,6 +185,7 @@ export default function DashboardPage() {
   const [drillStore, setDrillStore] = useState<Summary["dealers"][number] | null>(null);
 
   return (
+    <UploadGate>
     <>
       <ChartDefs />
 
@@ -314,6 +316,7 @@ export default function DashboardPage() {
         <StoreDrillDown store={drillStore} storeLabel={t(storeLabel)} t={t} onClose={() => setDrillStore(null)} />
       )}
     </>
+    </UploadGate>
   );
 }
 

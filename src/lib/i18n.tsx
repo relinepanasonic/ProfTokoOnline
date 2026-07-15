@@ -11,7 +11,9 @@ const ID_DICT: Record<string, string> = {
   // nav / shell
   "Dashboard": "Dasbor",
   "Ads Performance": "Performa Iklan",
-  "Detail Keuangan": "Detail Keuangan",
+  "Finance Detail": "Detail Keuangan",
+  "Upload the Data First in Upload Page to open the Features": "Unggah Data Terlebih Dahulu di Halaman Upload untuk membuka Fitur ini",
+  "Go to Upload Page": "Ke Halaman Upload",
   "Operational Performance": "Performa Operasional",
   "Price Calculator": "Kalkulator Harga",
   "Market Place Fee": "Biaya Marketplace",

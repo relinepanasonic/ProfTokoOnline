@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
+import UploadGate from "@/components/UploadGate";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +126,7 @@ export default function AdsPerformancePage() {
   const canDelete = ["superadmin", "advertiser"].includes(role);
 
   return (
+    <UploadGate>
     <>
       {loadErr && (
         <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 16, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
@@ -157,6 +159,7 @@ export default function AdsPerformancePage() {
         />
       )}
     </>
+    </UploadGate>
   );
 }
 
