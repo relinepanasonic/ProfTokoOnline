@@ -542,17 +542,19 @@ function CampaignChart({ data, t }: { data: { name: string; store_name: string |
           <div key={i} style={{ padding: "8px 10px", borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 5 }}>
               <span style={{ fontSize: 12, color: "#e8edf8", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {i + 1}. {c.store_name && <span style={{ color: BLUE_L }}>{c.store_name}</span>} {c.store_name && "· "}{c.name}
+                {i + 1}. {c.store_name && <span style={{ color: BLUE_L }}>{c.store_name}</span>} {c.store_name && "- "}{c.name}
               </span>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: GOLD, whiteSpace: "nowrap" }}>{idr(c.sales)}</span>
             </div>
             <div style={{ height: 5, background: "rgba(255,255,255,0.05)", borderRadius: 99, overflow: "hidden", marginBottom: 6 }}>
               <div style={{ width: `${widthPct}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${BLUE}, ${BLUE_L})`, boxShadow: `0 0 8px ${BLUE}66` }} />
             </div>
-            <div style={{ display: "flex", gap: 14, fontSize: 10.5, color: "var(--muted)" }}>
+            <div style={{ display: "flex", gap: 14, fontSize: 10.5, color: "var(--muted)", flexWrap: "wrap", rowGap: 4 }}>
               <span>👁 {num(c.views)} {t("Views")}</span>
               <span>🖱 {num(c.clicks)} {t("Clicks")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
               <span>🛒 {num(c.add_to_cart)} {t("Cart")} <span style={{ color: GOLD_L }}>({cartRate.toFixed(1)}%)</span></span>
+              <span>💰 {idr(c.ad_cost)} {t("Ads Cost")}</span>
+              <span>🎯 {c.ad_cost ? (c.sales / c.ad_cost).toFixed(2) + "×" : "—"} {t("ROAS")}</span>
             </div>
           </div>
         );
