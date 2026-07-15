@@ -75,7 +75,7 @@ export async function PATCH(req: NextRequest) {
   if (!mgr) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
 
   const b = await req.json();
-  const { id, display_name, role, scope_city, scope_store, password } = b;
+  const { id, display_name, role, scope_city, scope_store, password, contacted } = b;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const admin = createAdminClient();
@@ -93,6 +93,12 @@ export async function PATCH(req: NextRequest) {
     patch.role = role;
     patch.scope_city = role === "branch_manager" ? scope_city || null : null;
     patch.scope_store = role === "store_user" ? scope_store || null : null;
+  }
+  // "To Contact" tracking during a new signup's trial — who reached out and when.
+  if (contacted !== undefined) {
+    patch.contacted = !!contacted;
+    patch.contacted_at = contacted ? new Date().toISOString() : null;
+    patch.contacted_by = contacted ? mgr.id : null;
   }
   if (Object.keys(patch).length) {
     const { error } = await admin.from("profiles").update(patch).eq("id", id);

@@ -11,6 +11,8 @@ type Profile = {
   id: string; email: string | null; display_name: string | null;
   username: string | null; role: string; scope_store: string | null; scope_owner: string | null;
   plan_type: string | null; subscription_end: string | null;
+  brand: string | null; nama_toko: string | null; phone: string | null;
+  contacted: boolean; created_at: string;
 };
 type Invite = {
   id: string; token: string; owner_name: string;
@@ -107,7 +109,7 @@ export default function UsersPage() {
 
   const reload = useCallback(async () => {
     const [{ data: p }, h] = await Promise.all([
-      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner,plan_type,subscription_end").order("display_name"),
+      supabase.from("profiles").select("id,email,display_name,username,role,scope_store,scope_owner,plan_type,subscription_end,brand,nama_toko,phone,contacted,created_at").order("display_name"),
       getAuthHeader(),
     ]);
     setRows((p as Profile[]) || []);
@@ -179,8 +181,22 @@ export default function UsersPage() {
     setPlanUser(null); reload();
   }
 
+  async function toggleContacted(p: Profile) {
+    const h = await getAuthHeader();
+    const res = await fetch("/api/users", {
+      method: "PATCH", headers: { ...h, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: p.id, contacted: !p.contacted }),
+    });
+    if (res.ok) reload();
+  }
+
   const inviteUrl = token && typeof window !== "undefined" ? `${window.location.origin}/join/${token}` : "";
   const pending = invites.filter((i) => !i.used_at && new Date(i.expires_at) > new Date());
+  // Self-registered trial owners not yet reached out to — surfaced so a
+  // Superadmin can work through new signups during their 30-day window.
+  const toContact = rows
+    .filter((r) => r.role === "branch_manager" && r.plan_type === "sultan" && !r.contacted)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <div className="panel">
@@ -193,6 +209,43 @@ export default function UsersPage() {
           + Invite User
         </button>
       </div>
+
+      {/* ── To Contact: new trial signups not yet reached out to ── */}
+      {toContact.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#fbbf24", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            📞 To Contact
+            <span style={{ fontSize: 11, fontWeight: 700, background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 999, padding: "1px 8px" }}>
+              {toContact.length}
+            </span>
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {toContact.map((r) => {
+              const dl = daysLeft(r.subscription_end);
+              return (
+                <div key={r.id} style={{ background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#e8edf8" }}>{r.display_name || r.email}</div>
+                    <div style={{ fontSize: 12, color: "#7b8db0" }}>
+                      {r.brand || "—"} · {r.nama_toko || "—"}{r.phone ? ` · ${r.phone}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                    Joined {new Date(r.created_at).toLocaleDateString("id-ID")}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: dl != null && dl <= 7 ? "#f87171" : "#34d399", whiteSpace: "nowrap" }}>
+                    {dl != null ? `${dl}d left` : "unlimited"}
+                  </div>
+                  <button onClick={() => toggleContacted(r)}
+                    style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(52,211,153,0.35)", background: "rgba(52,211,153,0.1)", color: "#34d399", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    Mark Contacted
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Active Users ── */}
       <div className="tbl-wrap">
@@ -228,6 +281,13 @@ export default function UsersPage() {
                       <button onClick={() => openPlan(r)}
                         style={{ padding: "3px 9px", borderRadius: 7, border: "1px solid rgba(201,162,39,0.35)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 11, cursor: "pointer" }}>
                         Manage
+                      </button>
+                      <button onClick={() => toggleContacted(r)} title="Toggle whether you've reached out to this owner"
+                        style={{ padding: "3px 9px", borderRadius: 7, fontSize: 11, cursor: "pointer",
+                          border: r.contacted ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(255,255,255,0.12)",
+                          background: r.contacted ? "rgba(52,211,153,0.1)" : "rgba(255,255,255,0.04)",
+                          color: r.contacted ? "#34d399" : "var(--muted)" }}>
+                        {r.contacted ? "✓ Contacted" : "Not contacted"}
                       </button>
                     </div>
                   ) : <span style={{ color: "var(--muted)", fontSize: 12 }}>—</span>}

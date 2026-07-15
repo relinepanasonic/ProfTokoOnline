@@ -32,16 +32,17 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isAuthPage = path === "/login";
-  // /join/[token] (self-registration from an invite link) and its API must
-  // stay reachable while signed out — otherwise the invite link bounces
-  // straight to /login before the signup form ever renders.
+  const isAuthPage = path === "/login" || path === "/register";
+  // /join/[token] (invite-link signup) and /register (public self-serve
+  // signup) + their APIs must stay reachable while signed out — otherwise
+  // they bounce straight to /login before the form ever renders.
   // manifest.webmanifest and sw.js MUST be reachable while signed out — the
   // login page itself needs them for Android's "Install app" prompt to work.
   // A redirect response here breaks service-worker registration outright
   // (rejected by spec) and makes the manifest fetch return HTML instead of
   // JSON, silently failing installability.
   const isPublic = isAuthPage || path.startsWith("/join/") || path === "/api/join"
+    || path === "/api/register"
     || path === "/manifest.webmanifest" || path === "/sw.js";
 
   if (!user && !isPublic) {

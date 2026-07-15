@@ -16,6 +16,7 @@ export default function CoreListPage() {
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [msg, setMsg] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   const reload = useCallback(async (cid: string) => {
     if (!cid) { setItems([]); setLinks([]); return; }
@@ -31,7 +32,11 @@ export default function CoreListPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: cs } = await supabase.from("clients").select("id").order("created_at").limit(1);
+      const [{ data: cs }, { data: p }] = await Promise.all([
+        supabase.from("clients").select("id").order("created_at").limit(1),
+        supabase.from("profiles").select("role").eq("id", user.id).single(),
+      ]);
+      setIsSuperadmin((p as { role?: string } | null)?.role === "superadmin");
       const initial = (cs as { id: string }[])?.[0]?.id || "";
       setClientId(initial);
       reload(initial);
@@ -117,12 +122,12 @@ export default function CoreListPage() {
             Master reference data — Owner · Brand · Store hierarchy, City, Platform.
           </div>
         </div>
-        <button onClick={syncFromUploads} disabled={syncing}
+        {isSuperadmin && <button onClick={syncFromUploads} disabled={syncing}
           style={{ flexShrink: 0, padding: "9px 18px", borderRadius: 10, border: "none",
             cursor: syncing ? "default" : "pointer", opacity: syncing ? 0.7 : 1, whiteSpace: "nowrap",
             background: "linear-gradient(135deg,var(--gold),var(--gold-soft))", color: "var(--navy-deep)", fontWeight: 700, fontSize: 13 }}>
           {syncing ? "Syncing…" : "⟳ Sync from Uploads"}
-        </button>
+        </button>}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "0.8fr 1fr 1fr 1.1fr 0.8fr", gap: 16, alignItems: "start" }}>

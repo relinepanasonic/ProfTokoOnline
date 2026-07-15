@@ -38,15 +38,17 @@ const ROLE_LABEL: Record<Role, string> = {
 };
 
 // ── Owner subscription plans ────────────────────────────────────────────────
-// Plans only gate the Owner (branch_manager) role. New owners get a 30-day
-// Sultan free trial on registration (set in /api/join); a Superadmin can
-// change the plan anytime on the Users page.
+// Plans only gate the Owner (branch_manager) role. Self-registered owners
+// (/register, true multi-tenant — their own clients row) get a 30-day Sultan
+// free trial at signup; a Superadmin can change the plan anytime on the
+// Users page. Core List is available on every plan — it's how an owner
+// manages their OWN business's brands/stores, not a premium feature.
 type Plan = "lapak" | "sultan" | "king";
 const PLAN_LABEL: Record<Plan, string> = { lapak: "Lapak", sultan: "Sultan", king: "King" };
 const PREMIUM_PLANS: Plan[] = ["sultan", "king"];
 // Which pages each owner plan may see.
-const LAPAK_PAGES   = ["/", "/upload", "/marketfee"];
-const SULTAN_PAGES  = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee"];
+const LAPAK_PAGES   = ["/", "/upload", "/marketfee", "/core"];
+const SULTAN_PAGES  = ["/", "/ads", "/product", "/store", "/calc", "/upload", "/marketfee", "/core"];
 
 function ownerPages(plan: Plan): string[] {
   return PREMIUM_PLANS.includes(plan) ? SULTAN_PAGES : LAPAK_PAGES;
