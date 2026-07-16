@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MONTHS, WEEKS } from "@/lib/adsConstants";
 import UploadLogTable from "./UploadLogTable";
+import ImageGuideModal from "@/components/ImageGuideModal";
+
+const GUIDE = {
+  store: "/manuals/Data%20Performa%20Toko.jpg",
+  product: "/manuals/Data%20Performa%20Produk.jpg",
+  ads: "/manuals/Data%20Performa%20Iklan%20Total.jpg",
+  finance: "/manuals/Data%20Penghasilan%20Dilepas.jpg",
+  order: "/manuals/Data%20Order%20Selesai.jpg",
+};
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
@@ -244,15 +253,15 @@ export default function UploadHere() {
 
       <CardLabel title="Store Performance" sub="All Level" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
-        <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} />
-        <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} />
+        <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} guideImage={GUIDE.store} />
+        <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} guideImage={GUIDE.product} />
       </div>
 
       <CardLabel title="Ads Performance" sub="All Level" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
-        <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} />
-        <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} />
-        <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} />
+        <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} guideImage={GUIDE.ads} />
+        <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
+        <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} guideImage={GUIDE.ads} />
       </div>
 
       <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
@@ -275,7 +284,7 @@ export default function UploadHere() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
             <div>
-              <BrowseFile label="Order Complete" hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} />
+              <BrowseFile label="Order Complete" hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} guideImage={GUIDE.order} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
                 <button className="btn-gold" disabled={orderBusy || !orderFile} onClick={submitOrder} style={{ padding: "9px 30px", fontSize: 13.5 }}>
                   {orderBusy ? "Uploading…" : "Upload"}
@@ -284,7 +293,7 @@ export default function UploadHere() {
               </div>
             </div>
             <div>
-              <BrowseFile label="Finance Detail" hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} />
+              <BrowseFile label="Finance Detail" hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} guideImage={GUIDE.finance} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
                 <button className="btn-gold" disabled={financeBusy || !financeFile} onClick={submitFinance} style={{ padding: "9px 30px", fontSize: 13.5 }}>
                   {financeBusy ? "Uploading…" : "Upload"}
@@ -325,12 +334,13 @@ function CardLabel({ title, sub }: { title: string; sub: string }) {
 // Native file inputs render as "Choose File / No file chosen" with no way
 // to restyle the button portion cross-browser — so the real input is
 // visually hidden and triggered by a styled button instead.
-function BrowseFile({ label, hint, file, onPick }: {
-  label: string; hint: string; file: File | null; onPick: (f: File | null) => void;
+function BrowseFile({ label, hint, file, onPick, guideImage }: {
+  label: string; hint: string; file: File | null; onPick: (f: File | null) => void; guideImage?: string;
 }) {
   const inputId = `browse-${label.replace(/\s+/g, "-").toLowerCase()}`;
   return (
     <div style={{ padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)" }}>
+      {guideImage && <ImageGuideModal image={guideImage} />}
       <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600, display: "block", marginBottom: 10 }}>
         {label} <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>({hint})</span>
       </label>
