@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
 import StoreSalesTable from "../StoreSalesTable";
+import UploadHere from "./UploadHere";
 import UploadIklan from "../ads/UploadIklan";
 import FinanceUpload from "../product/FinanceUpload";
 import StoreUpload from "../store/StoreUpload";
@@ -266,8 +267,27 @@ export default function UploadPage() {
     || (isOwner && (planType === "sultan" || planType === "king")
         && (!subEnd || new Date(subEnd) > new Date()));
 
+  // Two duplicate upload experiences: "Upload Here" (simplified — the only
+  // one an Owner ever sees) and "Upload by Admin" (this page's original
+  // full form — Admin/superadmin/advertiser). Superadmin gets both, as a
+  // tab strip; everyone else gets whichever single one applies, no strip.
+  const canAdminUpload = ["superadmin", "client_admin", "advertiser"].includes(role);
+  const showTabStrip = isOwner ? false : (role === "superadmin");
+  const [tab, setTab] = useState<"here" | "admin">(isOwner ? "here" : "admin");
+
+  if (isOwner) return <UploadHere />;
+  if (!canAdminUpload) return null;
+
   return (
     <>
+      {showTabStrip && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button onClick={() => setTab("here")} style={uploadTabBtn(tab === "here")}>Upload Here</button>
+          <button onClick={() => setTab("admin")} style={uploadTabBtn(tab === "admin")}>Upload by Admin</button>
+        </div>
+      )}
+      {tab === "here" && showTabStrip && <UploadHere />}
+      {(tab === "admin" || !showTabStrip) && <>
       {/* ───── Card 1 + 2: Store Performance / Ads Performance (All Level) ───── */}
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
@@ -521,11 +541,21 @@ export default function UploadPage() {
           </table>
         </div>
       </div>
+      </>}
     </>
   );
 }
 
 const delBtnStyle: React.CSSProperties = { background: "rgba(255,80,80,.12)", border: "1px solid rgba(255,90,90,.3)", color: "#ff9a9a", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 12 };
+
+function uploadTabBtn(active: boolean): React.CSSProperties {
+  return {
+    padding: "9px 20px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+    border: `1px solid ${active ? "var(--gold)" : "rgba(201,162,39,.2)"}`,
+    background: active ? "linear-gradient(135deg,var(--gold),var(--gold-soft))" : "rgba(10,22,40,.5)",
+    color: active ? "var(--navy-deep)" : "#cdd9f0",
+  };
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
