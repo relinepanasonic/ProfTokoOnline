@@ -7,6 +7,18 @@ import { parseAdGroupMatrix, type AdGroupManual } from "@/lib/parseAdGroup";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// The Group export's title names the level ("...Laporan Grup Hero...", etc.)
+// — used as a fallback when the caller (the simplified "Upload Here" page's
+// Group Ads Performa card, which has no level dropdown) doesn't send
+// manual.ads_level explicitly. "Upload by Admin"'s UploadIklan widget still
+// sends an explicit level, which always takes precedence over this guess.
+function inferGroupLevel(grupIklan: string | null): string {
+  const g = (grupIklan || "").toLowerCase();
+  if (g.includes("hero")) return "hero";
+  if (g.includes("low")) return "low_conversion";
+  return "regular";
+}
+
 // Upload a single Shopee "Data Grup Iklan" / Shop GMV Max file -> ad_groups
 // rows. "All Level" feature — every plan (Lapak/Sultan/King) may upload, same
 // as the core SPOS/Ads/Performa flow (/api/upload); only the client/store
@@ -59,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   // Grup Iklan: manual override wins, else the name parsed from the file title.
   const grupIklan = manual.grup_iklan?.trim() || parsed.grupIklan;
-  const adsLevel = manual.ads_level || null;
+  const adsLevel = manual.ads_level || inferGroupLevel(parsed.grupIklan);
 
   const admin = createServiceClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -8,16 +8,21 @@ type Link = { owner: string | null; brand: string | null; store_name: string | n
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
 
 // Simplified, self-serve upload for Owners (Lapak/Sultan/King) — superadmin
-// can preview it too. Three deliberate simplifications over "Upload by
-// Admin", each confirmed with the user before building:
+// can preview it too. Confirmed with the user before building:
 //   1. No Week picker — the next open week (1-5) for the chosen store+month
 //      is resolved automatically from what's already been uploaded.
 //   2. Owner/Brand/Store auto-fill for an Owner login (they only ever
 //      upload for their own scope); superadmin previewing this tab still
 //      picks from the full cascade since they aren't scoped to one owner.
-//   3. Ads Performa / Inkubasi Performa / Group Performa collapse into ONE
-//      drop zone + one button — /api/upload/ads-auto sniffs the file's
-//      title row to route it to the right table automatically.
+//   3. Five core files (Store Performa, Product Performa, Ads Performa,
+//      GMV Auto/Inkubasi Performa, Group Ads Performa) are 5 explicit drop
+//      zones sharing ONE Upload button — the user uploads all of them
+//      together in one go. Each posts to its own known endpoint; no
+//      content-sniffing (an earlier "auto-detect from 1 shared box" design
+//      was replaced with this explicit 5-box layout).
+//   4. Order Complete (Ops) + Finance Detail are a separate card, gated to
+//      Sultan/King same as "Upload by Admin", each with its OWN independent
+//      Browse+Upload — not part of the shared button above.
 export default function UploadHere() {
   const [supabase] = useState(() => createClient());
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -27,16 +32,30 @@ export default function UploadHere() {
   const [storeFile, setStoreFile] = useState<File | null>(null);
   const [productFile, setProductFile] = useState<File | null>(null);
   const [adsFile, setAdsFile] = useState<File | null>(null);
+  const [inkubasiFile, setInkubasiFile] = useState<File | null>(null);
+  const [groupFile, setGroupFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+
+  // Order Complete / Finance Detail — independent of the 5-file form above.
+  const [planType, setPlanType] = useState<string | null>(null);
+  const [subEnd, setSubEnd] = useState<string | null>(null);
+  const [orderFile, setOrderFile] = useState<File | null>(null);
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderLog, setOrderLog] = useState("");
+  const [financeFile, setFinanceFile] = useState<File | null>(null);
+  const [financeBusy, setFinanceBusy] = useState(false);
+  const [financeLog, setFinanceLog] = useState("");
 
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: p } = await supabase.from("profiles").select("role,client_id,scope_owner").eq("id", user.id).single();
-      const prof = p as Profile | null;
+      const { data: p } = await supabase.from("profiles").select("role,client_id,scope_owner,plan_type,subscription_end").eq("id", user.id).single();
+      const prof = p as (Profile & { plan_type: string | null; subscription_end: string | null }) | null;
       setProfile(prof);
+      setPlanType(prof?.plan_type ?? null);
+      setSubEnd(prof?.subscription_end ?? null);
       const cid = prof?.role === "branch_manager" ? prof.client_id : null;
       // Superadmin previewing this tab isn't scoped to one client — fall
       // back to the first-created client, same convention used elsewhere.
@@ -83,7 +102,7 @@ export default function UploadHere() {
   async function submit() {
     if (!manual.bulan) { setLog(["Pick the month."]); return; }
     if (!manual.store_name) { setLog(["Select Owner → Brand → Store."]); return; }
-    if (!storeFile && !productFile && !adsFile) { setLog(["Pick at least one file."]); return; }
+    if (!storeFile && !productFile && !adsFile && !inkubasiFile && !groupFile) { setLog(["Pick at least one file."]); return; }
 
     if (!clientId) { setLog(["Workspace not ready."]); return; }
     setBusy(true); setLog([]);
@@ -93,13 +112,23 @@ export default function UploadHere() {
     const manualToSend = { ...manual, week, tanggal_input: new Date().toISOString() };
     const results: string[] = [];
 
-    async function postCore(source: "perf" | "spos", file: File) {
+    async function postCore(source: "perf" | "spos" | "ads", file: File) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("source", source);
       fd.append("client_id", resolvedCid);
       fd.append("manual", JSON.stringify(manualToSend));
       const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const j = await res.json();
+      return { ok: res.ok, j };
+    }
+
+    async function postGroup(file: File, adsLevel: string | null) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("client_id", resolvedCid);
+      fd.append("manual", JSON.stringify(adsLevel ? { ...manualToSend, ads_level: adsLevel } : manualToSend));
+      const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
       const j = await res.json();
       return { ok: res.ok, j };
     }
@@ -113,20 +142,59 @@ export default function UploadHere() {
       results.push(ok ? `✓ Product Performa: ${j.rows} rows` : `✗ Product Performa: ${j.error}`);
     }
     if (adsFile) {
-      const fd = new FormData();
-      fd.append("file", adsFile);
-      fd.append("client_id", resolvedCid);
-      fd.append("manual", JSON.stringify(manualToSend));
-      const res = await fetch("/api/upload/ads-auto", { method: "POST", body: fd });
-      const j = await res.json();
-      const typeLabel = j.type === "incubation" ? "Inkubasi Performa" : j.type === "group" ? "Group Performa" : "Ads Performa";
-      results.push(res.ok ? `✓ ${typeLabel}: ${j.rows} rows` : `✗ Ads Performa: ${j.error}`);
+      const { ok, j } = await postCore("ads", adsFile);
+      results.push(ok ? `✓ Ads Performa: ${j.rows} rows` : `✗ Ads Performa: ${j.error}`);
+    }
+    if (inkubasiFile) {
+      const { ok, j } = await postGroup(inkubasiFile, "incubation");
+      results.push(ok ? `✓ GMV Auto Performa: ${j.rows} rows` : `✗ GMV Auto Performa: ${j.error}`);
+    }
+    if (groupFile) {
+      const { ok, j } = await postGroup(groupFile, null);
+      results.push(ok ? `✓ Group Ads Performa: ${j.rows} rows` : `✗ Group Ads Performa: ${j.error}`);
     }
 
     setLog(results);
-    if (results.some((r) => r.startsWith("✓"))) { setStoreFile(null); setProductFile(null); setAdsFile(null); }
+    if (results.some((r) => r.startsWith("✓"))) {
+      setStoreFile(null); setProductFile(null); setAdsFile(null); setInkubasiFile(null); setGroupFile(null);
+    }
     setBusy(false);
   }
+
+  async function submitOrder() {
+    if (!clientId || !orderFile || !manual.store_name) return;
+    setOrderBusy(true); setOrderLog("");
+    const fd = new FormData();
+    fd.append("file", orderFile);
+    fd.append("client_id", clientId);
+    fd.append("manual", JSON.stringify({ year: manual.year, bulan: manual.bulan, pic_client: manual.pic_client, brand: manual.brand, store_name: manual.store_name }));
+    try {
+      const res = await fetch("/api/store/upload", { method: "POST", body: fd });
+      const j = await res.json();
+      setOrderLog(res.ok ? `✓ ${j.rows} rows` : `✗ ${j.error}`);
+      if (res.ok) setOrderFile(null);
+    } catch (e) { setOrderLog("✗ " + String(e)); }
+    setOrderBusy(false);
+  }
+
+  async function submitFinance() {
+    if (!clientId || !financeFile || !manual.store_name) return;
+    setFinanceBusy(true); setFinanceLog("");
+    const fd = new FormData();
+    fd.append("file", financeFile);
+    fd.append("client_id", clientId);
+    fd.append("manual", JSON.stringify({ year: manual.year, bulan: manual.bulan, pic_client: manual.pic_client, brand: manual.brand, store_name: manual.store_name }));
+    try {
+      const res = await fetch("/api/finance/upload", { method: "POST", body: fd });
+      const j = await res.json();
+      setFinanceLog(res.ok ? `✓ ${j.rows} rows` : `✗ ${j.error}`);
+      if (res.ok) setFinanceFile(null);
+    } catch (e) { setFinanceLog("✗ " + String(e)); }
+    setFinanceBusy(false);
+  }
+
+  const canFinance = !isOwnerLogin || ((planType === "sultan" || planType === "king")
+    && (!subEnd || new Date(subEnd) > new Date()));
 
   return (
     <div className="panel">
@@ -177,8 +245,10 @@ export default function UploadHere() {
       </div>
 
       <CardLabel title="Ads Performance" sub="All Level" />
-      <div style={{ marginBottom: 20 }}>
-        <BrowseFile label="Ads Performa" hint="Ads, Inkubasi, or Group — detected automatically" file={adsFile} onPick={setAdsFile} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+        <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} />
+        <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} />
+        <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} />
       </div>
 
       <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
@@ -190,6 +260,35 @@ export default function UploadHere() {
       {log.length > 0 && (
         <div style={{ background: "rgba(7,13,26,.8)", border: "1px solid var(--line)", borderRadius: 12, padding: 16, fontFamily: "monospace", fontSize: 12, marginTop: 16 }}>
           {log.map((l, i) => <div key={i} style={{ color: l.startsWith("✓") ? "var(--gold)" : "#f87171", marginBottom: 4 }}>{l}</div>)}
+        </div>
+      )}
+
+      {canFinance && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 8 }}>
+            <CardLabel title="Order Complete" sub="Sultan | King" />
+            <CardLabel title="Finance Detail" sub="Sultan | King" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
+            <div>
+              <BrowseFile label="Order Complete" hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                <button className="btn-gold" disabled={orderBusy || !orderFile} onClick={submitOrder} style={{ padding: "9px 30px", fontSize: 13.5 }}>
+                  {orderBusy ? "Uploading…" : "Upload"}
+                </button>
+                {orderLog && <span style={{ fontSize: 12, fontFamily: "monospace", color: orderLog.startsWith("✓") ? "var(--gold)" : "#f87171" }}>{orderLog}</span>}
+              </div>
+            </div>
+            <div>
+              <BrowseFile label="Finance Detail" hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} />
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
+                <button className="btn-gold" disabled={financeBusy || !financeFile} onClick={submitFinance} style={{ padding: "9px 30px", fontSize: 13.5 }}>
+                  {financeBusy ? "Uploading…" : "Upload"}
+                </button>
+                {financeLog && <span style={{ fontSize: 12, fontFamily: "monospace", color: financeLog.startsWith("✓") ? "var(--gold)" : "#f87171" }}>{financeLog}</span>}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
