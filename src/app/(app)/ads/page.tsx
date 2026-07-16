@@ -2,11 +2,16 @@
 
 import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
 import { createPortal } from "react-dom";
+import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import UploadGate from "@/components/UploadGate";
 import UploadIklan from "./UploadIklan";
 import { MONTHS, MONTH_ORDER, WEEKS, LEVELS, levelMeta } from "@/lib/adsConstants";
+
+// recharts (~430KB) lives only in AdsOverview — loaded client-side on demand,
+// same convention as the main Dashboard's DashboardCharts.tsx split.
+const AdsOverview = dynamicImport(() => import("./AdsOverview"), { ssr: false, loading: () => <Loader center /> });
 
 export const dynamic = "force-dynamic";
 
@@ -261,6 +266,8 @@ function PerformanceTab({ rows, modals, formulas, loading, clientId, supabase, c
       {canUpload && (
         <UploadIklan clientId={clientId} supabase={supabase} onUploaded={reload} />
       )}
+
+      {clientId && <AdsOverview clientId={clientId} />}
 
       <div className="panel" style={{ marginTop: 18 }}>
         {/* header + mode toggle */}

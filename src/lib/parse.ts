@@ -104,6 +104,9 @@ export function mapRow(
   let ad_type: string | null = null;             // Ads D "Jenis Iklan" — "Product Ad" for real
                                                   // product campaigns; empty/null for shop-wide
                                                   // auto campaigns like "Shop GMV Max".
+  let kode_produk: string | null = null;         // Ads E "Kode Produk" — "-" or empty for
+                                                  // campaign/group-total rows, a real product
+                                                  // code for individual non-grouped product ads.
 
   // Shopee exports the SAME report in whatever language the seller's account
   // is set to — column ORDER is identical across languages, only the header
@@ -136,6 +139,11 @@ export function mapRow(
     clicks       = toNum(get("__COL_L")) ?? toNum(get("Jumlah Klik"));
     add_to_cart  = toNum(get("__COL_N")) ?? toNum(get("Add to Cart"));
     { const v = get("__COL_D") ?? get("Jenis Iklan") ?? get("Ads Type"); ad_type = v != null && v !== "" ? String(v).trim() : null; }
+    {
+      const v = get("__COL_E") ?? get("Kode Produk");
+      const s = v != null ? String(v).trim() : "";
+      kode_produk = s && s !== "-" ? s : null;
+    }
   } else {
     // perf ("Tinjauan Penjualan" / Sales Overview) — EN positions:
     // B visitors, E buyers, F sales.
@@ -170,6 +178,7 @@ export function mapRow(
     clicks,
     add_to_cart,
     ad_type,
+    kode_produk,
     is_parent: isParent,
     raw,
   };

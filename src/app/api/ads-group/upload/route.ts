@@ -14,6 +14,7 @@ export const maxDuration = 60;
 // sends an explicit level, which always takes precedence over this guess.
 function inferGroupLevel(grupIklan: string | null): string {
   const g = (grupIklan || "").toLowerCase();
+  if (g.includes("gmv max")) return "incubation";
   if (g.includes("hero")) return "hero";
   if (g.includes("low")) return "low_conversion";
   return "regular";
