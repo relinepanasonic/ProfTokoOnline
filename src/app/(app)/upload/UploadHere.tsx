@@ -252,13 +252,13 @@ export default function UploadHere() {
       </div>
 
       <CardLabel title="Store Performance" sub="All Level" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
         <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} guideImage={GUIDE.store} />
         <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} guideImage={GUIDE.product} />
       </div>
 
       <CardLabel title="Ads Performance" sub="All Level" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
         <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} guideImage={GUIDE.ads} />
         <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
         <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} guideImage={GUIDE.ads} />
@@ -282,7 +282,7 @@ export default function UploadHere() {
             <CardLabel title="Order Complete" sub="Sultan | King" />
             <CardLabel title="Finance Detail" sub="Sultan | King" />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, alignItems: "start" }}>
             <div>
               <BrowseFile label="Order Complete" hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} guideImage={GUIDE.order} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
@@ -339,7 +339,7 @@ function BrowseFile({ label, hint, file, onPick, guideImage }: {
 }) {
   const inputId = `browse-${label.replace(/\s+/g, "-").toLowerCase()}`;
   return (
-    <div style={{ padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", display: "flex", flexDirection: "column", minHeight: "100%" }}>
+    <div style={{ padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", display: "flex", flexDirection: "column" }}>
       <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600, display: "block", marginBottom: 10 }}>
         {label} <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>({hint})</span>
       </label>
