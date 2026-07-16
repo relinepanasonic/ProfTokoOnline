@@ -7,27 +7,43 @@ import { parseAdGroupMatrix, type AdGroupManual } from "@/lib/parseAdGroup";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Upload a single Shopee "Data Grup Iklan" file -> ad_groups rows.
-// Allowed callers: superadmin, client_admin, advertiser.
+// Upload a single Shopee "Data Grup Iklan" / Shop GMV Max file -> ad_groups
+// rows. "All Level" feature — every plan (Lapak/Sultan/King) may upload, same
+// as the core SPOS/Ads/Performa flow (/api/upload); only the client/store
+// scope is restricted for Owners.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
 
   const { data: profile } = await supabase
-    .from("profiles").select("client_id, role").eq("id", user.id).single();
+    .from("profiles").select("client_id, role, scope_owner").eq("id", user.id).single();
   if (!profile) return NextResponse.json({ error: "NO_PROFILE" }, { status: 403 });
-  if (!["superadmin", "client_admin", "advertiser"].includes(profile.role)) {
+  const isOwner = profile.role === "branch_manager";
+  if (!["superadmin", "client_admin", "advertiser"].includes(profile.role) && !isOwner) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
 
   const form = await req.formData();
   const file = form.get("file") as File | null;
   const manual: AdGroupManual = JSON.parse(String(form.get("manual") || "{}"));
-  const clientId = String(form.get("client_id") || "");
+  const clientId = isOwner ? String(profile.client_id || "") : String(form.get("client_id") || "");
 
   if (!file) return NextResponse.json({ error: "NO_FILE" }, { status: 400 });
   if (!clientId) return NextResponse.json({ error: "NO_CLIENT" }, { status: 400 });
+
+  if (isOwner) {
+    const store = manual.store_name;
+    if (!store) return NextResponse.json({ error: "STORE_REQUIRED" }, { status: 400 });
+    const { data: owned } = await supabase
+      .from("store_links")
+      .select("store_name")
+      .eq("client_id", clientId)
+      .eq("owner", profile.scope_owner)
+      .eq("store_name", store)
+      .maybeSingle();
+    if (!owned) return NextResponse.json({ error: "STORE_NOT_IN_SCOPE" }, { status: 403 });
+  }
 
   // parse
   const buf = Buffer.from(await file.arrayBuffer());

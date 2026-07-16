@@ -65,11 +65,14 @@ function cell(row: unknown[], i: number): string {
   return String(row?.[i] ?? "").trim();
 }
 
-// Find the header row: the one that contains "Nama Iklan/Produk".
+// Find the header row: the one that contains "Nama Iklan/Produk" (Grup Iklan
+// export) or "Nama Produk" (Shop GMV Max / Inkubasi export — same preamble
+// shape, but the name column is titled differently and has no Status/Jenis
+// Iklan/Mode Bidding/Tanggal columns before it).
 function findHeader(matrix: unknown[][]): number {
   for (let i = 0; i < Math.min(matrix.length, 20); i++) {
     const cells = (matrix[i] || []).map((c) => String(c ?? "").toLowerCase());
-    if (cells.some((c) => c.includes("nama iklan"))) return i;
+    if (cells.some((c) => c.includes("nama iklan") || c.includes("nama produk"))) return i;
   }
   return 7;
 }
@@ -107,7 +110,9 @@ export function parseAdGroupMatrix(matrix: unknown[][]): AdGroupParsed {
   const idxIncl = (frag: string) =>
     headers.findIndex((h) => h.toLowerCase().includes(frag.toLowerCase()));
 
-  const cName     = idxIncl("nama iklan");
+  // "Nama Iklan/Produk" (Grup Iklan export) or "Nama Produk" (Shop GMV Max /
+  // Inkubasi export — no per-ad name, just the product).
+  const cName     = idxIncl("nama iklan") >= 0 ? idxIncl("nama iklan") : idxIncl("nama produk");
   const cKode     = idxIncl("kode produk");
   const cDilihat  = idx("Dilihat");
   const cKlik     = idxIncl("jumlah klik");

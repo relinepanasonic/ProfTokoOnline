@@ -4,14 +4,24 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
 import StoreSalesTable from "../StoreSalesTable";
+import UploadIklan from "../ads/UploadIklan";
+import FinanceUpload from "../product/FinanceUpload";
+import StoreUpload from "../store/StoreUpload";
+import { LEVELS } from "@/lib/adsConstants";
 
 export const dynamic = "force-dynamic";
 
+// Card 1 — Store Performance (perf + spos). Card 2's "Ads Performa" slot
+// lives in the same SLOTS/submit() mechanism (one shared multi-file
+// dropzone + single upload button, same as before) — only the label and
+// which card box a slot renders under changed.
 const SLOTS: { source: DataSource; label: string; hint: string; accept: string }[] = [
-  { source: "perf", label: "Performa", hint: "sales_overview", accept: ".xlsx,.xls,.csv" },
-  { source: "spos", label: "SPOS", hint: "parentskudetail", accept: ".xlsx,.xls,.csv" },
-  { source: "ads", label: "Ads", hint: "Data Keseluruhan Iklan", accept: ".xlsx,.xls,.csv" },
+  { source: "perf", label: "Store Performa", hint: "sales_overview", accept: ".xlsx,.xls,.csv" },
+  { source: "spos", label: "Product Performa", hint: "parentskudetail", accept: ".xlsx,.xls,.csv" },
+  { source: "ads",  label: "Ads Performa",     hint: "Data Keseluruhan Iklan", accept: ".xlsx,.xls,.csv" },
 ];
+const CARD1_SOURCES: DataSource[] = ["perf", "spos"];
+const GROUP_LEVELS = LEVELS.filter((l) => l.v !== "incubation");
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
@@ -56,6 +66,12 @@ export default function UploadPage() {
   const inputTime = new Date();
   const [adminName, setAdminName] = useState("");
   const [clientId, setClientId] = useState("");
+  // Card 3/4 (Finance / Ops) gate: staff roles always; an Owner only on an
+  // active Sultan/King plan — mirrors the same check the upload routes
+  // themselves enforce server-side (see /api/finance/upload's comment).
+  const [role, setRole] = useState("");
+  const [planType, setPlanType] = useState<string | null>(null);
+  const [subEnd, setSubEnd] = useState<string | null>(null);
 
   const [owners, setOwners] = useState<string[]>([]);
   const [stores, setStores] = useState<string[]>([]);
@@ -127,16 +143,24 @@ export default function UploadPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const [{ data: p }, { data: cs }] = await Promise.all([
-        supabase.from("profiles").select("display_name,email").eq("id", user.id).single(),
+        supabase.from("profiles").select("display_name,email,role,client_id,plan_type,subscription_end").eq("id", user.id).single(),
         supabase.from("clients").select("id").order("created_at").limit(1),
       ]);
-      const name = (p as { display_name: string | null; email: string | null } | null)?.display_name
-        || user.email?.split("@")[0] || "Admin";
+      const prof = p as { display_name: string | null; email: string | null; role: string; client_id: string | null; plan_type: string | null; subscription_end: string | null } | null;
+      const name = prof?.display_name || user.email?.split("@")[0] || "Admin";
       setAdminName(name);
-      const first = (cs as { id: string }[])?.[0]?.id || "";
-      setClientId(first);
-      reload(first);
-      loadUploads(first);
+      setRole(prof?.role || "");
+      setPlanType(prof?.plan_type ?? null);
+      setSubEnd(prof?.subscription_end ?? null);
+      // Owners are locked to their own tenant; staff (superadmin/client_admin/
+      // advertiser) fall back to the first-created client (pre-existing
+      // single-workspace assumption for staff, unchanged by this page).
+      const cid = prof?.role === "branch_manager"
+        ? (prof.client_id || "")
+        : ((cs as { id: string }[])?.[0]?.id || "");
+      setClientId(cid);
+      reload(cid);
+      loadUploads(cid);
     })();
   }, [supabase, reload, loadUploads]);
 
@@ -235,9 +259,16 @@ export default function UploadPage() {
 
   const isBaseline = manual.bulan === "Baseline";
 
+  // Card 3/4 gate: staff always; Owner only on an active Sultan/King plan —
+  // mirrors what /api/finance/upload and /api/store/upload enforce server-side.
+  const isOwner = role === "branch_manager";
+  const canFinance = ["superadmin", "client_admin", "advertiser"].includes(role)
+    || (isOwner && (planType === "sultan" || planType === "king")
+        && (!subEnd || new Date(subEnd) > new Date()));
+
   return (
     <>
-      {/* ───── Upload form ───── */}
+      {/* ───── Card 1 + 2: Store Performance / Ads Performance (All Level) ───── */}
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
@@ -320,17 +351,21 @@ export default function UploadPage() {
           </Field>
         </div>
 
-        {/* File pickers */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
-          {SLOTS.map((s) => (
-            <div key={s.source}>
-              <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600 }}>
-                {s.label} <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>({s.hint})</span>
-              </label>
-              <input type="file" accept={s.accept} style={{ fontSize: 12, color: "#bcd", display: "block", marginTop: 6, width: "100%" }}
-                onChange={(e) => setFiles((f) => ({ ...f, [s.source]: e.target.files?.[0] ?? null }))} />
-              {files[s.source] && <p style={{ marginTop: 6, fontSize: 11, color: "var(--gold)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {files[s.source]!.name}</p>}
-            </div>
+        {/* Card 1: Store Performance — All Level */}
+        <CardLabel title="Store Performance" sub="All Level" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 20 }}>
+          {SLOTS.filter((s) => CARD1_SOURCES.includes(s.source)).map((s) => (
+            <FileSlot key={s.source} slot={s} file={files[s.source] ?? null}
+              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))} />
+          ))}
+        </div>
+
+        {/* Card 2: Ads Performance — All Level */}
+        <CardLabel title="Ads Performance" sub="All Level" />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
+          {SLOTS.filter((s) => s.source === "ads").map((s) => (
+            <FileSlot key={s.source} slot={s} file={files[s.source] ?? null}
+              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))} />
           ))}
         </div>
 
@@ -347,7 +382,42 @@ export default function UploadPage() {
         )}
       </div>
 
-      <StoreSalesTable />
+      {/* Card 2 continued: Inkubasi Performa + Group Performa — each is its
+          own upload zone with its own Owner/Brand/Store/period (same as the
+          Ads Performance page's identical widget), just narrowed to the
+          ads_level(s) this card covers. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
+        <UploadIklan
+          clientId={clientId} supabase={supabase} onUploaded={() => loadUploads(clientId)}
+          title="Inkubasi Performa" lockLevel="incubation"
+          hint="Shopee Shop GMV Max / incubation export — one file per period."
+        />
+        <UploadIklan
+          clientId={clientId} supabase={supabase} onUploaded={() => loadUploads(clientId)}
+          title="Group Performa" levelChoices={GROUP_LEVELS}
+          hint="Export one ad group (Hero / Independent / Low Conversion) per file."
+        />
+      </div>
+
+      {/* Card 3 / 4: Finance Performa + Ops Performa — Sultan | King |
+          Superadmin | Admin | Advertiser only (a Lapak Owner sees nothing
+          here; the upload routes enforce the same gate server-side). */}
+      {canFinance && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
+          <div>
+            <CardLabel title="Finance Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <FinanceUpload clientId={clientId} onUploaded={() => loadUploads(clientId)} />
+          </div>
+          <div>
+            <CardLabel title="Ops Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <StoreUpload clientId={clientId} onUploaded={() => loadUploads(clientId)} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 18 }}>
+        <StoreSalesTable />
+      </div>
 
       {/* ───── Upload Log ───── */}
       <div className="panel" style={{ marginTop: 18 }}>
@@ -462,6 +532,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="fld" style={{ minWidth: 0 }}>
       <label>{label}</label>
       {children}
+    </div>
+  );
+}
+
+function CardLabel({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+      <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--gold)" }}>{title}</span>
+      <span style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</span>
+    </div>
+  );
+}
+
+function FileSlot({ slot, file, onPick }: {
+  slot: { source: DataSource; label: string; hint: string; accept: string };
+  file: File | null; onPick: (f: File | null) => void;
+}) {
+  return (
+    <div>
+      <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600 }}>
+        {slot.label} <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>({slot.hint})</span>
+      </label>
+      <input type="file" accept={slot.accept} style={{ fontSize: 12, color: "#bcd", display: "block", marginTop: 6, width: "100%" }}
+        onChange={(e) => onPick(e.target.files?.[0] ?? null)} />
+      {file && <p style={{ marginTop: 6, fontSize: 11, color: "var(--gold)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {file.name}</p>}
     </div>
   );
 }

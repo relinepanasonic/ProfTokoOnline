@@ -11,22 +11,22 @@ export const dynamic = "force-dynamic";
 // FinanceDashboard pulls in recharts (~430KB); loaded client-side on demand
 // instead of bundled into every /product page load.
 const FinanceDashboard = dynamicImport(() => import("./FinanceDashboard"), { ssr: false, loading: () => <Loader center /> });
-const FinanceUpload = dynamicImport(() => import("./FinanceUpload"), { ssr: false });
 const ModalProduct = dynamicImport(() => import("./ModalProduct"), { ssr: false });
 
 const TABS = [
   { v: "dashboard", l: "Dashboard Keuangan" },
-  { v: "upload", l: "Upload Keuangan" },
   { v: "modal", l: "Modal Product" },
 ] as const;
-// Upload + cost-entry are admin tools; Owners see the read dashboard only.
+// Finance upload now lives on the consolidated /upload page (Finance Performa
+// card) — this page is read-only dashboard + cost-entry only.
+// Modal Product (cost entry) is an admin tool; Owners see the read dashboard only.
 const MANAGE_ROLES = ["superadmin", "client_admin"];
 
 export default function Page() {
   const [supabase] = useState(() => createClient());
   const [clientId, setClientId] = useState("");
   const [tab, setTab] = useState<(typeof TABS)[number]["v"]>("dashboard");
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey] = useState(0);
   const [canManage, setCanManage] = useState(false);
 
   useEffect(() => {
@@ -54,7 +54,6 @@ export default function Page() {
         </div>
       )}
       {tab === "dashboard" && <FinanceDashboard clientId={clientId} refreshKey={refreshKey} />}
-      {canManage && tab === "upload" && <FinanceUpload clientId={clientId} onUploaded={() => setRefreshKey((k) => k + 1)} />}
       {canManage && tab === "modal" && <ModalProduct clientId={clientId} />}
     </>
     </UploadGate>
