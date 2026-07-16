@@ -1,11 +1,12 @@
 "use client";
 
-// Ads Performance overview — 4 KPI totals (Total / GMV Max / Group Ads /
-// Independent Ads), 3 charts, and the unified per-product table joined
-// across the Total Ads (sales_rows) and GMV Max/Group Ads (ad_groups)
-// tables via ads_dashboard_summary() (migration 0062). recharts only
-// loads here, split via next/dynamic in page.tsx — same convention as
-// the main Dashboard's DashboardCharts.tsx.
+// Ads Performance overview — Total Ads as 7 individual KPI cards (matching
+// the main Dashboard's .kpi-grid/.kpi/.kpi-hero/.kpi-roas markup exactly),
+// 3 category cards (GMV Max / Group Ads / Independent Ads), 3 charts, and
+// the unified per-product table. Colors are restricted to the app's own
+// gold/blue palette (same constants as DashboardCharts.tsx) — no green/
+// purple/teal/pink. recharts only loads here, split via next/dynamic in
+// page.tsx — same convention as the main Dashboard's DashboardCharts.tsx.
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, ComposedChart, Line, XAxis, YAxis, Tooltip, Legend,
@@ -28,8 +29,8 @@ const idrF = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const num  = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
 const roasF = (n: number | null) => (n == null || !Number.isFinite(n) ? "—" : n.toFixed(2) + "×");
 
+// Brand palette only — same constants as DashboardCharts.tsx.
 const GOLD = "#c9a227", GOLD_L = "#f0d870", BLUE = "#3b82f6", BLUE_L = "#60a5fa";
-const PURPLE = "#a855f7", TEAL = "#14b8a6";
 
 const TIP_STYLE: React.CSSProperties = {
   background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 10,
@@ -48,31 +49,43 @@ type Summary = {
   products: ProductRow[];
 };
 
-export default function AdsOverview({ clientId }: { clientId: string }) {
+export default function AdsOverview({ clientId, refreshKey }: { clientId: string; refreshKey?: number }) {
   const [supabase] = useState(() => createClient());
   const [d, setD] = useState<Summary | null>(null);
-  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+
+  const cacheKey = `ptoko_ads_v1:${clientId}`;
 
   useEffect(() => {
     if (!clientId) return;
+    // Stale-while-revalidate: paint the last-seen result instantly (huge
+    // win on re-entry — this query can take several seconds), then refresh
+    // in the background. This is the same pattern the main Dashboard uses.
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (raw) setD(JSON.parse(raw) as Summary);
+    } catch { /* ignore */ }
+
     (async () => {
-      setLoading(true);
       const { data, error } = await supabase.rpc("ads_dashboard_summary", {});
       if (error) setErr(`${error.message} (code: ${error.code || "?"})`);
-      else { setD(data as Summary); setErr(""); }
-      setLoading(false);
+      else {
+        setD(data as Summary);
+        setErr("");
+        try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
+      }
     })();
-  }, [clientId, supabase]);
+  }, [clientId, refreshKey, supabase, cacheKey]);
 
-  if (err) {
+  if (err && !d) {
     return (
       <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
         ⚠ Ads overview query failed: {err}
       </div>
     );
   }
-  if (loading || !d) {
+  if (!d) {
     return <div className="panel" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>Memuat data…</div>;
   }
 
@@ -84,12 +97,28 @@ export default function AdsOverview({ clientId }: { clientId: string }) {
 
   return (
     <>
-      {/* ── 4 KPI cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 18 }}>
-        <KpiCard title="Total Ads" color={GOLD} totals={t.total} />
-        <KpiCard title="GMV Max Auto" color={PURPLE} totals={t.gmv_max} />
-        <KpiCard title="Group Ads" color={BLUE} totals={t.group_ads} />
-        <KpiCard title="Independent Ads" color={TEAL} totals={t.independent} sub="Total − GMV Max − Group" />
+      {err && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "10px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 12, fontFamily: "monospace" }}>
+          ⚠ Refresh failed, showing last-known data: {err}
+        </div>
+      )}
+
+      {/* ── Total Ads: 7 individual KPI cards, same markup as the Dashboard ── */}
+      <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(7,1fr)" }}>
+        <div className="kpi kpi-hero"><div className="kpi-icon">📣</div><div className="lbl">Ads Cost</div><div className="val">{idr(t.total.ads_cost)}</div></div>
+        <div className="kpi"><div className="kpi-icon">💰</div><div className="lbl">Omzet</div><div className="val">{idr(t.total.omzet)}</div></div>
+        <div className="kpi kpi-roas"><div className="lbl">ROAS</div><div className="val">{roasF(t.total.roas)}</div></div>
+        <div className="kpi"><div className="kpi-icon">👁</div><div className="lbl">View</div><div className="val">{num(t.total.view)}</div></div>
+        <div className="kpi"><div className="kpi-icon">🖱</div><div className="lbl">Click</div><div className="val">{num(t.total.click)}</div></div>
+        <div className="kpi"><div className="kpi-icon">🧾</div><div className="lbl">Order</div><div className="val">{num(t.total.orders)}</div></div>
+        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">Item Sold</div><div className="val">{num(t.total.item_sold)}</div></div>
+      </div>
+
+      {/* ── GMV Max / Group Ads / Independent Ads ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
+        <CategoryCard title="GMV Max Auto" accent={BLUE} totals={t.gmv_max} />
+        <CategoryCard title="Group Ads" accent={BLUE_L} totals={t.group_ads} />
+        <CategoryCard title="Independent Ads" accent={GOLD} totals={t.independent} sub="Total − GMV Max − Group" />
       </div>
 
       {/* ── 3 charts ── */}
@@ -103,9 +132,9 @@ export default function AdsOverview({ clientId }: { clientId: string }) {
               <YAxis yAxisId="right" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(1) + "×"} />
               <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "ROAS" ? [roasF(Number(v)), n] : [idrF(Number(v)), n]} labelFormatter={(l) => sm(String(l))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar yAxisId="left" dataKey="gmv_max_omzet" stackId="o" name="GMV Max Auto" fill={PURPLE} radius={[0,0,0,0]} />
-              <Bar yAxisId="left" dataKey="group_omzet" stackId="o" name="Group Ads" fill={BLUE} radius={[0,0,0,0]} />
-              <Bar yAxisId="left" dataKey="independent_omzet" stackId="o" name="Independent Ads" fill={TEAL} radius={[3,3,0,0]} />
+              <Bar yAxisId="left" dataKey="gmv_max_omzet" stackId="o" name="GMV Max Auto" fill={BLUE} radius={[0,0,0,0]} />
+              <Bar yAxisId="left" dataKey="group_omzet" stackId="o" name="Group Ads" fill={BLUE_L} radius={[0,0,0,0]} />
+              <Bar yAxisId="left" dataKey="independent_omzet" stackId="o" name="Independent Ads" fill={GOLD} radius={[3,3,0,0]} />
               <Line yAxisId="right" type="monotone" dataKey="roas" name="ROAS" stroke={GOLD_L} strokeWidth={2} dot={{ r: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
@@ -180,16 +209,22 @@ export default function AdsOverview({ clientId }: { clientId: string }) {
   );
 }
 
-function KpiCard({ title, color, totals, sub }: { title: string; color: string; totals: Totals; sub?: string }) {
+function CategoryCard({ title, accent, totals, sub }: { title: string; accent: string; totals: Totals; sub?: string }) {
   return (
-    <div style={{ background: "rgba(10,22,40,.55)", border: `1px solid ${color}33`, borderRadius: 14, padding: "14px 16px" }}>
-      <div style={{ fontSize: 11.5, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: .3 }}>{title}</div>
-      {sub && <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 4 }}>{sub}</div>}
-      <div style={{ fontSize: 20, fontWeight: 700, color: "#fff", marginTop: sub ? 0 : 4 }}>{idrF(totals.ads_cost)}</div>
-      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8 }}>Ads Cost</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, fontSize: 11 }}>
+    <div style={{ background: "linear-gradient(160deg,rgba(22,40,76,.7),rgba(9,17,36,.62))", border: `1px solid ${accent}40`, borderRadius: 16, padding: "16px 18px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: accent, textTransform: "uppercase", letterSpacing: .4 }}>{title}</div>
+          {sub && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 2 }}>{sub}</div>}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: GOLD_L }}>{roasF(totals.roas)}</div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>Ads Cost</span>
+        <span style={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>{idrF(totals.ads_cost)}</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 10, columnGap: 8, fontSize: 12 }}>
         <Metric label="Omzet" value={idr(totals.omzet)} />
-        <Metric label="ROAS" value={roasF(totals.roas)} accent={GOLD_L} />
         <Metric label="View" value={num(totals.view)} />
         <Metric label="Click" value={num(totals.click)} />
         <Metric label="Order" value={num(totals.orders)} />
@@ -199,11 +234,11 @@ function KpiCard({ title, color, totals, sub }: { title: string; color: string; 
   );
 }
 
-function Metric({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div style={{ color: "var(--muted)", fontSize: 10 }}>{label}</div>
-      <div style={{ color: accent || "#cdd9f0", fontWeight: 600 }}>{value}</div>
+    <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <span style={{ color: "var(--muted)" }}>{label}</span>
+      <span style={{ color: "#cdd9f0", fontWeight: 600 }}>{value}</span>
     </div>
   );
 }
