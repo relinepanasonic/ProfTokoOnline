@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MONTHS, WEEKS } from "@/lib/adsConstants";
+import UploadLogTable from "./UploadLogTable";
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
@@ -28,6 +29,8 @@ export default function UploadHere() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [clientId, setClientId] = useState("");
   const [links, setLinks] = useState<Link[]>([]);
+  // Bumped after any successful upload so <UploadLogTable> refetches.
+  const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [manual, setManual] = useState({ year: new Date().getFullYear(), bulan: "", pic_client: "", brand: "", store_name: "" });
   const [storeFile, setStoreFile] = useState<File | null>(null);
   const [productFile, setProductFile] = useState<File | null>(null);
@@ -157,6 +160,7 @@ export default function UploadHere() {
     setLog(results);
     if (results.some((r) => r.startsWith("✓"))) {
       setStoreFile(null); setProductFile(null); setAdsFile(null); setInkubasiFile(null); setGroupFile(null);
+      setLogRefreshKey((k) => k + 1);
     }
     setBusy(false);
   }
@@ -197,6 +201,7 @@ export default function UploadHere() {
     && (!subEnd || new Date(subEnd) > new Date()));
 
   return (
+    <>
     <div className="panel">
       <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
       <div className="hint" style={{ marginBottom: 16 }}>Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.</div>
@@ -289,6 +294,8 @@ export default function UploadHere() {
         </div>
       )}
     </div>
+    <UploadLogTable clientId={clientId} refreshKey={logRefreshKey} />
+    </>
   );
 }
 

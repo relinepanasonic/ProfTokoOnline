@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
 import StoreSalesTable from "../StoreSalesTable";
 import UploadHere from "./UploadHere";
+import UploadLogTable from "./UploadLogTable";
 import UploadIklan from "../ads/UploadIklan";
 import FinanceUpload from "../product/FinanceUpload";
 import StoreUpload from "../store/StoreUpload";
@@ -27,9 +28,6 @@ const GROUP_LEVELS = LEVELS.filter((l) => l.v !== "incubation");
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
 const BASELINE_WEEK = "Baseline (Week 0)";
-const SRC_LABEL: Record<string, string> = { perf: "Performa", spos: "SPOS", ads: "Ads" };
-const SRC_COLOR: Record<string, string> = { perf: "#22c55e", spos: "#3b82f6", ads: "#f59e0b" };
-const SOURCE_ORDER: DataSource[] = ["perf", "spos", "ads"];
 
 function toISODate(d: Date): string {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
@@ -50,11 +48,6 @@ function fmtID(iso: string): string {
   if (!iso) return "—";
   return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
 }
-
-type UploadRow = {
-  id: string; source: DataSource; filename: string | null; row_count: number; created_at: string;
-  meta: { pic_client?: string; store_name?: string; bulan?: string; week?: string; year?: number; admin?: string } | null;
-};
 
 export default function UploadPage() {
   const [supabase] = useState(() => createClient());
@@ -80,8 +73,9 @@ export default function UploadPage() {
 
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
-  const [uploads, setUploads] = useState<UploadRow[]>([]);
-  const [flt, setFlt] = useState({ year: "", month: "", week: "", owner: "", store: "", source: "" });
+  // Bumped after a successful upload so <UploadLogTable> (which owns its
+  // own uploads-list state) refetches.
+  const [logRefreshKey, setLogRefreshKey] = useState(0);
 
   // ---------- cascade handlers ----------
   function pickBulan(v: string) {
@@ -111,23 +105,6 @@ export default function UploadPage() {
       : stores;
 
   // ---------- data loading ----------
-  // The "uploads" table is shared by every upload flow in the app (Finance,
-  // Operational, Market Fee, Ads-Group all write to it too, with source
-  // values "finance"/"orders"/"market_fee"/"ads_group"). This page only
-  // manages SPOS/Ads/Performa, so scope the log to just those — otherwise
-  // unrelated uploads show up here with broken styling (no SRC_LABEL/
-  // SRC_COLOR entry for those sources) and their Set-based badge grouping
-  // renders in inconsistent order row to row.
-  const loadUploads = useCallback(async (cid: string) => {
-    if (!cid) { setUploads([]); return; }
-    const { data } = await supabase.from("uploads")
-      .select("id,source,filename,row_count,created_at,meta")
-      .eq("client_id", cid)
-      .in("source", ["spos", "ads", "perf"])
-      .order("created_at", { ascending: false });
-    setUploads((data as UploadRow[]) || []);
-  }, [supabase]);
-
   const reload = useCallback(async (cid: string) => {
     if (!cid) { setOwners([]); setStores([]); setLinks([]); return; }
     const { data: sl } = await supabase.from("store_links")
@@ -161,22 +138,8 @@ export default function UploadPage() {
         : ((cs as { id: string }[])?.[0]?.id || "");
       setClientId(cid);
       reload(cid);
-      loadUploads(cid);
     })();
-  }, [supabase, reload, loadUploads]);
-
-  // A "batch" (one row in the redesigned log) can be several underlying
-  // uploads.id rows — e.g. Performa + SPOS + Ads submitted together — so
-  // deleting one deletes all of them in a single confirm.
-  async function delUploads(ids: string[]) {
-    if (!confirm(ids.length > 1 ? `Delete this upload (${ids.length} files) and all its rows? This cannot be undone.` : "Delete this upload and all its rows? This cannot be undone.")) return;
-    const { error } = await supabase.from("uploads").delete().in("id", ids);
-    if (error) { alert(error.message); return; }
-    // Rebuild the dashboard rollup so the deleted rows drop out immediately
-    // (otherwise they'd linger until the hourly pg_cron refresh — migration 0052).
-    await supabase.rpc("refresh_dashboard_rollup");
-    loadUploads(clientId);
-  }
+  }, [supabase, reload]);
 
   async function submit() {
     setBusy(true); setLog([]);
@@ -199,63 +162,7 @@ export default function UploadPage() {
       }
     }
     setBusy(false);
-    loadUploads(clientId);
-  }
-
-  // ---------- derived filter options ----------
-  const uniqU = (f: (u: UploadRow) => string | number | undefined | null) =>
-    Array.from(new Set(uploads.map(f).filter((v) => v != null && v !== "") as string[])).sort();
-  const fYears  = Array.from(new Set(uploads.map((u) => u.meta?.year).filter(Boolean) as number[])).sort((a, b) => b - a).map(String);
-  const fMonths = uniqU((u) => u.meta?.bulan);
-  const fWeeks  = uniqU((u) => u.meta?.week);
-  const fOwners = uniqU((u) => u.meta?.pic_client);
-  const fStores = flt.owner
-    ? uniqU((u) => u.meta?.pic_client === flt.owner ? u.meta?.store_name : null)
-    : uniqU((u) => u.meta?.store_name);
-
-  const shownUploads = uploads.filter((u) =>
-    (!flt.year   || String(u.meta?.year) === flt.year) &&
-    (!flt.month  || u.meta?.bulan === flt.month) &&
-    (!flt.week   || u.meta?.week === flt.week) &&
-    (!flt.owner  || u.meta?.pic_client === flt.owner) &&
-    (!flt.store  || u.meta?.store_name === flt.store) &&
-    (!flt.source || u.source === flt.source)
-  );
-
-  // Group the Performa/SPOS/Ads files submitted together (same submit() call)
-  // into one log row, instead of one row per file. There's no explicit batch
-  // id, so group by store+period+owner and the upload minute — files from the
-  // same submit land within the same store/month/week and a few seconds of
-  // each other; a re-upload of the same store/period on a different day (or
-  // even a different minute) correctly stays a separate row.
-  type UploadGroup = {
-    key: string; ids: string[]; created_at: string;
-    bulan?: string; week?: string; year?: number; admin?: string; pic_client?: string; store_name?: string;
-    files: { source: DataSource; filename: string | null }[];
-  };
-  const shownGroups: UploadGroup[] = (() => {
-    const map = new Map<string, UploadGroup>();
-    for (const u of shownUploads) {
-      const minute = Math.floor(new Date(u.created_at).getTime() / 60000);
-      const key = [u.meta?.store_name, u.meta?.bulan, u.meta?.week, u.meta?.year, minute].join("|");
-      let g = map.get(key);
-      if (!g) {
-        g = { key, ids: [], created_at: u.created_at, bulan: u.meta?.bulan, week: u.meta?.week, year: u.meta?.year, admin: u.meta?.admin, pic_client: u.meta?.pic_client, store_name: u.meta?.store_name, files: [] };
-        map.set(key, g);
-      }
-      g.ids.push(u.id);
-      g.files.push({ source: u.source, filename: u.filename });
-      if (new Date(u.created_at) < new Date(g.created_at)) g.created_at = u.created_at;
-    }
-    for (const g of map.values()) g.files.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
-    return [...map.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  })();
-
-  function fmtUploadTime(iso: string): string {
-    const d = new Date(iso);
-    const day = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-    const time = `${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}`;
-    return `${day} ${time}`;
+    setLogRefreshKey((k) => k + 1);
   }
 
   const isBaseline = manual.bulan === "Baseline";
@@ -408,12 +315,12 @@ export default function UploadPage() {
           ads_level(s) this card covers. */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
         <UploadIklan
-          clientId={clientId} supabase={supabase} onUploaded={() => loadUploads(clientId)}
+          clientId={clientId} supabase={supabase} onUploaded={() => setLogRefreshKey((k) => k + 1)}
           title="Inkubasi Performa" lockLevel="incubation"
           hint="Shopee Shop GMV Max / incubation export — one file per period."
         />
         <UploadIklan
-          clientId={clientId} supabase={supabase} onUploaded={() => loadUploads(clientId)}
+          clientId={clientId} supabase={supabase} onUploaded={() => setLogRefreshKey((k) => k + 1)}
           title="Group Performa" levelChoices={GROUP_LEVELS}
           hint="Export one ad group (Hero / Independent / Low Conversion) per file."
         />
@@ -426,11 +333,11 @@ export default function UploadPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
           <div>
             <CardLabel title="Finance Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
-            <FinanceUpload clientId={clientId} onUploaded={() => loadUploads(clientId)} />
+            <FinanceUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
           <div>
             <CardLabel title="Ops Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
-            <StoreUpload clientId={clientId} onUploaded={() => loadUploads(clientId)} />
+            <StoreUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
         </div>
       )}
@@ -439,114 +346,11 @@ export default function UploadPage() {
         <StoreSalesTable />
       </div>
 
-      {/* ───── Upload Log ───── */}
-      <div className="panel" style={{ marginTop: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 14 }}>
-          <div>
-            <h3 style={{ margin: 0 }}>Upload Log</h3>
-            <div className="hint">Filter by period or store — delete a bad upload to remove all its rows.</div>
-          </div>
-          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--gold)", background: "rgba(201,162,39,.12)", border: "1px solid rgba(201,162,39,.25)", borderRadius: 999, padding: "3px 12px" }}>
-            {shownGroups.length} upload{shownGroups.length === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        {/* 6-filter bar */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 10 }}>
-          <Field label="Year">
-            <select value={flt.year} onChange={(e) => setFlt((f) => ({ ...f, year: e.target.value }))}>
-              <option value="">All years</option>
-              {fYears.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </Field>
-          <Field label="Month">
-            <select value={flt.month} onChange={(e) => setFlt((f) => ({ ...f, month: e.target.value }))}>
-              <option value="">All months</option>
-              {fMonths.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </Field>
-          <Field label="Week">
-            <select value={flt.week} onChange={(e) => setFlt((f) => ({ ...f, week: e.target.value }))}>
-              <option value="">All weeks</option>
-              {fWeeks.map((w) => <option key={w} value={w}>{w}</option>)}
-            </select>
-          </Field>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr) auto", gap: 10, marginBottom: 14, alignItems: "end" }}>
-          <Field label="Owner">
-            <select value={flt.owner} onChange={(e) => setFlt((f) => ({ ...f, owner: e.target.value, store: "" }))}>
-              <option value="">All owners</option>
-              {fOwners.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </Field>
-          <Field label="Store">
-            <select value={flt.store} onChange={(e) => setFlt((f) => ({ ...f, store: e.target.value }))}>
-              <option value="">All stores</option>
-              {fStores.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="Source">
-            <select value={flt.source} onChange={(e) => setFlt((f) => ({ ...f, source: e.target.value }))}>
-              <option value="">All sources</option>
-              {SLOTS.map((s) => <option key={s.source} value={s.source}>{s.label}</option>)}
-            </select>
-          </Field>
-          <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", store: "", source: "" })} style={{ height: 38 }}>Reset</button>
-        </div>
-
-        <div className="tbl-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>Time Upload</th><th>Month</th><th>Week</th><th>Admin</th>
-                <th>File</th><th>Tipe</th><th>Owner</th><th>Store</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {shownGroups.map((g) => (
-                <tr key={g.key}>
-                  <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{fmtUploadTime(g.created_at)}</td>
-                  <td>{g.bulan || "—"}</td>
-                  <td>{g.week || "—"}</td>
-                  <td>{g.admin || "—"}</td>
-                  <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      {g.files.map((f, i) => (
-                        <span key={i} style={{ fontSize: 11.5, color: "var(--muted)", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.filename || ""}>
-                          {f.filename || "—"}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                      {g.files.map((f, i) => (
-                        <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[f.source] + "22", color: SRC_COLOR[f.source], border: `1px solid ${SRC_COLOR[f.source]}44` }}>
-                          {SRC_LABEL[f.source] || f.source}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td>{g.pic_client || "—"}</td>
-                  <td style={{ fontWeight: 700, color: "#fff" }}>{g.store_name || "—"}</td>
-                  <td><button onClick={() => delUploads(g.ids)} style={delBtnStyle}>Delete</button></td>
-                </tr>
-              ))}
-              {shownGroups.length === 0 && (
-                <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
-                  {uploads.length ? "No uploads match these filters" : "No uploads yet"}
-                </td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <UploadLogTable clientId={clientId} refreshKey={logRefreshKey} />
       </>}
     </>
   );
 }
-
-const delBtnStyle: React.CSSProperties = { background: "rgba(255,80,80,.12)", border: "1px solid rgba(255,90,90,.3)", color: "#ff9a9a", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 12 };
 
 function uploadTabBtn(active: boolean): React.CSSProperties {
   return {
