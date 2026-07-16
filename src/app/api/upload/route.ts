@@ -178,6 +178,9 @@ export async function POST(req: NextRequest) {
   // has landed (migration 0052). This is what keeps the dashboard reading a
   // small, bloat-free summary table instead of scanning all of sales_rows.
   await admin.rpc("refresh_dashboard_rollup");
+  // Same reasoning for Ads Performance (migration 0067) — only ads uploads
+  // feed ads_rollup, no need to refresh it for spos/perf.
+  if (source === "ads") await admin.rpc("refresh_ads_rollup");
 
   return NextResponse.json({ ok: true, upload_id: upload.id, rows: inserted });
 }

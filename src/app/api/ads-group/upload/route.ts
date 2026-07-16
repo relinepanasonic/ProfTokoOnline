@@ -140,6 +140,11 @@ export async function POST(req: NextRequest) {
 
   await admin.from("uploads").update({ row_count: records.length }).eq("id", upload.id);
 
+  // Rebuild the pre-aggregated ads rollup (migration 0067) — same reasoning
+  // as refresh_dashboard_rollup: keeps Ads Performance reading a small
+  // summary table instead of scanning all of ad_groups under RLS.
+  await admin.rpc("refresh_ads_rollup");
+
   return NextResponse.json({
     ok: true,
     upload_id: upload.id,

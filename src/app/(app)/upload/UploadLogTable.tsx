@@ -67,7 +67,10 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
     if (!confirm(ids.length > 1 ? `Delete this upload (${ids.length} files) and all its rows? This cannot be undone.` : "Delete this upload and all its rows? This cannot be undone.")) return;
     const { error } = await supabase.from("uploads").delete().in("id", ids);
     if (error) { alert(error.message); return; }
-    await supabase.rpc("refresh_dashboard_rollup");
+    await Promise.all([
+      supabase.rpc("refresh_dashboard_rollup"),
+      supabase.rpc("refresh_ads_rollup"),
+    ]);
     loadUploads(clientId);
   }
 
