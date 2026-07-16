@@ -201,7 +201,7 @@ export default function UploadHere() {
       <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
       <div className="hint" style={{ marginBottom: 16 }}>Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.</div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 20 }}>
         <F label="Year"><input type="number" value={manual.year} onChange={(e) => setManual((m) => ({ ...m, year: Number(e.target.value) }))} /></F>
         <F label="Bulan">
           <select value={manual.bulan} onChange={(e) => setManual((m) => ({ ...m, bulan: e.target.value }))}>
@@ -209,9 +209,6 @@ export default function UploadHere() {
             {MONTHS.map((m) => <option key={m}>{m}</option>)}
           </select>
         </F>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20 }}>
         <F label="Owner">
           {isOwnerLogin
             ? <ReadonlyField value={manual.pic_client || "—"} />
