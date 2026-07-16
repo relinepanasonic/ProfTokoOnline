@@ -2,20 +2,37 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { DataSource } from "@/lib/parse";
 
-const SRC_LABEL: Record<string, string> = { perf: "Performa", spos: "SPOS", ads: "Ads" };
-const SRC_COLOR: Record<string, string> = { perf: "#22c55e", spos: "#3b82f6", ads: "#f59e0b" };
-const SOURCE_ORDER: DataSource[] = ["perf", "spos", "ads"];
-const SOURCE_LABELS = [
-  { source: "perf" as const, label: "Store Performa" },
-  { source: "spos" as const, label: "Product Performa" },
-  { source: "ads"  as const, label: "Ads Performa" },
-];
+// All source values the upload flows behind this page write to "uploads"
+// with (market_fee is a separate flow entirely and stays out of this log).
+type UploadSource = "perf" | "spos" | "ads" | "ads_group" | "finance" | "orders";
+
+const SRC_LABEL: Record<UploadSource, string> = {
+  perf: "Store Performa", spos: "Product Performa", ads: "Ads Performa",
+  ads_group: "Grup/Inkubasi", finance: "Finance Detail", orders: "Order Complete",
+};
+const SRC_COLOR: Record<UploadSource, string> = {
+  perf: "#22c55e", spos: "#3b82f6", ads: "#f59e0b",
+  ads_group: "#a855f7", finance: "#14b8a6", orders: "#ec4899",
+};
+const SOURCE_ORDER: UploadSource[] = ["perf", "spos", "ads", "ads_group", "finance", "orders"];
+
+// The 4 log rows the user wants, regardless of which card/button produced
+// the underlying uploads rows: Store Performance (perf+spos) always merge,
+// Ads Performance (ads+ads_group — covers Ads/Inkubasi/Group alike) always
+// merge, Order Complete and Finance Detail each stand alone.
+type Category = "store" | "ads" | "order" | "finance";
+const CATEGORY_LABEL: Record<Category, string> = { store: "Store Performance", ads: "Ads Performance", order: "Order Complete", finance: "Finance Detail" };
+function categoryOf(source: UploadSource): Category {
+  if (source === "perf" || source === "spos") return "store";
+  if (source === "ads" || source === "ads_group") return "ads";
+  if (source === "orders") return "order";
+  return "finance";
+}
 
 type UploadRow = {
-  id: string; source: DataSource; filename: string | null; row_count: number; created_at: string;
-  meta: { pic_client?: string; store_name?: string; bulan?: string; week?: string; year?: number; admin?: string } | null;
+  id: string; source: UploadSource; filename: string | null; row_count: number; created_at: string;
+  meta: { pic_client?: string; store_name?: string; bulan?: string; week?: string; year?: number; admin?: string; ads_level?: string } | null;
 };
 
 function fmtUploadTime(iso: string): string {
@@ -31,17 +48,14 @@ function fmtUploadTime(iso: string): string {
 export default function UploadLogTable({ clientId, refreshKey }: { clientId: string; refreshKey?: number }) {
   const [supabase] = useState(() => createClient());
   const [uploads, setUploads] = useState<UploadRow[]>([]);
-  const [flt, setFlt] = useState({ year: "", month: "", week: "", owner: "", store: "", source: "" });
+  const [flt, setFlt] = useState({ year: "", month: "", week: "", owner: "", store: "", category: "" });
 
-  // The "uploads" table is shared by every upload flow (Finance, Operational,
-  // Market Fee, Ads-Group all write to it too) — scope to spos/ads/perf only,
-  // same as the source pages this table is embedded in.
   const loadUploads = useCallback(async (cid: string) => {
     if (!cid) { setUploads([]); return; }
     const { data } = await supabase.from("uploads")
       .select("id,source,filename,row_count,created_at,meta")
       .eq("client_id", cid)
-      .in("source", ["spos", "ads", "perf"])
+      .in("source", SOURCE_ORDER)
       .order("created_at", { ascending: false });
     setUploads((data as UploadRow[]) || []);
   }, [supabase]);
@@ -73,30 +87,40 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
     (!flt.week   || u.meta?.week === flt.week) &&
     (!flt.owner  || u.meta?.pic_client === flt.owner) &&
     (!flt.store  || u.meta?.store_name === flt.store) &&
-    (!flt.source || u.source === flt.source)
+    (!flt.category || categoryOf(u.source) === flt.category)
   );
 
-  // Group files submitted together (same batch) into one log row — see the
-  // longer explanation that used to live inline on the Upload page: no
-  // explicit batch id exists, so group by store+period+owner+upload-minute.
+  // Group into the 4 requested buckets — Store Performance (perf+spos),
+  // Ads Performance (ads+ads_group), Order Complete, Finance Detail —
+  // keyed by category+store+period, NOT by upload timestamp. An earlier
+  // version grouped by "same upload minute", which looked right for a
+  // single click but split Store Performa from Product Performa apart
+  // whenever the two sequential POSTs happened to cross a minute boundary.
+  // Category+period is what the user actually means by "1 log": these
+  // files always belong together for that store's period, regardless of
+  // exactly when each one finished uploading.
   type UploadGroup = {
-    key: string; ids: string[]; created_at: string;
+    key: string; ids: string[]; created_at: string; category: Category;
     bulan?: string; week?: string; year?: number; admin?: string; pic_client?: string; store_name?: string;
-    files: { source: DataSource; filename: string | null }[];
+    files: { source: UploadSource; filename: string | null; ads_level?: string }[];
   };
   const shownGroups: UploadGroup[] = (() => {
     const map = new Map<string, UploadGroup>();
     for (const u of shownUploads) {
-      const minute = Math.floor(new Date(u.created_at).getTime() / 60000);
-      const key = [u.meta?.store_name, u.meta?.bulan, u.meta?.week, u.meta?.year, minute].join("|");
+      const category = categoryOf(u.source);
+      const key = [category, u.meta?.store_name, u.meta?.bulan, u.meta?.week, u.meta?.year].join("|");
       let g = map.get(key);
       if (!g) {
-        g = { key, ids: [], created_at: u.created_at, bulan: u.meta?.bulan, week: u.meta?.week, year: u.meta?.year, admin: u.meta?.admin, pic_client: u.meta?.pic_client, store_name: u.meta?.store_name, files: [] };
+        g = { key, ids: [], created_at: u.created_at, category, bulan: u.meta?.bulan, week: u.meta?.week, year: u.meta?.year, admin: u.meta?.admin, pic_client: u.meta?.pic_client, store_name: u.meta?.store_name, files: [] };
         map.set(key, g);
       }
       g.ids.push(u.id);
-      g.files.push({ source: u.source, filename: u.filename });
-      if (new Date(u.created_at) < new Date(g.created_at)) g.created_at = u.created_at;
+      g.files.push({ source: u.source, filename: u.filename, ads_level: u.meta?.ads_level });
+      // Show the most recent file's timestamp — with category+period
+      // grouping (no time-window limit), a group can span multiple upload
+      // sessions on different days, so "latest touched" is more useful
+      // than "first ever uploaded".
+      if (new Date(u.created_at) > new Date(g.created_at)) g.created_at = u.created_at;
     }
     for (const g of map.values()) g.files.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
     return [...map.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -147,20 +171,20 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
             {fStores.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </Field>
-        <Field label="Source">
-          <select value={flt.source} onChange={(e) => setFlt((f) => ({ ...f, source: e.target.value }))}>
-            <option value="">All sources</option>
-            {SOURCE_LABELS.map((s) => <option key={s.source} value={s.source}>{s.label}</option>)}
+        <Field label="Type">
+          <select value={flt.category} onChange={(e) => setFlt((f) => ({ ...f, category: e.target.value }))}>
+            <option value="">All types</option>
+            {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
           </select>
         </Field>
-        <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", store: "", source: "" })} style={{ height: 38 }}>Reset</button>
+        <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", store: "", category: "" })} style={{ height: 38 }}>Reset</button>
       </div>
 
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
             <tr>
-              <th>Time Upload</th><th>Month</th><th>Week</th><th>Admin</th>
+              <th>Time Upload</th><th>Type</th><th>Month</th><th>Week</th><th>Admin</th>
               <th>File</th><th>Tipe</th><th>Owner</th><th>Store</th><th></th>
             </tr>
           </thead>
@@ -168,6 +192,7 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
             {shownGroups.map((g) => (
               <tr key={g.key}>
                 <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{fmtUploadTime(g.created_at)}</td>
+                <td style={{ fontSize: 12, color: "#cdd9f0" }}>{CATEGORY_LABEL[g.category]}</td>
                 <td>{g.bulan || "—"}</td>
                 <td>{g.week || "—"}</td>
                 <td>{g.admin || "—"}</td>
@@ -182,11 +207,16 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    {g.files.map((f, i) => (
-                      <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[f.source] + "22", color: SRC_COLOR[f.source], border: `1px solid ${SRC_COLOR[f.source]}44` }}>
-                        {SRC_LABEL[f.source] || f.source}
-                      </span>
-                    ))}
+                    {g.files.map((f, i) => {
+                      const label = f.source === "ads_group"
+                        ? (f.ads_level === "incubation" ? "Inkubasi" : f.ads_level === "hero" ? "Hero" : f.ads_level === "low_conversion" ? "Low Conv." : "Group")
+                        : SRC_LABEL[f.source];
+                      return (
+                        <span key={i} style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: SRC_COLOR[f.source] + "22", color: SRC_COLOR[f.source], border: `1px solid ${SRC_COLOR[f.source]}44` }}>
+                          {label}
+                        </span>
+                      );
+                    })}
                   </div>
                 </td>
                 <td>{g.pic_client || "—"}</td>
@@ -195,7 +225,7 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
               </tr>
             ))}
             {shownGroups.length === 0 && (
-              <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
+              <tr><td colSpan={10} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>
                 {uploads.length ? "No uploads match these filters" : "No uploads yet"}
               </td></tr>
             )}

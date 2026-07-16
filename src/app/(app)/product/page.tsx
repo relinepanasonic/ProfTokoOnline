@@ -44,7 +44,7 @@ export default function Page() {
   const tabs = canManage ? TABS : TABS.filter((t) => t.v === "dashboard");
 
   return (
-    <UploadGate>
+    <UploadGate table="finance_rows">
     <>
       {canManage && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>

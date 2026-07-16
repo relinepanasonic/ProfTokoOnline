@@ -27,7 +27,7 @@ export default function Page() {
   }, [supabase]);
 
   return (
-    <UploadGate>
+    <UploadGate table="order_rows">
       <StoreDashboard clientId={clientId} refreshKey={refreshKey} />
     </UploadGate>
   );

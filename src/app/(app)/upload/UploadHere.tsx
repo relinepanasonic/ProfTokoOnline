@@ -103,7 +103,7 @@ export default function UploadHere() {
   }
 
   async function submit() {
-    if (!manual.bulan) { setLog(["Pick the month."]); return; }
+    if (!manual.year || !manual.bulan) { setLog(["Year and Bulan are required."]); return; }
     if (!manual.store_name) { setLog(["Select Owner → Brand → Store."]); return; }
     if (!storeFile && !productFile && !adsFile && !inkubasiFile && !groupFile) { setLog(["Pick at least one file."]); return; }
 
@@ -167,6 +167,7 @@ export default function UploadHere() {
 
   async function submitOrder() {
     if (!clientId || !orderFile || !manual.store_name) return;
+    if (!manual.year || !manual.bulan) { setOrderLog("✗ Year and Bulan are required."); return; }
     setOrderBusy(true); setOrderLog("");
     const fd = new FormData();
     fd.append("file", orderFile);
@@ -183,6 +184,7 @@ export default function UploadHere() {
 
   async function submitFinance() {
     if (!clientId || !financeFile || !manual.store_name) return;
+    if (!manual.year || !manual.bulan) { setFinanceLog("✗ Year and Bulan are required."); return; }
     setFinanceBusy(true); setFinanceLog("");
     const fd = new FormData();
     fd.append("file", financeFile);

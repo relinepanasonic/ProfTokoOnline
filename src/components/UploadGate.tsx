@@ -6,20 +6,26 @@ import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 
 // Wraps a page's content and blurs it behind an "Upload the Data First" CTA
-// until at least one row exists in dashboard_rollup for the caller's scope
+// until at least one row exists in the given table for the caller's scope
 // (RLS already restricts the read to their own client/store scope, so this
 // single lightweight check works identically for every role/plan).
-export default function UploadGate({ children }: { children: React.ReactNode }) {
+//
+// `table` defaults to dashboard_rollup (core SPOS/Ads/Performa data) for
+// Dashboard/Ads Performance. Finance Detail and Ops Performance gate on
+// their OWN table (finance_rows / order_rows) instead — uploading only the
+// core files must NOT unblur those two, since neither has any finance/order
+// data yet even though dashboard_rollup does.
+export default function UploadGate({ children, table = "dashboard_rollup" }: { children: React.ReactNode; table?: "dashboard_rollup" | "finance_rows" | "order_rows" }) {
   const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [hasData, setHasData] = useState<boolean | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("dashboard_rollup").select("client_id").limit(1);
+      const { data } = await supabase.from(table).select("client_id").limit(1);
       setHasData(!!data && data.length > 0);
     })();
-  }, [supabase]);
+  }, [supabase, table]);
 
   // Blur by default (hasData starts null while the check is in flight) —
   // only lift it once we've positively confirmed data exists. Showing the

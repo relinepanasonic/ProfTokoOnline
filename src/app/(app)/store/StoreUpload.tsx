@@ -47,7 +47,7 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
 
   async function submit() {
     if (!file) { setLog("Pick a file first."); return; }
-    if (!m.bulan) { setLog("Select Bulan."); return; }
+    if (!m.year || !m.bulan) { setLog("Year and Bulan are required."); return; }
     if (!m.store_name) { setLog("Select Owner → Brand → Store."); return; }
     setBusy(true); setLog("");
     const fd = new FormData();

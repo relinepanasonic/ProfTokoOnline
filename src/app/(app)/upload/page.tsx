@@ -144,6 +144,7 @@ export default function UploadPage() {
   async function submit() {
     setBusy(true); setLog([]);
     if (!clientId) { setLog(["Workspace not ready."]); setBusy(false); return; }
+    if (!manual.year || !manual.bulan) { setLog(["Year and Bulan are required."]); setBusy(false); return; }
     const chosen = SLOTS.filter((s) => files[s.source]);
     if (!chosen.length) { setLog(["Pick at least one file."]); setBusy(false); return; }
     const manualToSend = { ...manual, admin: adminName, tanggal_input: new Date().toISOString() };
