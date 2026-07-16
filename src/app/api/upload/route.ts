@@ -21,6 +21,21 @@ function findHeaderRow(rows: unknown[][], mustInclude: string[]): number {
   return 0;
 }
 
+// Shopee's Performa export stacks a 1-row date-range summary (with its own
+// header) above the real daily-breakdown table, separated by a blank row —
+// and repeats the IDENTICAL header text above both. Matching the FIRST
+// occurrence (findHeaderRow's behavior) points at the summary table, so only
+// that 1 row ever got parsed. Use the LAST header match in the preamble
+// instead, which always lands on the real per-day table's header.
+function findLastHeaderRow(rows: unknown[][], mustInclude: string[]): number {
+  let last = -1;
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const cells = (rows[i] || []).map((c) => String(c ?? "").toLowerCase());
+    if (mustInclude.some((m) => cells.some((c) => c.includes(m.toLowerCase())))) last = i;
+  }
+  return last >= 0 ? last : 0;
+}
+
 // Header-row hints include the English column names too — Shopee exports in
 // whatever language the seller's account uses, and English files have their
 // header below a preamble (esp. Ads at ~line 7). Without an English hint the
@@ -96,21 +111,11 @@ export async function POST(req: NextRequest) {
   if (!matrix.length)
     return NextResponse.json({ error: "EMPTY_FILE" }, { status: 400 });
 
-  const headerIdx = findHeaderRow(matrix, HEADER_HINTS[source]);
+  const headerIdx = source === "perf"
+    ? findLastHeaderRow(matrix, HEADER_HINTS[source])
+    : findHeaderRow(matrix, HEADER_HINTS[source]);
   const headers = (matrix[headerIdx] || []).map((h) => String(h ?? "").trim());
-  let dataRows = matrix.slice(headerIdx + 1);
-
-  // Shopee "Tinjauan Penjualan" (Performa) exports stack TWO tables in one
-  // sheet: a 1-row weekly summary, then a blank row, then a per-day breakdown
-  // with a *different* column layout. If we read past the blank row we'd parse
-  // the daily rows with the summary's headers — misreading columns AND
-  // double-counting the same sales. So for perf, keep only the first table.
-  if (source === "perf") {
-    const blankIdx = dataRows.findIndex(
-      (r) => !Array.isArray(r) || !r.some((c) => c !== "" && c != null)
-    );
-    if (blankIdx >= 0) dataRows = dataRows.slice(0, blankIdx);
-  }
+  const dataRows = matrix.slice(headerIdx + 1);
 
   // 4. Build raw row objects keyed by both original header and bqCol form,
   //    then map to typed sales_rows fields.
