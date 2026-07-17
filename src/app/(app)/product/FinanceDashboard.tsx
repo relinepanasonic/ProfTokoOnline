@@ -10,8 +10,11 @@ import Loader from "@/components/Loader";
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
-const GOLD = "#c9a227";
-const PALETTE = ["#c9a227","#3b82f6","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4","#f97316","#14b8a6","#e8c84a"];
+// Brand palette — same gold/blue-only set as Dashboard/Ads Performance
+// (no green/red/purple/pink chart colors anywhere in this app).
+const GOLD = "#c9a227", GOLD_L = "#f0d870", GOLD_D = "#8a6f1c";
+const BLUE = "#3b82f6", BLUE_L = "#60a5fa", BLUE_PALE = "#93c5fd", BLUE_D = "#1d4ed8";
+const PALETTE = [GOLD, BLUE, GOLD_L, BLUE_L, BLUE_PALE, GOLD_D, BLUE_D, "#f5e6a8"];
 
 const rpC = (n: number) => {
   const v = n || 0, a = Math.abs(v);
@@ -170,14 +173,14 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       <div className="kpi-grid kpi-grid-10">
         <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><MiniSparkline data={salesSeries} color={GOLD} /></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><MiniSparkline data={profitSeries} color={GOLD} /></div>
-        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><MiniSparkline data={adsSeries} color="#657f9c" /></div>
-        <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><MiniSparkline data={modalSeries} color="#c98f4a" /></div>
-        <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><MiniSparkline data={nettSeries} color={nettProfit >= 0 ? "#4ade80" : "#f87171"} /></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><MiniSparkline data={promoSeries} color="#d17e7e" /></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><MiniSparkline data={refundSeries} color="#d17e7e" /></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><MiniSparkline data={deliverySeries} color="#d17e7e" /></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><MiniSparkline data={affiliateSeries} color="#d17e7e" /></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><MiniSparkline data={feeSeries} color="#d17e7e" /></div>
+        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><MiniSparkline data={adsSeries} color={BLUE} /></div>
+        <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><MiniSparkline data={modalSeries} color={GOLD_L} /></div>
+        <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><MiniSparkline data={nettSeries} color={GOLD} /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><MiniSparkline data={promoSeries} color={BLUE} /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><MiniSparkline data={refundSeries} color={BLUE} /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><MiniSparkline data={deliverySeries} color={BLUE} /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🤝</div><div className="lbl">Affiliate Cost</div><div className="val">{k ? rpC(k.affiliate_cost) : "—"}</div><MiniSparkline data={affiliateSeries} color={BLUE} /></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">Marketplace Fee</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><MiniSparkline data={feeSeries} color={BLUE} /></div>
       </div>
 
       {/* Monthly Gross Sales vs Nett Profit */}
@@ -191,10 +194,10 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
           only cost one stacked row's height instead of two. */}
       <div className="row c4">
         <Panel title="Monthly Biaya Marketplace" hint="Total Admin & Layanan fee per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" top="#8896a4" bottom="#525f6d" />
+          <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" top={BLUE_L} bottom={BLUE} />
         </Panel>
         <Panel title="Monthly Promotion Cost" hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" top="#cdae66" bottom="#8c7233" />
+          <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" top={GOLD_L} bottom={GOLD} />
         </Panel>
         <Panel title="Metode Bayar" hint="Jumlah pesanan per metode pembayaran">
           <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} />
@@ -485,8 +488,8 @@ function GrossVsNettChart({ data }: { data: GrossNettMonth[] }) {
         <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
           <defs>
             <linearGradient id="gng-sales" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#e6c65f" />
-              <stop offset="100%" stopColor="#a4801f" />
+              <stop offset="0%" stopColor={GOLD_L} />
+              <stop offset="100%" stopColor={GOLD} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -496,8 +499,8 @@ function GrossVsNettChart({ data }: { data: GrossNettMonth[] }) {
           <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8}
             formatter={(v) => (v === "sales" ? "Gross Sales" : "Nett Profit")} />
           <Bar dataKey="sales" name="sales" fill="url(#gng-sales)" radius={[6, 6, 0, 0]} maxBarSize={72} />
-          <Line type="monotone" dataKey="nett_profit" name="nett_profit" stroke="#6f88a4" strokeWidth={2.5}
-            dot={{ r: 4, fill: "#6f88a4", strokeWidth: 0 }} activeDot={{ r: 6 }} />
+          <Line type="monotone" dataKey="nett_profit" name="nett_profit" stroke={BLUE} strokeWidth={2.5}
+            dot={{ r: 4, fill: BLUE, strokeWidth: 0 }} activeDot={{ r: 6 }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
