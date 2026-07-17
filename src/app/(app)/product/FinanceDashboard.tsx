@@ -40,13 +40,12 @@ type Summary = {
 };
 type ProductRow = {
   kode_produk: string; nama_produk: string | null; kode_variasi: string; nama_variasi: string | null;
-  total_sales: number; total_modal: number;
+  units_sold: number; total_sales: number; total_modal: number;
   promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number;
   marketplace_fee: number; ads_cost: number; nett_profit: number;
 };
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
-  has_orders: boolean;
 };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type FinanceFilters = { years: number[]; months: string[] };
@@ -243,7 +242,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </div>
       </div>
       ) : (
-        <ProductProfitTable rows={pd?.rows || []} hasOrders={pd?.has_orders ?? false} />
+        <ProductProfitTable rows={pd?.rows || []} />
       )}
 
       {drill && (
@@ -258,7 +257,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
 /* ── Detail Product Profit: 13-column variant-level P&L, search + sortable ── */
 type SortKey = "total_sales" | "total_modal" | "promotion_cost" | "refund" | "delivery_cost"
   | "affiliate_cost" | "marketplace_fee" | "ads_cost" | "nett_profit";
-function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders: boolean }) {
+function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total_sales");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -284,21 +283,9 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
       <h3>Detail Product Profit</h3>
       <div className="hint">
         P&amp;L lengkap per produk/variasi untuk periode dan filter yang dipilih. Ads Cost dibagi proporsional dari Kode Produk induk berdasar porsi Sales tiap variasi.
-        Promotional Cost/Pengembalian Dana/Delivery Cost/Affiliate Cost/Market Place Fee adalah alokasi (bukan pencatatan langsung per produk) — dihitung dari data Keuangan yang diproporsikan lewat Order Selesai berdasar Subtotal Pesanan tiap baris.
+        Promotional Cost/Pengembalian Dana/Delivery Cost/Affiliate Cost/Market Place Fee adalah alokasi (bukan pencatatan langsung per produk) — koefisien = Total biaya se-toko ÷ Total Sales se-toko, dikalikan Sales masing-masing baris.
       </div>
 
-      {!hasOrders ? (
-        <div className="coming">
-          <div className="big">🔒</div>
-          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Upload File OrderComplete to Continue</h3>
-          <p style={{ maxWidth: 460, margin: 0 }}>
-            Kolom Promotional Cost / Pengembalian Dana / Delivery Cost / Affiliate Cost / Market Place Fee butuh data Order Selesai untuk menjembatani Data Keuangan ke level produk/variasi.
-            Belum ada data Order Selesai untuk filter Store/Bulan/Tahun yang dipilih.
-          </p>
-          <a href="/upload" className="btn-gold" style={{ display: "inline-block", marginTop: 4 }}>⬆ Upload Order Selesai</a>
-        </div>
-      ) : (
-      <>
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
         <div className="fld" style={{ minWidth: 260 }}>
           <label>Cari</label>
@@ -313,6 +300,7 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
             <th className="sticky-col sticky-col-1">Nama Product</th>
             <th className="sticky-col sticky-col-2">Nama Variasi</th>
             <th>Kode Product</th><th>Kode Variasi</th>
+            <th className="num" style={{ whiteSpace: "nowrap" }}>Product Sold</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_sales")}>Sales{arrow("total_sales")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("promotion_cost")}>Promotional Cost{arrow("promotion_cost")}</th>
@@ -330,6 +318,7 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
                 <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }}>{r.nama_variasi || "—"}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{r.units_sold.toLocaleString("id-ID")}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_sales)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_modal)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.promotion_cost)}</td>
@@ -342,13 +331,11 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
+              <tr><td colSpan={14} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
             )}
           </tbody>
         </table>
       </div>
-      </>
-      )}
     </div>
   );
 }
