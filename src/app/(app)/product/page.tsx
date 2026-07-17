@@ -19,8 +19,8 @@ const TABS = [
 ] as const;
 // Finance upload now lives on the consolidated /upload page (Finance Performa
 // card) — this page is read-only dashboard + cost-entry only.
-// Modal Product (cost entry) is an admin tool; Owners see the read dashboard only.
-const MANAGE_ROLES = ["superadmin", "client_admin"];
+// Modal Product (cost entry) — Owners manage their own product costs too.
+const MANAGE_ROLES = ["superadmin", "client_admin", "branch_manager"];
 
 export default function Page() {
   const [supabase] = useState(() => createClient());
