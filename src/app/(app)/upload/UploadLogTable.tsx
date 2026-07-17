@@ -197,8 +197,8 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
                 <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{fmtUploadTime(g.created_at)}</td>
                 <td style={{ fontSize: 12, color: "#cdd9f0" }}>{CATEGORY_LABEL[g.category]}</td>
                 <td>{g.bulan || "—"}</td>
-                <td>{g.week || "—"}</td>
-                <td>{g.admin || "—"}</td>
+                <td>All</td>
+                <td>{g.pic_client || "—"}</td>
                 <td>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     {g.files.map((f, i) => (
