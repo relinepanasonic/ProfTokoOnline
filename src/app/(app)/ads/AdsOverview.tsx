@@ -287,11 +287,10 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Panel({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div className="panel">
-      <h3 style={{ margin: 0 }}>{title}</h3>
-      <div className="hint" style={{ marginBottom: 10 }}>{hint}</div>
+      <h3 style={{ margin: "0 0 10px" }}>{title}</h3>
       {children}
     </div>
   );

@@ -441,11 +441,10 @@ function Sel({ label, value, onChange, opts, all }: { label: string; value: stri
     </div>
   );
 }
-function Panel({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
     <div className="panel">
-      <h3 style={{ margin: "0 0 2px" }}>{title}</h3>
-      <div className="hint" style={{ marginBottom: 14 }}>{hint}</div>
+      <h3 style={{ margin: "0 0 14px" }}>{title}</h3>
       {children}
     </div>
   );
