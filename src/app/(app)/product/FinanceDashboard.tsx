@@ -310,9 +310,9 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
       <div className="tbl-wrap" style={{ maxHeight: 450 }}>
         <table className="tbl tbl-sticky2">
           <thead><tr>
-            <th className="sticky-col sticky-col-1">Kode Product</th>
-            <th className="sticky-col sticky-col-2">Nama Product</th>
-            <th>Kode Variasi</th><th>Nama Variasi</th>
+            <th className="sticky-col sticky-col-1">Nama Product</th>
+            <th className="sticky-col sticky-col-2">Nama Variasi</th>
+            <th>Kode Product</th><th>Kode Variasi</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_sales")}>Sales{arrow("total_sales")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("promotion_cost")}>Promotional Cost{arrow("promotion_cost")}</th>
@@ -326,10 +326,10 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
           <tbody>
             {filtered.map((r) => (
               <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
-                <td className="sticky-col sticky-col-1" style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
-                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }}>{r.nama_produk || "—"}</td>
+                <td className="sticky-col sticky-col-1" style={{ whiteSpace: "nowrap" }}>{r.nama_produk || "—"}</td>
+                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }}>{r.nama_variasi || "—"}</td>
+                <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{r.nama_variasi || "—"}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_sales)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_modal)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.promotion_cost)}</td>
