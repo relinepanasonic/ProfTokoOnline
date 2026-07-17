@@ -184,10 +184,11 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
    columns while the rest of the row scrolls horizontally inside .tbl-wrap.
    Solid (non-gradient) background required on sticky cells so scrolled
    columns don't show through underneath as the user drags the scrollbar. */
+table.tbl-sticky2{width:max-content;min-width:100%}
 .tbl-sticky2 th.sticky-col,.tbl-sticky2 td.sticky-col{position:sticky;background:var(--navy-deep)}
-.tbl-sticky2 .sticky-col-1{left:0;min-width:110px;z-index:2}
-.tbl-sticky2 .sticky-col-2{left:110px;min-width:190px;z-index:2;border-right:1px solid rgba(201,162,39,.3)}
-.tbl-sticky2 th.sticky-col{z-index:21;background:linear-gradient(90deg,var(--navy2),var(--navy3))}
+.tbl-sticky2 .sticky-col-1{left:0;min-width:140px;z-index:2}
+.tbl-sticky2 .sticky-col-2{left:140px;min-width:190px;z-index:2;border-right:1px solid rgba(201,162,39,.3)}
+.tbl-sticky2 th.sticky-col{z-index:30;background:linear-gradient(90deg,var(--navy2),var(--navy3))}
 .tbl-sticky2 tr:hover td.sticky-col{background:#122a4f}
 
 /* Finance Detail: compact this page's own filterbar/KPI/panel spacing
