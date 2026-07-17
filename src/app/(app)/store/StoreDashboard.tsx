@@ -15,8 +15,11 @@ const IndonesiaMap = dynamic(() => import("./IndonesiaMap"), { ssr: false });
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
-const GOLD = "#c9a227";
-const PALETTE = ["#c9a227","#3b82f6","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4","#f97316","#14b8a6","#e8c84a"];
+// Brand palette — same gold/blue-only set as Dashboard/Ads Performance/
+// Finance Detail (no green/red/purple/pink chart colors anywhere in this app).
+const GOLD = "#c9a227", GOLD_L = "#f0d870", GOLD_D = "#8a6f1c";
+const BLUE = "#3b82f6", BLUE_L = "#60a5fa", BLUE_PALE = "#93c5fd", BLUE_D = "#1d4ed8";
+const PALETTE = [GOLD, BLUE, GOLD_L, BLUE_L, BLUE_PALE, GOLD_D, BLUE_D, "#f5e6a8"];
 
 const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const numFull = (n: number) => Math.round(n || 0).toLocaleString("id-ID");
@@ -149,27 +152,20 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Total Product Return</div><div className="val">{k ? numFull(k.total_return) : "—"}</div><div className="kpi-sub">Unit dikembalikan</div></div>
       </div>
 
-      {/* Map */}
-      <div className="row">
+      {/* Map + SLA bucket, side by side */}
+      <div className="row c2">
         <Panel title="Peta GMV per Provinsi" hint="Semakin gelap warna, semakin tinggi GMV di provinsi tersebut — arahkan kursor untuk detail">
           <IndonesiaMap data={d?.province_gmv.map((p) => ({ province: p.province, gmv: p.gmv })) || []} />
-        </Panel>
-      </div>
-
-      {/* Jenis Bayar + SLA bucket */}
-      <div className="row c2">
-        <Panel title="Jenis Bayar" hint="Jumlah pesanan per metode pembayaran">
-          <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} />
         </Panel>
         <Panel title="SLA (Bayar → Selesai)" hint="Distribusi pesanan berdasarkan lama waktu bayar sampai selesai">
           <SimpleBarChart data={slaBuckets} dataKey="cnt" xKey="bucket" color={GOLD} />
         </Panel>
       </div>
 
-      {/* Cancellation + shipping option */}
+      {/* Jenis Bayar + Jenis Kurir, side by side */}
       <div className="row c2">
-        <Panel title="Status Pembatalan" hint="Jumlah pesanan per status pembatalan/pengembalian">
-          <DonutChart data={(d?.cancel_status || []).map((p) => ({ name: p.status, value: p.cnt }))} />
+        <Panel title="Jenis Bayar" hint="Jumlah pesanan per metode pembayaran">
+          <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} />
         </Panel>
         <Panel title="Jenis Kurir / Opsi Kirim" hint="Jumlah pesanan per opsi pengiriman — top 10, sisanya digabung jadi Lainnya">
           <DonutChart data={topNPlusOthers((d?.shipping_option || []).map((p) => ({ name: p.option, value: p.cnt })), 10)} />
