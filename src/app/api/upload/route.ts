@@ -148,8 +148,13 @@ export async function POST(req: NextRequest) {
         // fixed column position instead — see mapRow()'s ads branch.
         raw[`__COL_${XLSX.utils.encode_col(i)}`] = val;
         if (!h) return;
-        raw[h] = val;
-        raw[bqCol(h)] = val; // also store sanitized key so mapRow's get() hits
+        // Shopee's SPOS "Performa Produk" export repeats the header text
+        // "Kode Variasi" on TWO columns (D = the real variant code, G =
+        // always "-") — first-occurrence-wins here so the later, always-
+        // blank duplicate can't silently clobber the real value. Column-
+        // letter keys above are unaffected by this either way.
+        if (!(h in raw)) raw[h] = val;
+        if (!(bqCol(h) in raw)) raw[bqCol(h)] = val; // also store sanitized key so mapRow's get() hits
       });
       const row = mapRow(source, raw, manual);
       return { ...row, client_id: clientId, upload_id: upload.id };
