@@ -195,15 +195,19 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
    base classes — scoped entirely via this wrapper, never edit the base
    rules above for this. */
 .fin-compact .filterbar{padding:9px 12px;margin-bottom:12px;gap:8px}
-.fin-compact .kpi-grid,.fin-compact .kpi-grid-5{gap:10px;margin-bottom:10px}
+.fin-compact .kpi-grid,.fin-compact .kpi-grid-5,.fin-compact .kpi-grid-10{gap:10px;margin-bottom:10px}
+.fin-compact .kpi-grid-10{grid-template-columns:repeat(10,1fr)}
+@media(max-width:1400px){.fin-compact .kpi-grid-10{grid-template-columns:repeat(5,1fr)}}
 .fin-compact .kpi{padding:11px 13px}
 .fin-compact .kpi .lbl{font-size:9.5px}
 .fin-compact .kpi .val{margin-top:4px;font-size:clamp(15px,1.6vw,20px)}
 .fin-compact .kpi .kpi-icon{top:10px;right:11px;font-size:16px}
-.fin-compact .row{margin-bottom:10px;gap:12px}
+.fin-compact .row{margin-bottom:8px;gap:12px}
 .fin-compact .panel{padding:12px}
 .fin-compact .panel h3{margin-bottom:2px;font-size:14px}
 .fin-compact .panel .hint{margin-bottom:8px}
+/* toggle strip for the Detail Transaksi / Detail Product Profit tabs */
+.fin-compact .tbl-tabs{display:flex;gap:8px;margin-bottom:8px}
 .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
 .pill.good{background:rgba(34,197,94,.16);color:#4ade80}
 .pill.warn{background:rgba(245,158,11,.16);color:#fbbf24}
@@ -250,7 +254,7 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
   color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25)}
 
 @media(max-width:1100px){
-  .kpi-grid{grid-template-columns:repeat(3,1fr)}
+  .kpi-grid,.kpi-grid-10{grid-template-columns:repeat(3,1fr)}
   .row.c2,.row.c2b,.row.c4{grid-template-columns:1fr}
 }
 @media(max-width:760px){
@@ -269,7 +273,7 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
      stacked, including the oversized role badge. */
   .topbar{display:none!important}
   .filterbar{margin:12px 14px;border-radius:14px}
-  .kpi-grid{grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px 6px;margin-bottom:2px}
+  .kpi-grid,.kpi-grid-10{grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px 6px;margin-bottom:2px}
   .kpi:hover{transform:none}
   .row,.row.c2,.row.c2b,.row.c4{display:flex;flex-direction:column;gap:10px;margin:0;padding:0 14px}
   .panel{border-radius:18px;padding:14px;margin-bottom:10px}

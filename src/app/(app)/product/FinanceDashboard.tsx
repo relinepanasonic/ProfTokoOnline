@@ -61,6 +61,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [pd, setPd] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<string | null>(null);
+  const [activeTable, setActiveTable] = useState<"transaksi" | "profit">("transaksi");
 
   const checkData = useCallback(async () => {
     if (!clientId) return;
@@ -165,17 +166,14 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </div>
       ) : (
       <>
-      {/* Row 1 — headline P&L */}
-      <div className="kpi-grid kpi-grid-5">
+      {/* All 10 KPIs in one row — was 2 stacked rows of 5, merged to
+          reclaim a whole row's height (see .kpi-grid-10 in globals.css). */}
+      <div className="kpi-grid kpi-grid-10">
         <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Gross Sales</div><div className="val">{k ? rpC(k.sales) : "—"}</div><MiniSparkline data={salesSeries} color={GOLD} /></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">Gross Profit</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><MiniSparkline data={profitSeries} color={GOLD} /></div>
         <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Spent</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><MiniSparkline data={adsSeries} color="#657f9c" /></div>
         <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><MiniSparkline data={modalSeries} color="#c98f4a" /></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">Nett Profit</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><MiniSparkline data={nettSeries} color={nettProfit >= 0 ? "#4ade80" : "#f87171"} /></div>
-      </div>
-
-      {/* Row 2 — cost breakdown (red glow on hover) */}
-      <div className="kpi-grid kpi-grid-5">
         <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">Promotion Cost</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><MiniSparkline data={promoSeries} color="#d17e7e" /></div>
         <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Pengembalian Dana</div><div className="val">{k ? rpC(k.refund) : "—"}</div><MiniSparkline data={refundSeries} color="#d17e7e" /></div>
         <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">Delivery Cost</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><MiniSparkline data={deliverySeries} color="#d17e7e" /></div>
@@ -207,9 +205,16 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </Panel>
       </div>
 
-      {/* Daily table */}
+      {/* Two big tables were stacking vertically (~400px+ each) even with
+          their own maxHeight — tabbed instead of stacked so only one is
+          ever on screen at a time. */}
+      <div className="tbl-tabs">
+        <button onClick={() => setActiveTable("transaksi")} style={tableTabBtn(activeTable === "transaksi")}>Detail Transaksi per Hari</button>
+        <button onClick={() => setActiveTable("profit")} style={tableTabBtn(activeTable === "profit")}>Detail Product Profit</button>
+      </div>
+
+      {activeTable === "transaksi" ? (
       <div className="panel">
-        <h3>Detail Transaksi per Hari</h3>
         <div className="hint">Klik baris untuk melihat detail transaksi hari itu · tanggal berdasarkan dana dilepaskan</div>
         <div className="tbl-wrap" style={{ maxHeight: 350 }}>
           <table className="tbl">
@@ -237,9 +242,9 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
           </table>
         </div>
       </div>
-
-      {/* Detail Product Profit */}
-      <ProductProfitTable rows={pd?.rows || []} hasOrders={pd?.has_orders ?? false} />
+      ) : (
+        <ProductProfitTable rows={pd?.rows || []} hasOrders={pd?.has_orders ?? false} />
+      )}
 
       {drill && (
         <DayDrillDown day={drill} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setDrill(null)} />
@@ -464,6 +469,14 @@ function Panel({ title, hint, children }: { title: string; hint: string; childre
 }
 function Empty() {
   return <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>No data yet</div>;
+}
+function tableTabBtn(active: boolean): React.CSSProperties {
+  return {
+    padding: "9px 20px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+    border: `1px solid ${active ? "var(--gold)" : "rgba(201,162,39,.2)"}`,
+    background: active ? "linear-gradient(135deg,var(--gold),var(--gold-soft))" : "rgba(10,22,40,.5)",
+    color: active ? "var(--navy-deep)" : "#cdd9f0",
+  };
 }
 type GrossNettMonth = { month: string; sales: number; nett_profit: number };
 function buildGrossNettData(d: Summary | null, pd: ProductDetail | null): GrossNettMonth[] {
