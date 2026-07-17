@@ -71,7 +71,7 @@ body{
   background:linear-gradient(180deg, rgba(15,32,64,.97), rgba(10,22,40,.98));
   border-right:1px solid var(--card-border);backdrop-filter:blur(18px);color:var(--text-2);
 }
-.main{flex:1;margin-left:248px;padding:18px 22px 40px}
+.main{flex:1;margin-left:248px;padding:18px 22px 40px;min-width:0}
 
 .brand{display:flex;align-items:center;gap:11px;padding:6px 4px 16px;border-bottom:1px solid var(--line)}
 .brand .logo{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
@@ -166,7 +166,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover{opacity:1}
 .panel .hint{font-size:11px;color:var(--muted);margin-bottom:10px}
 
 /* Table */
-.tbl-wrap{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.tbl-wrap{overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch;max-width:100%}
 /* always-visible gold scrollbar for wide read-only tables (Market Fee) */
 .scroll-x{scrollbar-color:rgba(201,162,39,.55) rgba(255,255,255,.05);scrollbar-width:auto}
 .scroll-x::-webkit-scrollbar{height:12px;width:12px}
