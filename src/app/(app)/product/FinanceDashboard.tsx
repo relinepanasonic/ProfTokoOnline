@@ -40,9 +40,14 @@ type Summary = {
 };
 type ProductRow = {
   kode_produk: string; nama_produk: string | null; kode_variasi: string; nama_variasi: string | null;
-  total_sales: number; total_modal: number; profit: number;
+  total_sales: number; total_modal: number;
+  promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number;
+  marketplace_fee: number; ads_cost: number; nett_profit: number;
 };
-type ProductDetail = { rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[] };
+type ProductDetail = {
+  rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
+  has_orders: boolean;
+};
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type FinanceFilters = { years: number[]; months: string[] };
 
@@ -237,7 +242,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       </div>
 
       {/* Detail Product Profit */}
-      <ProductProfitTable rows={pd?.rows || []} />
+      <ProductProfitTable rows={pd?.rows || []} hasOrders={pd?.has_orders ?? false} />
 
       {drill && (
         <DayDrillDown day={drill} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setDrill(null)} />
@@ -248,9 +253,10 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   );
 }
 
-/* ── Detail Product Profit: search + sortable table ── */
-type SortKey = "total_sales" | "total_modal" | "profit";
-function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
+/* ── Detail Product Profit: 13-column variant-level P&L, search + sortable ── */
+type SortKey = "total_sales" | "total_modal" | "promotion_cost" | "refund" | "delivery_cost"
+  | "affiliate_cost" | "marketplace_fee" | "ads_cost" | "nett_profit";
+function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders: boolean }) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("total_sales");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -274,7 +280,23 @@ function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
   return (
     <div className="panel">
       <h3>Detail Product Profit</h3>
-      <div className="hint">Total Sales vs Total Modal Product (Harga Modal × unit terjual) per produk/variasi, untuk periode dan filter yang dipilih</div>
+      <div className="hint">
+        P&amp;L lengkap per produk/variasi untuk periode dan filter yang dipilih. Ads Cost dibagi proporsional dari Kode Produk induk berdasar porsi Sales tiap variasi.
+        Promotional Cost/Pengembalian Dana/Delivery Cost/Affiliate Cost/Market Place Fee adalah alokasi (bukan pencatatan langsung per produk) — dihitung dari data Keuangan yang diproporsikan lewat Order Selesai berdasar Subtotal Pesanan tiap baris.
+      </div>
+
+      {!hasOrders ? (
+        <div className="coming">
+          <div className="big">🔒</div>
+          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Upload File OrderComplete to Continue</h3>
+          <p style={{ maxWidth: 460, margin: 0 }}>
+            Kolom Promotional Cost / Pengembalian Dana / Delivery Cost / Affiliate Cost / Market Place Fee butuh data Order Selesai untuk menjembatani Data Keuangan ke level produk/variasi.
+            Belum ada data Order Selesai untuk filter Store/Bulan/Tahun yang dipilih.
+          </p>
+          <a href="/upload" className="btn-gold" style={{ display: "inline-block", marginTop: 4 }}>⬆ Upload Order Selesai</a>
+        </div>
+      ) : (
+      <>
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
         <div className="fld" style={{ minWidth: 260 }}>
           <label>Cari</label>
@@ -283,32 +305,48 @@ function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
             style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
         </div>
       </div>
-      <div className="tbl-wrap" style={{ maxHeight: 440 }}>
-        <table className="tbl">
+      <div className="tbl-wrap" style={{ maxHeight: 480 }}>
+        <table className="tbl tbl-sticky2">
           <thead><tr>
-            <th>Kode Product</th><th>Nama Product</th><th>Kode Variasi</th><th>Nama Variasi</th>
-            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("total_sales")}>Total Sales{arrow("total_sales")}</th>
-            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
-            <th className="num" style={{ cursor: "pointer" }} onClick={() => toggleSort("profit")}>Profit{arrow("profit")}</th>
+            <th className="sticky-col sticky-col-1">Kode Product</th>
+            <th className="sticky-col sticky-col-2">Nama Product</th>
+            <th>Kode Variasi</th><th>Nama Variasi</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_sales")}>Sales{arrow("total_sales")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("promotion_cost")}>Promotional Cost{arrow("promotion_cost")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("refund")}>Pengembalian Dana{arrow("refund")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("delivery_cost")}>Delivery Cost{arrow("delivery_cost")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("affiliate_cost")}>Affiliate Cost{arrow("affiliate_cost")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("marketplace_fee")}>Market Place Fee{arrow("marketplace_fee")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("ads_cost")}>Ads Cost{arrow("ads_cost")}</th>
+            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("nett_profit")}>Nett Profit{arrow("nett_profit")}</th>
           </tr></thead>
           <tbody>
             {filtered.map((r) => (
               <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
-                <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_produk}</td>
-                <td>{r.nama_produk || "—"}</td>
-                <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_variasi}</td>
-                <td>{r.nama_variasi || "—"}</td>
-                <td className="num">{rpFull(r.total_sales)}</td>
-                <td className="num">{rpFull(r.total_modal)}</td>
-                <td className="num" style={{ color: r.profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.profit)}</td>
+                <td className="sticky-col sticky-col-1" style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
+                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }}>{r.nama_produk || "—"}</td>
+                <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{r.nama_variasi || "—"}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_sales)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_modal)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.promotion_cost)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.refund)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.delivery_cost)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.affiliate_cost)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.marketplace_fee)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.ads_cost)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.nett_profit)}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
+              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
             )}
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 }
