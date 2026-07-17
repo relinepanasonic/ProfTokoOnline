@@ -190,18 +190,15 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </Panel>
       </div>
 
-      {/* Fee + Discount */}
-      <div className="row c2">
+      {/* Fee + Discount + Pies — one row, 4 across, so 4 breakdown charts
+          only cost one stacked row's height instead of two. */}
+      <div className="row c4">
         <Panel title="Monthly Biaya Marketplace" hint="Total Admin & Layanan fee per bulan">
           <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" top="#8896a4" bottom="#525f6d" />
         </Panel>
         <Panel title="Monthly Promotion Cost" hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
           <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" top="#cdae66" bottom="#8c7233" />
         </Panel>
-      </div>
-
-      {/* Pies */}
-      <div className="row c2">
         <Panel title="Metode Bayar" hint="Jumlah pesanan per metode pembayaran">
           <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} />
         </Panel>
@@ -214,7 +211,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       <div className="panel">
         <h3>Detail Transaksi per Hari</h3>
         <div className="hint">Klik baris untuk melihat detail transaksi hari itu · tanggal berdasarkan dana dilepaskan</div>
-        <div className="tbl-wrap" style={{ maxHeight: 440 }}>
+        <div className="tbl-wrap" style={{ maxHeight: 350 }}>
           <table className="tbl">
             <thead><tr>
               <th>Tanggal</th><th className="num">Orders</th><th className="num">Sales</th>
@@ -305,7 +302,7 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
             style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
         </div>
       </div>
-      <div className="tbl-wrap" style={{ maxHeight: "calc(100vh - 450px)" }}>
+      <div className="tbl-wrap" style={{ maxHeight: 450 }}>
         <table className="tbl tbl-sticky2">
           <thead><tr>
             <th className="sticky-col sticky-col-1">Kode Product</th>
