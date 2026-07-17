@@ -181,6 +181,8 @@ export async function POST(req: NextRequest) {
   // Same reasoning for Ads Performance (migration 0067) — only ads uploads
   // feed ads_rollup, no need to refresh it for spos/perf.
   if (source === "ads") await admin.rpc("refresh_ads_rollup");
+  // Modal Product's catalog (migration 0071) — only spos uploads feed it.
+  if (source === "spos") await admin.rpc("refresh_product_catalog");
 
   return NextResponse.json({ ok: true, upload_id: upload.id, rows: inserted });
 }

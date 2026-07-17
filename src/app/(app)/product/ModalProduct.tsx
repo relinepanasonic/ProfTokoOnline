@@ -4,11 +4,11 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 
-type AvgRow = {
+type CatalogRow = {
   kode_produk: string; kode_variasi: string;
   nama_produk: string | null; nama_variasi: string | null;
-  total_sales: number; total_units: number; avg_price: number | null;
-  locked: boolean;
+  has_variant: boolean; last_price: number | null;
+  pic_client: string | null; store_name: string | null;
 };
 type CostRow = { kode_produk: string; kode_variasi: string; harga_modal: number | null };
 type Link = { owner: string | null; store_name: string | null };
@@ -24,10 +24,15 @@ function formatRpInput(digits: string): string {
 function stripToDigits(v: string): string {
   return v.replace(/[^0-9]/g, "");
 }
+// A '-' placeholder row for a product that HAS variants is shown for
+// context but can't take its own cost — only its variant rows can.
+function isLocked(r: CatalogRow): boolean {
+  return r.kode_variasi === "-" && r.has_variant;
+}
 
 export default function ModalProduct({ clientId }: { clientId: string }) {
   const [supabase] = useState(() => createClient());
-  const [rows, setRows] = useState<AvgRow[] | null>(null);
+  const [rows, setRows] = useState<CatalogRow[] | null>(null);
   const [costs, setCosts] = useState<Map<string, string>>(new Map()); // key -> raw digits (pre-filled from the last save)
   const [dirty, setDirty] = useState<Set<string>>(new Set()); // keys edited since the last Save click
   const [saving, setSaving] = useState(false);
@@ -53,11 +58,17 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
 
   const load = useCallback(async () => {
     if (!clientId) return;
-    const [{ data: avg }, { data: cc }] = await Promise.all([
-      supabase.rpc("product_avg_price", { p_owner: sel.owner || null, p_store: sel.store || null }),
+    let q = supabase.from("product_catalog")
+      .select("kode_produk,kode_variasi,nama_produk,nama_variasi,has_variant,last_price,pic_client,store_name")
+      .eq("client_id", clientId)
+      .order("nama_produk").order("kode_produk").order("has_variant", { ascending: false }).order("kode_variasi");
+    if (sel.owner) q = q.eq("pic_client", sel.owner);
+    if (sel.store) q = q.eq("store_name", sel.store);
+    const [{ data: cat }, { data: cc }] = await Promise.all([
+      q,
       supabase.from("product_costs").select("kode_produk,kode_variasi,harga_modal").eq("client_id", clientId),
     ]);
-    setRows((avg as AvgRow[]) || []);
+    setRows((cat as CatalogRow[]) || []);
     const m = new Map<string, string>();
     for (const c of (cc as CostRow[]) || []) {
       if (c.harga_modal != null) m.set(key(c.kode_produk, c.kode_variasi), String(Math.round(c.harga_modal)));
@@ -92,7 +103,7 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
     const byKey = new Map(rows.map((r) => [key(r.kode_produk, r.kode_variasi), r]));
     const updates = Array.from(dirty)
       .map((k) => byKey.get(k))
-      .filter((r): r is AvgRow => !!r && !r.locked)
+      .filter((r): r is CatalogRow => !!r && !isLocked(r))
       .map((r) => ({
         client_id: clientId,
         kode_produk: r.kode_produk,
@@ -114,7 +125,7 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
   return (
     <div className="panel">
       <h3>Modal Product</h3>
-      <div className="hint">Harga modal (cost) per produk/variasi — masukkan manual, tersimpan lintas upload. Produk dengan variasi hanya bisa diisi di baris variasinya (baris produk terkunci). AVG Harga Jual dihitung dari seluruh histori SPOS (Penjualan Siap Dikirim ÷ Produk Siap Dikirim).</div>
+      <div className="hint">Harga modal (cost) per produk/variasi — masukkan manual, tersimpan lintas upload. Produk dengan variasi hanya bisa diisi di baris variasinya (baris produk terkunci). Harga Jual Terakhir memakai bulan terbaru saja (Penjualan Siap Dikirim ÷ Produk Siap Dikirim), bukan rata-rata seluruh histori.</div>
       <div className="filterbar" style={{ marginTop: 10 }}>
         <Sel label="Owner" value={sel.owner} onChange={(v) => setSel({ owner: v, store: "" })} opts={owners} all="All Owners" />
         <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="All Stores" />
@@ -136,22 +147,23 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
         <table className="tbl">
           <thead><tr>
             <th>Kode Product</th><th>Nama Product</th><th>Kode Variasi</th><th>Nama Variasi</th>
-            <th className="num">AVG Harga Jual</th><th className="num">Harga Modal Product</th>
+            <th className="num">Harga Jual Terakhir</th><th className="num">Harga Modal Product</th>
           </tr></thead>
           <tbody>
             {filtered.map((r) => {
               const k = key(r.kode_produk, r.kode_variasi);
               const digits = costs.get(k) ?? "";
               const isDirty = dirty.has(k);
+              const locked = isLocked(r);
               return (
-                <tr key={k} style={r.locked ? { background: "rgba(255,255,255,.03)" } : undefined}>
+                <tr key={k} style={locked ? { background: "rgba(255,255,255,.03)" } : undefined}>
                   <td style={{ fontFamily: "monospace", fontSize: 12 }}>{r.kode_produk}</td>
                   <td>{r.nama_produk || "—"}</td>
-                  <td style={{ fontFamily: "monospace", fontSize: 12, color: r.locked ? "var(--muted)" : undefined }}>{r.locked ? "—" : r.kode_variasi}</td>
-                  <td style={{ color: r.locked ? "var(--muted)" : undefined, fontStyle: r.locked ? "italic" : undefined }}>{r.locked ? "Ada variasi — isi di baris variasi" : (r.nama_variasi || "—")}</td>
-                  <td className="num">{r.avg_price != null ? rpFull(r.avg_price) : "—"}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12, color: locked ? "var(--muted)" : undefined }}>{locked ? "—" : r.kode_variasi}</td>
+                  <td style={{ color: locked ? "var(--muted)" : undefined, fontStyle: locked ? "italic" : undefined }}>{locked ? "Ada variasi — isi di baris variasi" : (r.nama_variasi || "—")}</td>
+                  <td className="num">{r.last_price != null ? rpFull(r.last_price) : "—"}</td>
                   <td className="num">
-                    {r.locked ? (
+                    {locked ? (
                       <div style={{ display: "flex", justifyContent: "flex-end", color: "var(--muted)", fontSize: 12 }}>🔒 Terkunci</div>
                     ) : (
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
