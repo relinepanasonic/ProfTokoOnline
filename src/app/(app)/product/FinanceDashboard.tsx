@@ -281,10 +281,6 @@ function ProductProfitTable({ rows }: { rows: ProductRow[] }) {
   return (
     <div className="panel">
       <h3>Detail Product Profit</h3>
-      <div className="hint">
-        P&amp;L lengkap per produk/variasi untuk periode dan filter yang dipilih. Ads Cost dibagi proporsional dari Kode Produk induk berdasar porsi Sales tiap variasi.
-        Promotional Cost/Pengembalian Dana/Delivery Cost/Affiliate Cost/Market Place Fee adalah alokasi (bukan pencatatan langsung per produk) — koefisien = Total biaya se-toko ÷ Total Sales se-toko, dikalikan Sales masing-masing baris.
-      </div>
 
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
         <div className="fld" style={{ minWidth: 260 }}>
