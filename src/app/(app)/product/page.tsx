@@ -47,7 +47,7 @@ export default function Page() {
     <UploadGate table="finance_rows">
     <>
       {canManage && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
           {tabs.map((t) => (
             <button key={t.v} onClick={() => setTab(t.v)} style={tabBtn(tab === t.v)}>{t.l}</button>
           ))}

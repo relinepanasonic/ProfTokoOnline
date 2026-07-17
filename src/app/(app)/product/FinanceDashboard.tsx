@@ -139,7 +139,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const feeSeries = seriesFrom(d?.monthly_costs, "marketplace_fee");
 
   return (
-    <>
+    <div className="fin-compact">
       {/* filters — Owner + Store only at first; Year/Month/Week auto-reveal once a store is picked */}
       <div className="filterbar">
         <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
@@ -249,7 +249,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       )}
       </>
       )}
-    </>
+    </div>
   );
 }
 
@@ -305,7 +305,7 @@ function ProductProfitTable({ rows, hasOrders }: { rows: ProductRow[]; hasOrders
             style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
         </div>
       </div>
-      <div className="tbl-wrap" style={{ maxHeight: 480 }}>
+      <div className="tbl-wrap" style={{ maxHeight: "calc(100vh - 450px)" }}>
         <table className="tbl tbl-sticky2">
           <thead><tr>
             <th className="sticky-col sticky-col-1">Kode Product</th>
