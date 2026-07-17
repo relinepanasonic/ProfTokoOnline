@@ -33,6 +33,7 @@ function isLocked(r: CatalogRow): boolean {
 export default function ModalProduct({ clientId }: { clientId: string }) {
   const [supabase] = useState(() => createClient());
   const [rows, setRows] = useState<CatalogRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
   const [costs, setCosts] = useState<Map<string, string>>(new Map()); // key -> raw digits (pre-filled from the last save)
   const [dirty, setDirty] = useState<Set<string>>(new Set()); // keys edited since the last Save click
   const [saving, setSaving] = useState(false);
@@ -56,14 +57,16 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
     ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.store_name).filter(Boolean) as string[]))
     : Array.from(new Set(links.map((l) => l.store_name).filter(Boolean) as string[])), [links, sel.owner]);
 
+  // Same gate as Finance Detail / Ops Performance: nothing loads (and no
+  // product names leak into the table) until a Store is actually picked.
   const load = useCallback(async () => {
-    if (!clientId) return;
-    let q = supabase.from("product_catalog")
+    if (!clientId || !sel.store) { setRows(null); return; }
+    setLoading(true);
+    const q = supabase.from("product_catalog")
       .select("kode_produk,kode_variasi,nama_produk,nama_variasi,has_variant,last_price,pic_client,store_name")
       .eq("client_id", clientId)
+      .eq("store_name", sel.store)
       .order("nama_produk").order("kode_produk").order("has_variant", { ascending: false }).order("kode_variasi");
-    if (sel.owner) q = q.eq("pic_client", sel.owner);
-    if (sel.store) q = q.eq("store_name", sel.store);
     const [{ data: cat }, { data: cc }] = await Promise.all([
       q,
       supabase.from("product_costs").select("kode_produk,kode_variasi,harga_modal").eq("client_id", clientId),
@@ -74,7 +77,8 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
       if (c.harga_modal != null) m.set(key(c.kode_produk, c.kode_variasi), String(Math.round(c.harga_modal)));
     }
     setCosts(m);
-  }, [supabase, clientId, sel]);
+    setLoading(false);
+  }, [supabase, clientId, sel.store]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
@@ -120,29 +124,40 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
     setSaveMsg(`✓ ${updates.length} harga modal disimpan`);
   }
 
-  if (rows === null) return <Loader center />;
-
   return (
     <div className="panel">
       <h3>Modal Product</h3>
       <div className="hint">Harga modal (cost) per produk/variasi — masukkan manual, tersimpan lintas upload. Produk dengan variasi hanya bisa diisi di baris variasinya (baris produk terkunci). Harga Jual Terakhir memakai bulan terbaru saja (Penjualan Siap Dikirim ÷ Produk Siap Dikirim), bukan rata-rata seluruh histori.</div>
       <div className="filterbar" style={{ marginTop: 10 }}>
         <Sel label="Owner" value={sel.owner} onChange={(v) => setSel({ owner: v, store: "" })} opts={owners} all="All Owners" />
-        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="All Stores" />
-        <div className="fld" style={{ minWidth: 260 }}>
-          <label>Cari</label>
-          <input type="text" placeholder="Kode Produk / Nama Produk / Nama Variasi"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
-        </div>
-        <div className="fld" style={{ justifyContent: "flex-end" }}>
-          <label>&nbsp;</label>
-          <button className="btn-gold" disabled={saving || dirty.size === 0} onClick={saveAll} style={{ padding: "8px 22px" }}>
-            {saving ? "Menyimpan…" : dirty.size > 0 ? `Save (${dirty.size})` : "Save"}
-          </button>
-        </div>
+        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="Pick a store…" />
+        {sel.store && (
+          <div className="fld" style={{ minWidth: 260 }}>
+            <label>Cari</label>
+            <input type="text" placeholder="Kode Produk / Nama Produk / Nama Variasi"
+              value={search} onChange={(e) => setSearch(e.target.value)}
+              style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+          </div>
+        )}
+        {sel.store && (
+          <div className="fld" style={{ justifyContent: "flex-end" }}>
+            <label>&nbsp;</label>
+            <button className="btn-gold" disabled={saving || dirty.size === 0} onClick={saveAll} style={{ padding: "8px 22px" }}>
+              {saving ? "Menyimpan…" : dirty.size > 0 ? `Save (${dirty.size})` : "Save"}
+            </button>
+          </div>
+        )}
+        {loading && <Loader />}
       </div>
       {saveMsg && <div className="hint" style={{ marginTop: 6, color: saveMsg.startsWith("✗") ? "#f87171" : "#86efac" }}>{saveMsg}</div>}
+
+      {!sel.store ? (
+        <div className="coming">
+          <div className="big">🏬</div>
+          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Pilih Toko</h3>
+          <p style={{ maxWidth: 420, margin: 0 }}>Modal Product ditampilkan per store — pilih satu Store di atas untuk lanjut.</p>
+        </div>
+      ) : rows === null ? null : (
       <div className="tbl-wrap" style={{ maxHeight: 440 }}>
         <table className="tbl">
           <thead><tr>
@@ -186,6 +201,7 @@ export default function ModalProduct({ clientId }: { clientId: string }) {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
