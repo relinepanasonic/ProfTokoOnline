@@ -54,7 +54,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [pd, setPd] = useState<ProductDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<string | null>(null);
 
   const checkData = useCallback(async () => {
