@@ -1,15 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
-type UploadRow = {
-  id: string; filename: string | null; row_count: number; created_at: string;
-  meta: { pic_client?: string; store_name?: string; bulan?: string; year?: number } | null;
-};
 
 export default function StoreUpload({ clientId, onUploaded }: { clientId: string; onUploaded: () => void }) {
   const [supabase] = useState(() => createClient());
@@ -18,24 +14,14 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
   const [links, setLinks] = useState<Link[]>([]);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState("");
-  const [uploads, setUploads] = useState<UploadRow[]>([]);
-
-  const loadUploads = useCallback(async (cid: string) => {
-    const { data } = await supabase.from("uploads")
-      .select("id,filename,row_count,created_at,meta")
-      .eq("client_id", cid).eq("source", "orders")
-      .order("created_at", { ascending: false });
-    setUploads((data as UploadRow[]) || []);
-  }, [supabase]);
 
   useEffect(() => {
     if (!clientId) return;
     (async () => {
       const { data: sl } = await supabase.from("store_links").select("owner,brand,store_name").eq("client_id", clientId).order("created_at");
       setLinks((sl as Link[]) || []);
-      loadUploads(clientId);
     })();
-  }, [clientId, supabase, loadUploads]);
+  }, [clientId, supabase]);
 
   const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
   const brandsForOwner = m.pic_client
@@ -58,15 +44,9 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
       const res = await fetch("/api/store/upload", { method: "POST", body: fd });
       const j = await res.json();
       setLog(res.ok ? `✓ ${j.rows} order rows imported` : `✗ ${j.error}`);
-      if (res.ok) { setFile(null); loadUploads(clientId); onUploaded(); }
+      if (res.ok) { setFile(null); onUploaded(); }
     } catch (e) { setLog("✗ " + String(e)); }
     setBusy(false);
-  }
-
-  async function del(id: string) {
-    if (!confirm("Delete this upload and all its order rows?")) return;
-    await supabase.from("uploads").delete().eq("id", id);
-    loadUploads(clientId); onUploaded();
   }
 
   return (
@@ -130,28 +110,6 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
           {log}
         </div>
       )}
-
-      {uploads.length > 0 && (
-        <div className="tbl-wrap" style={{ marginTop: 20 }}>
-          <table className="tbl">
-            <thead><tr><th>Owner</th><th>Store</th><th>Month</th><th>Year</th><th className="num">Rows</th><th>File</th><th>Uploaded</th><th></th></tr></thead>
-            <tbody>
-              {uploads.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.meta?.pic_client || "—"}</td>
-                  <td>{u.meta?.store_name || "—"}</td>
-                  <td>{u.meta?.bulan || "—"}</td>
-                  <td>{u.meta?.year || "—"}</td>
-                  <td className="num">{u.row_count?.toLocaleString("id-ID") || 0}</td>
-                  <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={u.filename || ""}>{u.filename || "—"}</td>
-                  <td style={{ whiteSpace: "nowrap", color: "var(--muted)", fontSize: 12 }}>{new Date(u.created_at).toLocaleDateString("id-ID")}</td>
-                  <td><button onClick={() => del(u.id)} style={delBtn}>Delete</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
@@ -164,4 +122,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-const delBtn: React.CSSProperties = { background: "rgba(255,80,80,.12)", border: "1px solid rgba(255,90,90,.3)", color: "#ff9a9a", borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 12 };

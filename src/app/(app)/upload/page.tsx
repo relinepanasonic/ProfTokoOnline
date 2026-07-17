@@ -10,6 +10,8 @@ import UploadIklan from "../ads/UploadIklan";
 import FinanceUpload from "../product/FinanceUpload";
 import StoreUpload from "../store/StoreUpload";
 import { LEVELS } from "@/lib/adsConstants";
+import { GUIDE } from "@/lib/uploadGuides";
+import BrowseFile from "@/components/BrowseFile";
 
 export const dynamic = "force-dynamic";
 
@@ -283,8 +285,9 @@ export default function UploadPage() {
         <CardLabel title="Store Performance" sub="All Level" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 20 }}>
           {SLOTS.filter((s) => CARD1_SOURCES.includes(s.source)).map((s) => (
-            <FileSlot key={s.source} slot={s} file={files[s.source] ?? null}
-              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))} />
+            <BrowseFile key={s.source} label={s.label} hint={s.hint} file={files[s.source] ?? null}
+              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))}
+              guideImage={s.source === "perf" ? GUIDE.store : GUIDE.product} />
           ))}
         </div>
 
@@ -292,8 +295,9 @@ export default function UploadPage() {
         <CardLabel title="Ads Performance" sub="All Level" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
           {SLOTS.filter((s) => s.source === "ads").map((s) => (
-            <FileSlot key={s.source} slot={s} file={files[s.source] ?? null}
-              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))} />
+            <BrowseFile key={s.source} label={s.label} hint={s.hint} file={files[s.source] ?? null}
+              onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))}
+              guideImage={GUIDE.ads} />
           ))}
         </div>
 
@@ -376,22 +380,6 @@ function CardLabel({ title, sub }: { title: string; sub: string }) {
     <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
       <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--gold)" }}>{title}</span>
       <span style={{ fontSize: 11, color: "var(--muted)" }}>{sub}</span>
-    </div>
-  );
-}
-
-function FileSlot({ slot, file, onPick }: {
-  slot: { source: DataSource; label: string; hint: string; accept: string };
-  file: File | null; onPick: (f: File | null) => void;
-}) {
-  return (
-    <div>
-      <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600 }}>
-        {slot.label} <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>({slot.hint})</span>
-      </label>
-      <input type="file" accept={slot.accept} style={{ fontSize: 12, color: "#bcd", display: "block", marginTop: 6, width: "100%" }}
-        onChange={(e) => onPick(e.target.files?.[0] ?? null)} />
-      {file && <p style={{ marginTop: 6, fontSize: 11, color: "var(--gold)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {file.name}</p>}
     </div>
   );
 }
