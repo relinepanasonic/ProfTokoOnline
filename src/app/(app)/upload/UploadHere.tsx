@@ -94,10 +94,20 @@ export default function UploadHere() {
     ? links.filter((l) => l.brand === manual.brand && (!manual.pic_client || l.owner === manual.pic_client)).map((l) => l.store_name).filter(Boolean) as string[]
     : [];
 
-  // Auto-fill only locks a field when the owner has exactly one option —
-  // otherwise they still pick, just from a list narrowed to their own scope.
-  const brandLocked = isOwnerLogin && brandsForOwner.length === 1;
-  const storeLocked = isOwnerLogin && storesForBrand.length === 1;
+  // Persist a brand/store the user typed on the fly BEFORE any upload POST —
+  // so the /api/upload STORE_NOT_IN_SCOPE guard passes and the value shows
+  // up in the dropdown next time. Idempotent via the (client_id, owner,
+  // brand, store_name) unique index (migration 0087); the owner/admin's own
+  // session is RLS-permitted to write store_links (links_owner_write /
+  // links_admin_all). No-op when the exact combo already exists.
+  async function ensureStoreLink(): Promise<void> {
+    if (!clientId || !manual.pic_client || !manual.brand || !manual.store_name) return;
+    const exists = links.some((l) => l.owner === manual.pic_client && l.brand === manual.brand && l.store_name === manual.store_name);
+    if (exists) return;
+    const row = { client_id: clientId, owner: manual.pic_client, brand: manual.brand, store_name: manual.store_name };
+    await supabase.from("store_links").upsert(row, { onConflict: "client_id,owner,brand,store_name", ignoreDuplicates: true });
+    setLinks((prev) => [...prev, { owner: row.owner, brand: row.brand, store_name: row.store_name }]);
+  }
 
   async function resolveNextWeek(cid: string, store: string, month: string): Promise<string> {
     const { data } = await supabase.from("sales_rows")
@@ -115,6 +125,7 @@ export default function UploadHere() {
     setBusy(true); setLog([]);
     const resolvedCid = clientId;
 
+    await ensureStoreLink();
     const week = await resolveNextWeek(resolvedCid, manual.store_name, manual.bulan);
     const manualToSend = { ...manual, week, tanggal_input: new Date().toISOString() };
     const results: string[] = [];
@@ -173,6 +184,7 @@ export default function UploadHere() {
     if (!clientId || !orderFile || !manual.store_name) return;
     if (!manual.year || !manual.bulan) { setOrderLog("✗ " + t("Year and Bulan are required.")); return; }
     setOrderBusy(true); setOrderLog("");
+    await ensureStoreLink();
     const fd = new FormData();
     fd.append("file", orderFile);
     fd.append("client_id", clientId);
@@ -190,6 +202,7 @@ export default function UploadHere() {
     if (!clientId || !financeFile || !manual.store_name) return;
     if (!manual.year || !manual.bulan) { setFinanceLog("✗ " + t("Year and Bulan are required.")); return; }
     setFinanceBusy(true); setFinanceLog("");
+    await ensureStoreLink();
     const fd = new FormData();
     fd.append("file", financeFile);
     fd.append("client_id", clientId);
@@ -229,20 +242,18 @@ export default function UploadHere() {
               </select>}
         </F>
         <F label={t("Brand")}>
-          {brandLocked
-            ? <ReadonlyField value={manual.brand} />
-            : <select value={manual.brand} onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} disabled={!manual.pic_client}>
-                <option value="">{manual.pic_client ? t("Select brand…") : t("Owner first")}</option>
-                {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>}
+          {/* select-or-create: shows existing brands as suggestions but
+              accepts any typed value; new ones are persisted on submit. */}
+          <input list="uh-brand-list" value={manual.brand} disabled={!manual.pic_client}
+            placeholder={manual.pic_client ? t("Type or select brand…") : t("Owner first")}
+            onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} />
+          <datalist id="uh-brand-list">{brandsForOwner.map((b) => <option key={b} value={b} />)}</datalist>
         </F>
         <F label={t("Store")}>
-          {storeLocked
-            ? <ReadonlyField value={manual.store_name} />
-            : <select value={manual.store_name} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} disabled={!manual.brand}>
-                <option value="">{manual.brand ? t("Select store…") : t("Brand first")}</option>
-                {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>}
+          <input list="uh-store-list" value={manual.store_name} disabled={!manual.brand}
+            placeholder={manual.brand ? t("Type or select store…") : t("Brand first")}
+            onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} />
+          <datalist id="uh-store-list">{storesForBrand.map((s) => <option key={s} value={s} />)}</datalist>
         </F>
       </div>
 

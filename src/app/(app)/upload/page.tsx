@@ -145,12 +145,26 @@ export default function UploadPage() {
     })();
   }, [supabase, reload]);
 
+  // Persist a brand/store the admin typed on the fly (select-or-create) so it
+  // shows up in the dropdown next time. Idempotent via the store_links unique
+  // index (migration 0087); admin's own session is RLS-permitted to write
+  // (links_admin_all). No-op when the exact combo already exists.
+  async function ensureStoreLink() {
+    if (!clientId || !manual.pic_client || !manual.brand || !manual.store_name) return;
+    const exists = links.some((l) => l.owner === manual.pic_client && l.brand === manual.brand && l.store_name === manual.store_name);
+    if (exists) return;
+    const row = { client_id: clientId, owner: manual.pic_client, brand: manual.brand, store_name: manual.store_name };
+    await supabase.from("store_links").upsert(row, { onConflict: "client_id,owner,brand,store_name", ignoreDuplicates: true });
+    setLinks((prev) => [...prev, { owner: row.owner, brand: row.brand, store_name: row.store_name }]);
+  }
+
   async function submit() {
     setBusy(true); setLog([]);
     if (!clientId) { setLog([t("Workspace not ready.")]); setBusy(false); return; }
     if (!manual.year || !manual.bulan) { setLog([t("Year and Bulan are required.")]); setBusy(false); return; }
     const chosen = SLOTS.filter((s) => files[s.source]);
     if (!chosen.length) { setLog([t("Pick at least one file.")]); setBusy(false); return; }
+    await ensureStoreLink();
     const manualToSend = { ...manual, admin: adminName, tanggal_input: new Date().toISOString() };
     for (const slot of chosen) {
       const fd = new FormData();
@@ -250,16 +264,18 @@ export default function UploadPage() {
             </select>
           </Field>
           <Field label={t("Brand")}>
-            <select value={manual.brand} onChange={(e) => pickBrand(e.target.value)} disabled={!manual.pic_client}>
-              <option value="">{manual.pic_client ? t("Select brand…") : t("Pick owner first")}</option>
-              {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
+            {/* select-or-create: existing brands as suggestions, any typed
+                value accepted; new ones persisted to store_links on submit. */}
+            <input list="adm-brand-list" value={manual.brand} disabled={!manual.pic_client}
+              placeholder={manual.pic_client ? t("Type or select brand…") : t("Pick owner first")}
+              onChange={(e) => pickBrand(e.target.value)} />
+            <datalist id="adm-brand-list">{brandsForOwner.map((b) => <option key={b} value={b} />)}</datalist>
           </Field>
           <Field label={t("Store Name")}>
-            <select value={manual.store_name} onChange={(e) => pickStore(e.target.value)} disabled={!manual.brand}>
-              <option value="">{manual.brand ? t("Select store…") : t("Pick brand first")}</option>
-              {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <input list="adm-store-list" value={manual.store_name} disabled={!manual.brand}
+              placeholder={manual.brand ? t("Type or select store…") : t("Pick brand first")}
+              onChange={(e) => pickStore(e.target.value)} />
+            <datalist id="adm-store-list">{storesForBrand.map((s) => <option key={s} value={s} />)}</datalist>
           </Field>
         </div>
 

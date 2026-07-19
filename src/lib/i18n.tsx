@@ -178,6 +178,7 @@ const ID_DICT: Record<string, string> = {
   "Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.":
     "Pilih bulan, konfirmasi toko Anda, dan letakkan file ekspor Shopee — minggu akan terisi otomatis.",
   "Select owner…": "Pilih pemilik…", "Select brand…": "Pilih merek…", "Select store…": "Pilih toko…",
+  "Type or select brand…": "Ketik atau pilih merek…", "Type or select store…": "Ketik atau pilih toko…",
   "Owner first": "Pilih pemilik dulu", "Brand first": "Pilih merek dulu", "Pick owner first": "Pilih pemilik dulu",
   "Pick brand first": "Pilih merek dulu",
   "Store Performance": "Performa Toko", "Order Complete": "Order Selesai",
