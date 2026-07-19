@@ -56,13 +56,14 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadErr, setLoadErr] = useState("");
   const [drill, setDrill] = useState<string | null>(null);
 
   const checkData = useCallback(async () => {
     if (!clientId) return;
     const { count } = await supabase.from("order_rows").select("id", { count: "exact", head: true }).eq("client_id", clientId);
     setHasAnyData((count ?? 0) > 0);
-    const { data: f } = await supabase.rpc("store_perf_filters");
+    const { data: f } = await supabase.rpc("store_perf_filters", { p_client_id: clientId });
     setFilters((f as Filters) || { years: [], months: [] });
     const { data: sl } = await supabase.from("store_links").select("owner,brand,store_name").eq("client_id", clientId);
     setLinks((sl as Link[]) || []);
@@ -74,15 +75,24 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   const load = useCallback(async () => {
     if (!clientId || !hasAnyData || !sel.store) { setD(null); return; }
     setLoading(true);
-    const { data } = await supabase.rpc("store_perf_summary", {
-      p_year: sel.year ? Number(sel.year) : null,
-      p_month: sel.month || null,
-      p_week: sel.week || null,
-      p_owner: sel.owner || null,
-      p_store: sel.store,
-    });
-    setD(data as Summary);
-    setLoading(false);
+    setLoadErr("");
+    try {
+      const { data, error } = await supabase.rpc("store_perf_summary", {
+        p_client_id: clientId,
+        p_year: sel.year ? Number(sel.year) : null,
+        p_month: sel.month || null,
+        p_week: sel.week || null,
+        p_owner: sel.owner || null,
+        p_store: sel.store,
+      });
+      if (error) throw error;
+      setD(data as Summary);
+    } catch (e) {
+      const err = e as { message?: string; code?: string };
+      setLoadErr(err?.message ? `${err.message} (code: ${err.code || "?"})` : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, [supabase, clientId, hasAnyData, sel]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
@@ -115,6 +125,11 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
 
   return (
     <>
+      {loadErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ {t("Failed to load data. Filter is too large or connection is slow.")} ({loadErr})
+        </div>
+      )}
       {/* filters — Owner + Store only at first; Year/Month/Week auto-reveal once a store is picked */}
       <div className="filterbar">
         <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />

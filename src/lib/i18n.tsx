@@ -162,6 +162,7 @@ const ID_DICT: Record<string, string> = {
   "Ship Deadline": "Pesanan di Kirim", "Completed At": "Pesanan Selesai",
   "Courier": "Kurir", "Province": "Provinsi", "Status": "Status",
   "Others": "Lainnya",
+  "Failed to load data. Filter is too large or connection is slow.": "Gagal memuat data. Filter terlalu besar atau koneksi lambat.",
   "Loading map…": "Memuat peta…",
   "City / Regency": "Kota / Kabupaten",
   "Total Product Sold": "Total Produk Terjual",
