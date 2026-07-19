@@ -298,8 +298,8 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
       <div className="tbl-wrap" style={{ maxHeight: 450 }}>
         <table className="tbl tbl-sticky2">
           <thead><tr>
-            <th className="sticky-col sticky-col-1">{t("Product Name")}</th>
-            <th className="sticky-col sticky-col-2">{t("Variant Name")}</th>
+            <th className="sticky-col sticky-col-1"><span className="sticky-inner">{t("Product Name")}</span></th>
+            <th className="sticky-col sticky-col-2"><span className="sticky-inner">{t("Variant Name")}</span></th>
             <th>{t("Product Code")}</th><th>{t("Variant Code")}</th>
             <th className="num" style={{ whiteSpace: "nowrap" }}>{t("Product Sold")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_sales")}>{t("Sales")}{arrow("total_sales")}</th>
@@ -315,8 +315,8 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
           <tbody>
             {filtered.map((r) => (
               <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
-                <td className="sticky-col sticky-col-1" style={{ whiteSpace: "nowrap" }} title={r.nama_produk || undefined}>{r.nama_produk || "—"}</td>
-                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }} title={r.nama_variasi || undefined}>{r.nama_variasi || "—"}</td>
+                <td className="sticky-col sticky-col-1" title={r.nama_produk || undefined}><span className="sticky-inner">{r.nama_produk || "—"}</span></td>
+                <td className="sticky-col sticky-col-2" title={r.nama_variasi || undefined}><span className="sticky-inner">{r.nama_variasi || "—"}</span></td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{r.units_sold.toLocaleString("id-ID")}</td>

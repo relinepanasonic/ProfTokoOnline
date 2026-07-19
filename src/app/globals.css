@@ -187,11 +187,19 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
    the user drags the scrollbar. */
 table.tbl-sticky2{width:max-content;min-width:100%}
 .tbl-sticky2 th.sticky-col,.tbl-sticky2 td.sticky-col{position:sticky;background:var(--navy-deep)}
-.tbl-sticky2 td.sticky-col{overflow:hidden;text-overflow:ellipsis}
-.tbl-sticky2 .sticky-col-1{left:0;width:220px;min-width:220px;max-width:220px;z-index:2}
-.tbl-sticky2 .sticky-col-2{left:220px;width:160px;min-width:160px;max-width:160px;z-index:2;border-right:1px solid rgba(201,162,39,.3)}
+.tbl-sticky2 .sticky-col-1{left:0;z-index:2}
+.tbl-sticky2 .sticky-col-2{left:220px;z-index:2;border-right:1px solid rgba(201,162,39,.3)}
 .tbl-sticky2 th.sticky-col{z-index:30;background:linear-gradient(90deg,var(--navy2),var(--navy3))}
 .tbl-sticky2 tr:hover td.sticky-col{background:#122a4f}
+/* Clip the frozen column content on an inner block — overflow:hidden on a
+   sticky <td> itself is unreliable (the cell sizes to its nowrap content and
+   the tail paints past the frozen box), so long names bled over the scrolled
+   columns. A fixed-width inner div ellipsis-clips deterministically. The
+   left:220px offset of col-2 must equal col-1's total box width (196 + 2×12
+   padding). */
+.tbl-sticky2 .sticky-col .sticky-inner{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl-sticky2 .sticky-col-1 .sticky-inner{width:196px}
+.tbl-sticky2 .sticky-col-2 .sticky-inner{width:136px}
 
 /* Finance Detail: compact this page's own filterbar/KPI/panel spacing
    without affecting Dashboard/Ads/Ops/Modal Product, which reuse the same
