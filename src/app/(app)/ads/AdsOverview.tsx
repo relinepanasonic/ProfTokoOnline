@@ -9,13 +9,14 @@
 // and ROAS (as a gradient, matching the Dashboard's .grad-gold treatment,
 // never solid), everything else blue. recharts only loads here, split via
 // next/dynamic in page.tsx — same convention as DashboardCharts.tsx.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Bar, ComposedChart, Line, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
+import Loader from "@/components/Loader";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -67,46 +68,123 @@ type Summary = {
   monthly: MonthRow[]; sold_sales_trend: SoldSalesRow[];
   groups: GroupRow[]; products: ProductRow[];
 };
+type Filters = { years: number[]; months: string[] };
+type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
 export default function AdsOverview({ clientId, refreshKey }: { clientId: string; refreshKey?: number }) {
   const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [d, setD] = useState<Summary | null>(null);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState<Filters>({ years: [], months: [] });
+  const [links, setLinks] = useState<StoreLink[]>([]);
+  const [sel, setSel] = useState({ year: "", month: "", owner: "", brand: "", store: "" });
 
-  const cacheKey = `ptoko_ads_v2:${clientId}`;
+  const metaCacheKey = `ptoko_ads_meta_v1:${clientId}`;
 
+  // Filters/links load once per client — independent of the summary query,
+  // same split the main Dashboard uses (dashboard_filters + store_links).
   useEffect(() => {
+    if (!clientId) return;
+    try {
+      const raw = localStorage.getItem(metaCacheKey);
+      if (raw) {
+        const m = JSON.parse(raw) as { filters?: Filters; links?: StoreLink[] };
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (m.filters) setFilters(m.filters);
+        if (m.links) setLinks(m.links);
+      }
+    } catch { /* ignore */ }
+
+    (async () => {
+      const [{ data: f }, { data: sl }] = await Promise.all([
+        supabase.rpc("ads_rollup_filters"),
+        supabase.from("store_links").select("owner,brand,store_name").eq("client_id", clientId).order("owner"),
+      ]);
+      if (f) setFilters(f as Filters);
+      setLinks((sl as StoreLink[]) || []);
+      try { localStorage.setItem(metaCacheKey, JSON.stringify({ filters: f, links: sl })); } catch { /* quota */ }
+    })();
+  }, [clientId, supabase, metaCacheKey]);
+
+  const cacheKey = `ptoko_ads_v2:${clientId}:${JSON.stringify(sel)}`;
+
+  const load = useCallback(async () => {
     if (!clientId) return;
     // Stale-while-revalidate: paint the last-seen result instantly (huge
     // win on re-entry — this query can take a few seconds), then refresh
     // in the background. Same pattern the main Dashboard uses.
     try {
       const raw = localStorage.getItem(cacheKey);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setD(JSON.parse(raw) as Summary);
     } catch { /* ignore */ }
 
-    (async () => {
-      const { data, error } = await supabase.rpc("ads_dashboard_summary", {});
-      if (error) setErr(`${error.message} (code: ${error.code || "?"})`);
-      else {
-        setD(data as Summary);
-        setErr("");
-        try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
-      }
-    })();
-  }, [clientId, refreshKey, supabase, cacheKey]);
+    setLoading(true);
+    const { data, error } = await supabase.rpc("ads_dashboard_summary", {
+      p_year:  sel.year  ? Number(sel.year) : null,
+      p_month: sel.month || null,
+      p_owner: sel.owner || null,
+      p_brand: sel.brand || null,
+      p_store: sel.store || null,
+    });
+    if (error) setErr(`${error.message} (code: ${error.code || "?"})`);
+    else {
+      setD(data as Summary);
+      setErr("");
+      try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
+    }
+    setLoading(false);
+  }, [clientId, supabase, cacheKey, sel]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
+  const brandsForOwner = sel.owner
+    ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.brand).filter(Boolean) as string[])).sort()
+    : Array.from(new Set(links.map((l) => l.brand).filter(Boolean) as string[])).sort();
+  const storesForBrandOwner = (() => {
+    let base = links;
+    if (sel.brand) base = base.filter((l) => l.brand === sel.brand);
+    if (sel.owner) base = base.filter((l) => l.owner === sel.owner);
+    return Array.from(new Set(base.map((l) => l.store_name).filter(Boolean) as string[])).sort();
+  })();
+  function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, brand: "", store: "" })); }
+  function pickBrand(brand: string) { setSel((s) => ({ ...s, brand, store: "" })); }
+  function pickStore(store: string) {
+    const link = links.find((l) => l.store_name === store);
+    setSel((s) => ({ ...s, store, owner: link?.owner || s.owner, brand: link?.brand || s.brand }));
+  }
+
+  const filterBar = (
+    <div className="filterbar">
+      <Sel label={t("Year")} value={sel.year} onChange={(v) => setSel((s) => ({ ...s, year: v }))} opts={filters.years.map(String)} all={t("All Years")} />
+      <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
+      {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
+      {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
+      <Sel label={t("Store")} value={sel.store} onChange={pickStore} opts={storesForBrandOwner} all={t("All Stores")} />
+      <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", owner: "", brand: "", store: "" })}>{t("Reset")}</button>
+      {loading && <Loader />}
+    </div>
+  );
 
   if (err && !d) {
     return (
-      <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
-        ⚠ Ads overview query failed: {err}
-      </div>
+      <>
+        {filterBar}
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ Ads overview query failed: {err}
+        </div>
+      </>
     );
   }
   if (!d) {
-    return <div className="panel" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{t("Loading data…")}</div>;
+    return (
+      <>
+        {filterBar}
+        <div className="panel" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{t("Loading data…")}</div>
+      </>
+    );
   }
 
   const totals = d.totals;
@@ -117,6 +195,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
 
   return (
     <>
+      {filterBar}
       {err && (
         <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "10px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 12, fontFamily: "monospace" }}>
           ⚠ Refresh failed, showing last-known data: {err}
@@ -252,6 +331,17 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
         </div>
       </div>
     </>
+  );
+}
+
+function Sel({ label, value, onChange, opts, all }: { label: string; value: string; onChange: (v: string) => void; opts: string[]; all: string }) {
+  return (
+    <div className="fld"><label>{label}</label>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">{all}</option>
+        {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </div>
   );
 }
 

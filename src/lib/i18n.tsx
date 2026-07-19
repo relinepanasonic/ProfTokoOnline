@@ -30,6 +30,7 @@ const ID_DICT: Record<string, string> = {
   "Store": "Toko", "Week": "Minggu", "Reset": "Atur Ulang", "All": "Semua",
   "All Years": "Semua Tahun", "All Months": "Semua Bulan", "All Cities": "Semua Kota",
   "All Owners": "Semua Pemilik", "All Brands": "Semua Merek", "All Weeks": "Semua Minggu",
+  "All Stores": "Semua Store",
   "Pick a store…": "Pilih toko…",
 
   // KPIs
