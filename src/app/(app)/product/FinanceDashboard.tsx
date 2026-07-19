@@ -315,8 +315,8 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
           <tbody>
             {filtered.map((r) => (
               <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
-                <td className="sticky-col sticky-col-1" style={{ whiteSpace: "nowrap" }}>{r.nama_produk || "—"}</td>
-                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }}>{r.nama_variasi || "—"}</td>
+                <td className="sticky-col sticky-col-1" style={{ whiteSpace: "nowrap" }} title={r.nama_produk || undefined}>{r.nama_produk || "—"}</td>
+                <td className="sticky-col sticky-col-2" style={{ whiteSpace: "nowrap" }} title={r.nama_variasi || undefined}>{r.nama_variasi || "—"}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{r.units_sold.toLocaleString("id-ID")}</td>
