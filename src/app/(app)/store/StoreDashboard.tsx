@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
+import { useLang } from "@/lib/i18n";
 
 // d3-geo + topojson-client only matter to this one map — loaded client-side
 // on demand instead of bundled eagerly with the rest of this dashboard.
@@ -46,6 +47,7 @@ type Filters = { years: number[]; months: string[] };
 const SLA_ORDER = ["0-3 hari", "4-7 hari", "7-14 hari", ">14 hari"];
 
 export default function StoreDashboard({ clientId, refreshKey }: { clientId: string; refreshKey: number }) {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [hasAnyData, setHasAnyData] = useState<boolean | null>(null);
   const [filters, setFilters] = useState<Filters>({ years: [], months: [] });
@@ -100,8 +102,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       <div className="panel">
         <div className="coming">
           <div className="big">🏬</div>
-          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Upload Data Operational Performance First</h3>
-          <p style={{ maxWidth: 420, margin: 0 }}>No Shopee Order.completed data has been uploaded yet. Go to the &quot;Upload Operational Performance&quot; tab to import one.</p>
+          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Upload Data Operational Performance First")}</h3>
+          <p style={{ maxWidth: 420, margin: 0 }}>{t("No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Operational Performance\" tab to import one.")}</p>
         </div>
       </div>
     );
@@ -114,16 +116,16 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
     <>
       {/* filters — Owner + Store only at first; Year/Month/Week auto-reveal once a store is picked */}
       <div className="filterbar">
-        <Sel label="Owner" value={sel.owner} onChange={pickOwner} opts={owners} all="All Owners" />
-        <Sel label="Store" value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all="Pick a store…" />
+        <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />
+        <Sel label={t("Store")} value={sel.store} onChange={(v) => setSel((s) => ({ ...s, store: v }))} opts={storesForOwner} all={t("Pick a store…")} />
         {sel.store && (
           <>
-            <Sel label="Year"  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all="All Years" />
-            <Sel label="Month" value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all="All Months" />
-            <Sel label="Week"  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all="All Weeks" />
+            <Sel label={t("Year")}  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={years.map(String)} all={t("All Years")} />
+            <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={months} all={t("All Months")} />
+            <Sel label={t("Week")}  value={sel.week}  onChange={(v) => setSel((s) => ({ ...s, week: v }))}  opts={WEEKS} all={t("All Weeks")} />
           </>
         )}
-        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", store: "" })}>Reset</button>
+        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", week: "", owner: "", store: "" })}>{t("Reset")}</button>
         {loading && <Loader />}
       </div>
 
@@ -131,54 +133,54 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         <div className="panel">
           <div className="coming">
             <div className="big">🏬</div>
-            <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>Pilih Store</h3>
-            <p style={{ maxWidth: 420, margin: 0 }}>Operational Performance ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.</p>
+            <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Choose Store")}</h3>
+            <p style={{ maxWidth: 420, margin: 0 }}>{t("Operational Performance is shown per store — pick a Store above to view its dashboard.")}</p>
           </div>
         </div>
       ) : (
       <>
       <div className="kpi-grid kpi-grid-5">
-        <div className="kpi kpi-hero"><div className="kpi-icon">🧾</div><div className="lbl">Total Transaksi</div><div className="val">{k ? numFull(k.total_transaksi) : "—"}</div><div className="kpi-sub">Pesanan unik</div></div>
-        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">Total Produk Dipesan</div><div className="val">{k ? numFull(k.total_produk) : "—"}</div><div className="kpi-sub">Siap dikirim</div></div>
+        <div className="kpi kpi-hero"><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{k ? numFull(k.total_transaksi) : "—"}</div><div className="kpi-sub">{t("Unique orders")}</div></div>
+        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">{t("Total Product Ordered")}</div><div className="val">{k ? numFull(k.total_produk) : "—"}</div><div className="kpi-sub">{t("Ready to ship")}</div></div>
         <div className="kpi kpi-roas" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div className="lbl">SLA</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
-            <SlaLine label="Bayar → Batas Kirim" value={fmtHours(k?.sla_pay_to_deadline_hours ?? null)} />
-            <SlaLine label="Batas Kirim → Selesai" value={fmtDays(k?.sla_deadline_to_done_days ?? null)} />
-            <SlaLine label="Bayar → Selesai" value={fmtDays(k?.sla_pay_to_done_days ?? null)} bold />
+            <SlaLine label={t("Pay → Ship Deadline")} value={fmtHours(k?.sla_pay_to_deadline_hours ?? null)} />
+            <SlaLine label={t("Ship Deadline → Completed")} value={fmtDays(k?.sla_deadline_to_done_days ?? null)} />
+            <SlaLine label={t("Pay → Completed")} value={fmtDays(k?.sla_pay_to_done_days ?? null)} bold />
           </div>
         </div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">✕</div><div className="lbl">Total Pembatalan</div><div className="val">{k ? numFull(k.total_pembatalan) : "—"}</div><div className="kpi-sub">Pesanan dibatalkan</div></div>
-        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">Total Product Return</div><div className="val">{k ? numFull(k.total_return) : "—"}</div><div className="kpi-sub">Unit dikembalikan</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">✕</div><div className="lbl">{t("Total Cancellations")}</div><div className="val">{k ? numFull(k.total_pembatalan) : "—"}</div><div className="kpi-sub">{t("Orders cancelled")}</div></div>
+        <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">{t("Total Product Return")}</div><div className="val">{k ? numFull(k.total_return) : "—"}</div><div className="kpi-sub">{t("Units returned")}</div></div>
       </div>
 
       {/* Map + SLA bucket, side by side */}
       <div className="row c2">
-        <Panel title="Peta GMV per Provinsi" hint="Semakin gelap warna, semakin tinggi GMV di provinsi tersebut — arahkan kursor untuk detail">
+        <Panel title={t("GMV Map by Province")} hint={t("Darker color = higher GMV in that province — hover for detail")}>
           <IndonesiaMap data={d?.province_gmv.map((p) => ({ province: p.province, gmv: p.gmv })) || []} />
         </Panel>
-        <Panel title="SLA (Bayar → Selesai)" hint="Distribusi pesanan berdasarkan lama waktu bayar sampai selesai">
-          <SimpleBarChart data={slaBuckets} dataKey="cnt" xKey="bucket" color={GOLD} />
+        <Panel title={t("SLA (Pay → Completed)")} hint={t("Order distribution by time from payment to completion")}>
+          <SimpleBarChart data={slaBuckets} dataKey="cnt" xKey="bucket" color={GOLD} t={t} />
         </Panel>
       </div>
 
       {/* Jenis Bayar + Jenis Kurir, side by side */}
       <div className="row c2">
-        <Panel title="Jenis Bayar" hint="Jumlah pesanan per metode pembayaran">
-          <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} />
+        <Panel title={t("Payment Method")} hint={t("Number of orders per payment method")}>
+          <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} t={t} />
         </Panel>
-        <Panel title="Jenis Kurir / Opsi Kirim" hint="Jumlah pesanan per opsi pengiriman — top 10, sisanya digabung jadi Lainnya">
-          <DonutChart data={topNPlusOthers((d?.shipping_option || []).map((p) => ({ name: p.option, value: p.cnt })), 10)} />
+        <Panel title={t("Shipping Type / Option")} hint={t("Number of orders per shipping option — top 10, rest merged into Others")}>
+          <DonutChart data={topNPlusOthers((d?.shipping_option || []).map((p) => ({ name: p.option, value: p.cnt })), 10, t)} t={t} />
         </Panel>
       </div>
 
       {/* Daily table */}
       <div className="panel">
-        <h3>Detail Transaksi per Hari</h3>
-        <div className="hint">Klik baris untuk melihat detail transaksi hari itu · tanggal berdasarkan waktu pesanan selesai</div>
+        <h3>{t("Daily Transaction Detail")}</h3>
+        <div className="hint">{t("Click a row to see that day's transaction detail · date based on order completed time")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
-            <thead><tr><th>Tanggal</th><th className="num">Orders</th><th className="num">GMV</th></tr></thead>
+            <thead><tr><th>{t("Date")}</th><th className="num">{t("Orders")}</th><th className="num">GMV</th></tr></thead>
             <tbody>
               {(d?.daily || []).map((r) => (
                 <tr key={r.tx_date} style={{ cursor: "pointer" }} onClick={() => setDrill(r.tx_date)}>
@@ -188,7 +190,7 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
                 </tr>
               ))}
               {(!d?.daily || d.daily.length === 0) && (
-                <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No data for these filters</td></tr>
+                <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
               )}
             </tbody>
           </table>
@@ -236,6 +238,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
   sel: { year: string; month: string; week: string; owner: string; store: string };
   supabase: ReturnType<typeof createClient>; onClose: () => void;
 }) {
+  const { t } = useLang();
   const [rows, setRows] = useState<DetailRow[] | null>(null);
 
   useEffect(() => {
@@ -257,17 +260,17 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
     <div style={overlay} onClick={onClose}>
       <div style={drawer} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>Transaksi — {fmtDate(day)}</div>
-          <button className="btn-ghost" onClick={onClose}>✕ Close</button>
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{t("Transaction")} — {fmtDate(day)}</div>
+          <button className="btn-ghost" onClick={onClose}>✕ {t("Close")}</button>
         </div>
         {rows === null ? <Loader center /> : (
           <div className="tbl-wrap" style={{ maxHeight: "72vh" }}>
             <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
               <thead><tr>
-                <th>No. Pesanan</th><th>Produk</th><th>Variasi</th><th className="num">Qty</th>
-                <th>Pesanan Dibayar</th><th>Pesanan di Kirim</th><th>Pesanan Selesai</th><th>SLA</th>
-                <th>Metode Bayar</th><th>Kurir</th><th>Kota</th><th>Provinsi</th>
-                <th className="num">Total Sales</th><th>Status</th>
+                <th>{t("Order No.")}</th><th>{t("Product")}</th><th>{t("Variant")}</th><th className="num">Qty</th>
+                <th>{t("Paid At")}</th><th>{t("Ship Deadline")}</th><th>{t("Completed At")}</th><th>SLA</th>
+                <th>{t("Payment Method")}</th><th>{t("Courier")}</th><th>{t("City")}</th><th>{t("Province")}</th>
+                <th className="num">Total Sales</th><th>{t("Status")}</th>
               </tr></thead>
               <tbody>
                 {rows.map((r, i) => {
@@ -291,7 +294,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
                     </tr>
                   );
                 })}
-                {rows.length === 0 && <tr><td colSpan={14} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>No transactions</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={14} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No transactions")}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -324,9 +327,10 @@ function Panel({ title, children }: { title: string; hint: string; children: Rea
   );
 }
 function Empty() {
-  return <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>No data yet</div>;
+  const { t } = useLang();
+  return <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>{t("No data yet")}</div>;
 }
-function SimpleBarChart({ data, dataKey, xKey, color }: { data: Record<string, unknown>[]; dataKey: string; xKey: string; color: string }) {
+function SimpleBarChart({ data, dataKey, xKey, color, t }: { data: Record<string, unknown>[]; dataKey: string; xKey: string; color: string; t: (k: string) => string }) {
   if (!data.length) return <Empty />;
   return (
     <div style={{ width: "100%", height: 260 }}>
@@ -335,7 +339,7 @@ function SimpleBarChart({ data, dataKey, xKey, color }: { data: Record<string, u
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey={xKey} tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} axisLine={false} tickLine={false} width={40} />
-          <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [numFull(Number(v)), "Pesanan"]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
+          <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [numFull(Number(v)), t("Orders")]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
           <Bar dataKey={dataKey} radius={[6, 6, 0, 0]} maxBarSize={72}>{data.map((_, i) => <Cell key={i} fill={color} />)}</Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -343,15 +347,15 @@ function SimpleBarChart({ data, dataKey, xKey, color }: { data: Record<string, u
   );
 }
 // Caps a category chart to its top N slices, folding the long tail into
-// "Lainnya" — keeps a legend of 20+ shipping options readable.
-function topNPlusOthers(data: { name: string; value: number }[], n: number) {
+// "Others" — keeps a legend of 20+ shipping options readable.
+function topNPlusOthers(data: { name: string; value: number }[], n: number, t: (k: string) => string) {
   const sorted = [...data].sort((a, b) => b.value - a.value);
   if (sorted.length <= n) return sorted;
   const top = sorted.slice(0, n);
   const rest = sorted.slice(n).reduce((s, x) => s + x.value, 0);
-  return rest > 0 ? [...top, { name: "Lainnya", value: rest }] : top;
+  return rest > 0 ? [...top, { name: t("Others"), value: rest }] : top;
 }
-function DonutChart({ data }: { data: { name: string; value: number }[] }) {
+function DonutChart({ data, t }: { data: { name: string; value: number }[]; t: (k: string) => string }) {
   const filtered = data.filter((x) => x.value > 0);
   if (!filtered.length) return <Empty />;
   const total = filtered.reduce((s, x) => s + x.value, 0);
@@ -363,13 +367,13 @@ function DonutChart({ data }: { data: { name: string; value: number }[] }) {
             label={({ percent }) => percent ? `${(percent * 100).toFixed(0)}%` : ""} labelLine={false}>
             {filtered.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="rgba(6,14,33,0.6)" strokeWidth={2} />)}
           </Pie>
-          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [`${v} pesanan`, n as string]} />
+          <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [`${v} ${t("orders")}`, n as string]} />
           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc", paddingTop: 8 }} />
         </PieChart>
       </ResponsiveContainer>
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-60%)", textAlign: "center", pointerEvents: "none" }}>
         <div style={{ fontSize: 10, color: "#7089aa", marginBottom: 2 }}>TOTAL</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>{total} pesanan</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>{total} {t("orders")}</div>
       </div>
     </div>
   );

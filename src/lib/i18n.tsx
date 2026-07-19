@@ -128,6 +128,38 @@ const ID_DICT: Record<string, string> = {
   "No transactions": "Tidak ada transaksi",
   "orders": "pesanan",
   "Finance Dashboard": "Dashboard Keuangan",
+
+  // Operational Performance
+  "Upload Data Operational Performance First": "Unggah Data Operational Performance Dulu",
+  "No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Operational Performance\" tab to import one.":
+    "Belum ada data Order.completed Shopee yang diunggah. Buka tab \"Upload Operational Performance\" untuk mengimpornya.",
+  "Operational Performance is shown per store — pick a Store above to view its dashboard.":
+    "Operational Performance ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
+  "Unique orders": "Pesanan unik",
+  "Total Product Ordered": "Total Produk Dipesan",
+  "Ready to ship": "Siap dikirim",
+  "Pay → Ship Deadline": "Bayar → Batas Kirim",
+  "Ship Deadline → Completed": "Batas Kirim → Selesai",
+  "Pay → Completed": "Bayar → Selesai",
+  "Total Cancellations": "Total Pembatalan",
+  "Orders cancelled": "Pesanan dibatalkan",
+  "Total Product Return": "Total Product Return",
+  "Units returned": "Unit dikembalikan",
+  "GMV Map by Province": "Peta GMV per Provinsi",
+  "Darker color = higher GMV in that province — hover for detail":
+    "Semakin gelap warna, semakin tinggi GMV di provinsi tersebut — arahkan kursor untuk detail",
+  "SLA (Pay → Completed)": "SLA (Bayar → Selesai)",
+  "Order distribution by time from payment to completion": "Distribusi pesanan berdasarkan lama waktu bayar sampai selesai",
+  "Number of orders per payment method": "Jumlah pesanan per metode pembayaran",
+  "Shipping Type / Option": "Jenis Kurir / Opsi Kirim",
+  "Number of orders per shipping option — top 10, rest merged into Others":
+    "Jumlah pesanan per opsi pengiriman — top 10, sisanya digabung jadi Lainnya",
+  "Click a row to see that day's transaction detail · date based on order completed time":
+    "Klik baris untuk melihat detail transaksi hari itu · tanggal berdasarkan waktu pesanan selesai",
+  "Product": "Produk", "Variant": "Variasi", "Paid At": "Pesanan Dibayar",
+  "Ship Deadline": "Pesanan di Kirim", "Completed At": "Pesanan Selesai",
+  "Courier": "Kurir", "Province": "Provinsi", "Status": "Status",
+  "Others": "Lainnya",
 };
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };
