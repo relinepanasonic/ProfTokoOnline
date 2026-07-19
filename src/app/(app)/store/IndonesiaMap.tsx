@@ -73,9 +73,9 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
   const arrow = (k: SortKey) => {
     const active = sortKey === k;
     return (
-      <span style={{ display: "inline-flex", flexDirection: "column", marginLeft: 5, lineHeight: 0.6, verticalAlign: "middle" }}>
-        <span style={{ fontSize: "0.6em", color: active && sortDir === "asc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▲</span>
-        <span style={{ fontSize: "0.6em", color: active && sortDir === "desc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▼</span>
+      <span style={{ display: "inline-flex", flexDirection: "column", marginLeft: 5, lineHeight: 0.72, verticalAlign: "middle" }}>
+        <span style={{ fontSize: "0.95em", color: active && sortDir === "asc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▲</span>
+        <span style={{ fontSize: "0.95em", color: active && sortDir === "desc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▼</span>
       </span>
     );
   };
