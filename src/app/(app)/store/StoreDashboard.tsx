@@ -9,6 +9,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
+import type { CityDetailRow } from "./IndonesiaMap";
 
 // d3-geo + topojson-client only matter to this one map — loaded client-side
 // on demand instead of bundled eagerly with the rest of this dashboard.
@@ -34,8 +35,8 @@ type Kpis = {
 };
 type Summary = {
   kpis: Kpis;
-  province_gmv: { province: string; gmv: number }[];
-  city_gmv: { city: string; province: string; gmv: number }[];
+  province_gmv: { province: string; gmv: number; transactions: number; product_sold: number }[];
+  city_detail: CityDetailRow[];
   payment_method: { method: string; cnt: number }[];
   sla_buckets: { bucket: string; cnt: number }[];
   cancel_status: { status: string; cnt: number }[];
@@ -157,7 +158,7 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       {/* Map + SLA bucket, side by side */}
       <div className="row c2">
         <Panel title={t("GMV Map by Province")} hint={t("Darker color = higher GMV in that province — hover for detail")}>
-          <IndonesiaMap data={d?.province_gmv.map((p) => ({ province: p.province, gmv: p.gmv })) || []} />
+          <IndonesiaMap data={d?.province_gmv || []} cityDetail={d?.city_detail || []} />
         </Panel>
         <Panel title={t("SLA (Pay → Completed)")} hint={t("Order distribution by time from payment to completion")}>
           <SimpleBarChart data={slaBuckets} dataKey="cnt" xKey="bucket" color={GOLD} t={t} />

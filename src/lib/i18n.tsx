@@ -160,6 +160,13 @@ const ID_DICT: Record<string, string> = {
   "Ship Deadline": "Pesanan di Kirim", "Completed At": "Pesanan Selesai",
   "Courier": "Kurir", "Province": "Provinsi", "Status": "Status",
   "Others": "Lainnya",
+  "Loading map…": "Memuat peta…",
+  "City / Regency": "Kota / Kabupaten",
+  "Total Product Sold": "Total Produk Terjual",
+  "Total Returned Products": "Total Produk Retur",
+  "Province Detail": "Detail Provinsi",
+  "Click a province to see its city/regency breakdown": "Klik provinsi untuk melihat rincian per kota/kabupaten",
+  "No data for this province": "Tidak ada data untuk provinsi ini",
 
   // Upload
   "Upload Shopee Data": "Unggah Data Shopee",

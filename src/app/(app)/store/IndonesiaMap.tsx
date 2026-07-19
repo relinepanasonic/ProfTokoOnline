@@ -5,6 +5,7 @@ import { geoMercator, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
 import type { Topology } from "topojson-specification";
+import { useLang } from "@/lib/i18n";
 
 // Province-level topology (33 provinces, ~2010s boundaries — predates
 // Indonesia's 2022 Papua split into 6 provinces). Good enough for a
@@ -37,13 +38,23 @@ const rpC = (n: number) => {
   if (a >= 1e3) return "Rp " + Math.round(n / 1e3) + "rb";
   return "Rp " + Math.round(n);
 };
+const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
+const numFull = (n: number) => Math.round(n || 0).toLocaleString("id-ID");
+const fmtSla = (d: number | null) => d == null ? "—" : `${d.toFixed(1)} hari`;
 
+type ProvinceStat = { province: string; gmv: number; transactions: number; product_sold: number };
+export type CityDetailRow = {
+  city: string; province: string; gmv: number; transactions: number;
+  product_sold: number; sla_days: number | null; cancellations: number; returns: number;
+};
 type Feat = { type: "Feature"; properties: { name: string | null }; geometry: Geometry };
 let cachedGeo: FeatureCollection<Geometry, { name: string | null }> | null = null;
 
-export default function IndonesiaMap({ data }: { data: { province: string; gmv: number }[] }) {
+export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[]; cityDetail: CityDetailRow[] }) {
+  const { t } = useLang();
   const [geo, setGeo] = useState(cachedGeo);
-  const [hover, setHover] = useState<{ name: string; gmv: number; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ name: string; stat: ProvinceStat | null; x: number; y: number } | null>(null);
+  const [selected, setSelected] = useState<{ name: string; rows: CityDetailRow[] } | null>(null);
 
   useEffect(() => {
     if (cachedGeo) return;
@@ -57,22 +68,40 @@ export default function IndonesiaMap({ data }: { data: { province: string; gmv: 
       .catch(() => {});
   }, []);
 
-  const gmvByProvince = useMemo(() => {
-    const m = new Map<string, number>();
+  const statsByProvince = useMemo(() => {
+    const m = new Map<string, ProvinceStat>();
     for (const d of data) {
       const key = normalize(d.province);
-      m.set(key, (m.get(key) || 0) + d.gmv);
+      const cur = m.get(key) || { province: key, gmv: 0, transactions: 0, product_sold: 0 };
+      m.set(key, {
+        province: key,
+        gmv: cur.gmv + (d.gmv || 0),
+        transactions: cur.transactions + (d.transactions || 0),
+        product_sold: cur.product_sold + (d.product_sold || 0),
+      });
     }
     return m;
   }, [data]);
 
-  const max = Math.max(1, ...Array.from(gmvByProvince.values()));
+  const cityByProvince = useMemo(() => {
+    const m = new Map<string, CityDetailRow[]>();
+    for (const c of cityDetail) {
+      const key = normalize(c.province);
+      const arr = m.get(key) || [];
+      arr.push(c);
+      m.set(key, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.city.localeCompare(b.city));
+    return m;
+  }, [cityDetail]);
+
+  const max = Math.max(1, ...Array.from(statsByProvince.values()).map((s) => s.gmv));
   const W = 460, H = 260;
   const projection = useMemo(() => (geo ? geoMercator().fitSize([W, H], geo) : null), [geo]);
   const path = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
 
   if (!geo || !path) {
-    return <div style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>Memuat peta…</div>;
+    return <div style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>{t("Loading map…")}</div>;
   }
 
   return (
@@ -80,25 +109,77 @@ export default function IndonesiaMap({ data }: { data: { province: string; gmv: 
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }}>
         {(geo.features as Feat[]).map((f, i) => {
           const name = f.properties?.name ?? null;
-          const gmv = name ? gmvByProvince.get(name) ?? 0 : 0;
-          const t = gmv / max;
-          const fill = gmv > 0 ? `rgba(201,162,39,${(0.15 + t * 0.75).toFixed(2)})` : "rgba(255,255,255,0.045)";
+          const stat = name ? statsByProvince.get(name) ?? null : null;
+          const gmv = stat?.gmv ?? 0;
+          const tt = gmv / max;
+          const fill = gmv > 0 ? `rgba(201,162,39,${(0.15 + tt * 0.75).toFixed(2)})` : "rgba(255,255,255,0.045)";
           // Higher-GMV provinces get a soft gold glow, intensity scaled to their share of the max.
-          const glow = t > 0.04 ? `drop-shadow(0 0 ${(3 + t * 9).toFixed(1)}px rgba(240,208,112,${(0.35 + t * 0.55).toFixed(2)}))` : "none";
+          const glow = tt > 0.04 ? `drop-shadow(0 0 ${(3 + tt * 9).toFixed(1)}px rgba(240,208,112,${(0.35 + tt * 0.55).toFixed(2)}))` : "none";
           return (
             <path key={i} d={path(f) || undefined} fill={fill} stroke="rgba(6,14,33,0.75)" strokeWidth={0.6}
-              style={{ filter: glow, transition: "filter .2s" }}
-              onMouseMove={(e) => name && setHover({ name, gmv, x: e.clientX, y: e.clientY })}
-              onMouseLeave={() => setHover(null)} />
+              style={{ filter: glow, transition: "filter .2s", cursor: name ? "pointer" : "default" }}
+              onMouseMove={(e) => name && setHover({ name, stat, x: e.clientX, y: e.clientY })}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => name && setSelected({ name, rows: cityByProvince.get(name) || [] })} />
           );
         })}
       </svg>
       {hover && (
-        <div style={{ position: "fixed", left: hover.x + 14, top: hover.y + 10, background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 8, padding: "6px 10px", fontSize: 12, color: "#e8edf8", pointerEvents: "none", zIndex: 30 }}>
-          <div style={{ fontWeight: 700 }}>{hover.name}</div>
-          <div>{rpC(hover.gmv)}</div>
+        <div style={{ position: "fixed", left: hover.x + 14, top: hover.y + 10, background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#e8edf8", pointerEvents: "none", zIndex: 30 }}>
+          <div style={{ fontWeight: 700, marginBottom: 3 }}>{hover.name}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <span>GMV: <b style={{ color: "var(--gold)" }}>{rpC(hover.stat?.gmv ?? 0)}</b></span>
+            <span>{t("Transaction")}: <b>{numFull(hover.stat?.transactions ?? 0)}</b></span>
+            <span>{t("Total Product Sold")}: <b>{numFull(hover.stat?.product_sold ?? 0)}</b></span>
+          </div>
+        </div>
+      )}
+
+      {selected && (
+        <div style={overlay} onClick={() => setSelected(null)}>
+          <div style={drawer} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#fff" }}>{t("Province Detail")} — {selected.name}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{t("Click a province to see its city/regency breakdown")}</div>
+              </div>
+              <button className="btn-ghost" onClick={() => setSelected(null)}>✕ {t("Close")}</button>
+            </div>
+            <div className="tbl-wrap" style={{ maxHeight: "72vh" }}>
+              <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
+                <thead><tr>
+                  <th>{t("City / Regency")}</th>
+                  <th className="num">{t("Sales")}</th>
+                  <th className="num">{t("Total Transaction")}</th>
+                  <th className="num">{t("Total Product Sold")}</th>
+                  <th className="num">SLA</th>
+                  <th className="num">{t("Total Cancellations")}</th>
+                  <th className="num">{t("Total Returned Products")}</th>
+                </tr></thead>
+                <tbody>
+                  {selected.rows.map((r) => (
+                    <tr key={r.city}>
+                      <td style={{ fontWeight: 600 }}>{r.city}</td>
+                      <td className="num">{rpFull(r.gmv)}</td>
+                      <td className="num">{numFull(r.transactions)}</td>
+                      <td className="num">{numFull(r.product_sold)}</td>
+                      <td className="num">{fmtSla(r.sla_days)}</td>
+                      <td className="num">{numFull(r.cancellations)}</td>
+                      <td className="num">{numFull(r.returns)}</td>
+                    </tr>
+                  ))}
+                  {selected.rows.length === 0 && (
+                    <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for this province")}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(2,6,16,.82)", backdropFilter: "blur(4px)", zIndex: 9000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "30px 20px", overflowY: "auto" };
+const drawer: React.CSSProperties = { width: "min(98vw,1100px)", background: "var(--card,#0d1a36)", border: "1px solid var(--card-border,rgba(201,162,39,.2))", borderRadius: 18, padding: 28, boxShadow: "0 30px 80px rgba(0,0,0,.7)" };
