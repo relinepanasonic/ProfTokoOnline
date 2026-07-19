@@ -70,9 +70,15 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
     if (sortKey === k) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir(k === "city" ? "asc" : "desc"); }
   }
-  const arrow = (k: SortKey) => sortKey !== k ? null : (
-    <span style={{ fontSize: "0.7em", marginLeft: 4 }}>{sortDir === "asc" ? "▲" : "▼"}</span>
-  );
+  const arrow = (k: SortKey) => {
+    const active = sortKey === k;
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "column", marginLeft: 5, lineHeight: 0.6, verticalAlign: "middle" }}>
+        <span style={{ fontSize: "0.6em", color: active && sortDir === "asc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▲</span>
+        <span style={{ fontSize: "0.6em", color: active && sortDir === "desc" ? "var(--gold)" : "rgba(255,255,255,.35)" }}>▼</span>
+      </span>
+    );
+  };
   const sortedRows = useMemo(() => {
     if (!selected) return [];
     const dir = sortDir === "asc" ? 1 : -1;
