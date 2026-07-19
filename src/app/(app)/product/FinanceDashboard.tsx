@@ -311,6 +311,7 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("marketplace_fee")}>{t("Market Place Fee")}{arrow("marketplace_fee")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("ads_cost")}>{t("Ads Cost")}{arrow("ads_cost")}</th>
             <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("nett_profit")}>{t("Nett Profit")}{arrow("nett_profit")}</th>
+            <th className="num" style={{ whiteSpace: "nowrap" }} title={t("Nett Profit ÷ Sales × 100%")}>%</th>
           </tr></thead>
           <tbody>
             {filtered.map((r) => (
@@ -329,10 +330,11 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.marketplace_fee)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.ads_cost)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.nett_profit)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{r.total_sales > 0 ? `${(r.nett_profit / r.total_sales * 100).toFixed(1)}%` : "—"}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={14} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
+              <tr><td colSpan={15} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
             )}
           </tbody>
         </table>

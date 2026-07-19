@@ -126,6 +126,7 @@ const ID_DICT: Record<string, string> = {
   "Transaction": "Transaksi", "Close": "Tutup",
   "Order No.": "No. Pesanan", "Buyer": "Pembeli", "Affiliate": "Afiliasi",
   "No transactions": "Tidak ada transaksi",
+  "Nett Profit ÷ Sales × 100%": "Laba Bersih ÷ Penjualan × 100%",
   "orders": "pesanan",
   "Finance Dashboard": "Dashboard Keuangan",
 
