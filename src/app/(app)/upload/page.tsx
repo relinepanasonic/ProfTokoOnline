@@ -284,9 +284,10 @@ export default function UploadPage() {
             </div>
             {isNewBrand
               ? <input type="text" value={manual.brand} placeholder={t("Type new brand…")} onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} />
-              : <select value={manual.brand} onChange={(e) => pickBrand(e.target.value)} disabled={!manual.pic_client}>
+              : <select value={manual.brand} onChange={(e) => { if (e.target.value === NEW_OPTION) { toggleNewBrand(); return; } pickBrand(e.target.value); }} disabled={!manual.pic_client}>
                   <option value="">{manual.pic_client ? t("Select brand…") : t("Pick owner first")}</option>
                   {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
+                  <option value={NEW_OPTION} style={newOptionStyle}>{"+ " + t("New Brand")}</option>
                 </select>}
           </div>
           <div className="fld" style={{ minWidth: 0 }}>
@@ -296,9 +297,10 @@ export default function UploadPage() {
             </div>
             {isNewStore
               ? <input type="text" value={manual.store_name} placeholder={t("Type new store…")} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} />
-              : <select value={manual.store_name} onChange={(e) => pickStore(e.target.value)} disabled={!manual.brand}>
+              : <select value={manual.store_name} onChange={(e) => { if (e.target.value === NEW_OPTION) { setIsNewStore(true); return; } pickStore(e.target.value); }} disabled={!manual.brand}>
                   <option value="">{manual.brand ? t("Select store…") : t("Pick brand first")}</option>
                   {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {manual.brand && <option value={NEW_OPTION} style={newOptionStyle}>{"+ " + t("New Store")}</option>}
                 </select>}
           </div>
         </div>
@@ -410,6 +412,10 @@ function uploadTabBtn(active: boolean): React.CSSProperties {
 
 const fieldHeader: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4, minHeight: 16 };
 const linkBtn: React.CSSProperties = { background: "none", border: "none", color: "var(--gold)", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
+// Sentinel option value + gold styling for the "+ New Brand/Store" row
+// pinned to the bottom of each dropdown's option list.
+const NEW_OPTION = "__new__";
+const newOptionStyle: React.CSSProperties = { color: "var(--gold)", fontWeight: 700 };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
