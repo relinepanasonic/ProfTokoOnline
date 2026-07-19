@@ -36,6 +36,10 @@ export default function UploadHere() {
   // Bumped after any successful upload so <UploadLogTable> refetches.
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [manual, setManual] = useState({ year: new Date().getFullYear(), bulan: "", pic_client: "", brand: "", store_name: "" });
+  // Explicit "+ New Brand/Store" toggles — pick from a strict dropdown of
+  // existing values, or flip to a free-text field to create a new one.
+  const [isNewBrand, setIsNewBrand] = useState(false);
+  const [isNewStore, setIsNewStore] = useState(false);
   const [storeFile, setStoreFile] = useState<File | null>(null);
   const [productFile, setProductFile] = useState<File | null>(null);
   const [adsFile, setAdsFile] = useState<File | null>(null);
@@ -107,6 +111,18 @@ export default function UploadHere() {
     const row = { client_id: clientId, owner: manual.pic_client, brand: manual.brand, store_name: manual.store_name };
     await supabase.from("store_links").upsert(row, { onConflict: "client_id,owner,brand,store_name", ignoreDuplicates: true });
     setLinks((prev) => [...prev, { owner: row.owner, brand: row.brand, store_name: row.store_name }]);
+  }
+
+  function toggleNewBrand() {
+    // entering/leaving new-brand mode clears the brand + downstream store
+    setManual((m) => ({ ...m, brand: "", store_name: "" }));
+    setIsNewStore(false);
+    setIsNewBrand((v) => !v);
+  }
+  function toggleNewStore() {
+    if (!manual.brand) { alert(t("Please select or create a Brand first.")); return; }
+    setManual((m) => ({ ...m, store_name: "" }));
+    setIsNewStore((v) => !v);
   }
 
   async function resolveNextWeek(cid: string, store: string, month: string): Promise<string> {
@@ -236,25 +252,35 @@ export default function UploadHere() {
         <F label={t("Owner")}>
           {isOwnerLogin
             ? <ReadonlyField value={manual.pic_client || "—"} />
-            : <select value={manual.pic_client} onChange={(e) => setManual((m) => ({ ...m, pic_client: e.target.value, brand: "", store_name: "" }))}>
+            : <select value={manual.pic_client} onChange={(e) => { setIsNewBrand(false); setIsNewStore(false); setManual((m) => ({ ...m, pic_client: e.target.value, brand: "", store_name: "" })); }}>
                 <option value="">{t("Select owner…")}</option>
                 {owners.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>}
         </F>
-        <F label={t("Brand")}>
-          {/* select-or-create: shows existing brands as suggestions but
-              accepts any typed value; new ones are persisted on submit. */}
-          <input list="uh-brand-list" value={manual.brand} disabled={!manual.pic_client}
-            placeholder={manual.pic_client ? t("Type or select brand…") : t("Owner first")}
-            onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} />
-          <datalist id="uh-brand-list">{brandsForOwner.map((b) => <option key={b} value={b} />)}</datalist>
-        </F>
-        <F label={t("Store")}>
-          <input list="uh-store-list" value={manual.store_name} disabled={!manual.brand}
-            placeholder={manual.brand ? t("Type or select store…") : t("Brand first")}
-            onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} />
-          <datalist id="uh-store-list">{storesForBrand.map((s) => <option key={s} value={s} />)}</datalist>
-        </F>
+        <div className="fld" style={{ minWidth: 0 }}>
+          <div style={fieldHeader}>
+            <label style={{ margin: 0 }}>{t("Brand")}</label>
+            {manual.pic_client && <button type="button" onClick={toggleNewBrand} style={linkBtn}>{isNewBrand ? t("Cancel") : "+ " + t("New Brand")}</button>}
+          </div>
+          {isNewBrand
+            ? <input type="text" value={manual.brand} placeholder={t("Type new brand…")} onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} />
+            : <select value={manual.brand} disabled={!manual.pic_client} onChange={(e) => { setIsNewStore(false); setManual((m) => ({ ...m, brand: e.target.value, store_name: "" })); }}>
+                <option value="">{manual.pic_client ? t("Select brand…") : t("Owner first")}</option>
+                {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>}
+        </div>
+        <div className="fld" style={{ minWidth: 0 }}>
+          <div style={fieldHeader}>
+            <label style={{ margin: 0 }}>{t("Store")}</label>
+            <button type="button" onClick={toggleNewStore} style={linkBtn}>{isNewStore ? t("Cancel") : "+ " + t("New Store")}</button>
+          </div>
+          {isNewStore
+            ? <input type="text" value={manual.store_name} placeholder={t("Type new store…")} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} />
+            : <select value={manual.store_name} disabled={!manual.brand} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))}>
+                <option value="">{manual.brand ? t("Select store…") : t("Brand first")}</option>
+                {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>}
+        </div>
       </div>
 
       <CardLabel title={t("Store Performance")} sub="All Level" />
@@ -315,6 +341,9 @@ export default function UploadHere() {
     </>
   );
 }
+
+const fieldHeader: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4, minHeight: 16 };
+const linkBtn: React.CSSProperties = { background: "none", border: "none", color: "var(--gold)", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 
 function F({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="fld" style={{ minWidth: 0 }}><label>{label}</label>{children}</div>;

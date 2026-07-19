@@ -61,6 +61,10 @@ export default function UploadPage() {
     pic_client: "", brand: "", store_name: "",
     tanggal_mulai: "", tanggal_berakhir: "",
   });
+  // Explicit "+ New Brand/Store" toggles — strict dropdown of existing
+  // values, or flip to free-text to create a new one.
+  const [isNewBrand, setIsNewBrand] = useState(false);
+  const [isNewStore, setIsNewStore] = useState(false);
   const inputTime = new Date();
   const [adminName, setAdminName] = useState("");
   const [clientId, setClientId] = useState("");
@@ -89,9 +93,19 @@ export default function UploadPage() {
       setManual((m) => ({ ...m, bulan: v, week: m.week === BASELINE_WEEK ? "Week 1" : m.week }));
     }
   }
-  function pickOwner(owner: string) { setManual((m) => ({ ...m, pic_client: owner, brand: "", store_name: "" })); }
-  function pickBrand(brand: string) { setManual((m) => ({ ...m, brand, store_name: "" })); }
+  function pickOwner(owner: string) { setIsNewBrand(false); setIsNewStore(false); setManual((m) => ({ ...m, pic_client: owner, brand: "", store_name: "" })); }
+  function pickBrand(brand: string) { setIsNewStore(false); setManual((m) => ({ ...m, brand, store_name: "" })); }
   function pickStore(storeName: string) { setManual((m) => ({ ...m, store_name: storeName })); }
+  function toggleNewBrand() {
+    setManual((m) => ({ ...m, brand: "", store_name: "" }));
+    setIsNewStore(false);
+    setIsNewBrand((v) => !v);
+  }
+  function toggleNewStore() {
+    if (!manual.brand) { alert(t("Please select or create a Brand first.")); return; }
+    setManual((m) => ({ ...m, store_name: "" }));
+    setIsNewStore((v) => !v);
+  }
   function pickStart(v: string) {
     if (!v) { setManual((m) => ({ ...m, tanggal_mulai: "", tanggal_berakhir: "" })); return; }
     const mon = mondayOf(v);
@@ -263,20 +277,30 @@ export default function UploadPage() {
               {owners.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </Field>
-          <Field label={t("Brand")}>
-            {/* select-or-create: existing brands as suggestions, any typed
-                value accepted; new ones persisted to store_links on submit. */}
-            <input list="adm-brand-list" value={manual.brand} disabled={!manual.pic_client}
-              placeholder={manual.pic_client ? t("Type or select brand…") : t("Pick owner first")}
-              onChange={(e) => pickBrand(e.target.value)} />
-            <datalist id="adm-brand-list">{brandsForOwner.map((b) => <option key={b} value={b} />)}</datalist>
-          </Field>
-          <Field label={t("Store Name")}>
-            <input list="adm-store-list" value={manual.store_name} disabled={!manual.brand}
-              placeholder={manual.brand ? t("Type or select store…") : t("Pick brand first")}
-              onChange={(e) => pickStore(e.target.value)} />
-            <datalist id="adm-store-list">{storesForBrand.map((s) => <option key={s} value={s} />)}</datalist>
-          </Field>
+          <div className="fld" style={{ minWidth: 0 }}>
+            <div style={fieldHeader}>
+              <label style={{ margin: 0 }}>{t("Brand")}</label>
+              {manual.pic_client && <button type="button" onClick={toggleNewBrand} style={linkBtn}>{isNewBrand ? t("Cancel") : "+ " + t("New Brand")}</button>}
+            </div>
+            {isNewBrand
+              ? <input type="text" value={manual.brand} placeholder={t("Type new brand…")} onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} />
+              : <select value={manual.brand} onChange={(e) => pickBrand(e.target.value)} disabled={!manual.pic_client}>
+                  <option value="">{manual.pic_client ? t("Select brand…") : t("Pick owner first")}</option>
+                  {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>}
+          </div>
+          <div className="fld" style={{ minWidth: 0 }}>
+            <div style={fieldHeader}>
+              <label style={{ margin: 0 }}>{t("Store Name")}</label>
+              <button type="button" onClick={toggleNewStore} style={linkBtn}>{isNewStore ? t("Cancel") : "+ " + t("New Store")}</button>
+            </div>
+            {isNewStore
+              ? <input type="text" value={manual.store_name} placeholder={t("Type new store…")} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} />
+              : <select value={manual.store_name} onChange={(e) => pickStore(e.target.value)} disabled={!manual.brand}>
+                  <option value="">{manual.brand ? t("Select store…") : t("Pick brand first")}</option>
+                  {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>}
+          </div>
         </div>
 
         {/* Row 3: 3 dates */}
@@ -383,6 +407,9 @@ function uploadTabBtn(active: boolean): React.CSSProperties {
     color: active ? "var(--navy-deep)" : "#cdd9f0",
   };
 }
+
+const fieldHeader: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4, minHeight: 16 };
+const linkBtn: React.CSSProperties = { background: "none", border: "none", color: "var(--gold)", fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
