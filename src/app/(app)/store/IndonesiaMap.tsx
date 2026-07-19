@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { geoMercator, geoPath } from "d3-geo";
 import { feature } from "topojson-client";
 import type { FeatureCollection, Geometry } from "geojson";
@@ -124,18 +125,25 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
           );
         })}
       </svg>
-      {hover && (
-        <div style={{ position: "fixed", left: hover.x + 14, top: hover.y + 10, background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#e8edf8", pointerEvents: "none", zIndex: 30 }}>
+      {/* Portaled to document.body — this map sits inside a .panel with
+          backdrop-filter, and any backdrop-filter ancestor turns descendant
+          position:fixed elements into being positioned relative to THAT
+          ancestor instead of the real viewport (see panel-clips-modals).
+          That made the tooltip land far from the cursor and the drill-down
+          "modal" render clipped to the panel instead of covering the screen. */}
+      {hover && createPortal(
+        <div style={{ position: "fixed", left: hover.x + 14, top: hover.y + 10, background: "rgba(6,14,33,0.97)", border: "1px solid rgba(201,162,39,0.35)", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#e8edf8", pointerEvents: "none", zIndex: 9500 }}>
           <div style={{ fontWeight: 700, marginBottom: 3 }}>{hover.name}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             <span>GMV: <b style={{ color: "var(--gold)" }}>{rpC(hover.stat?.gmv ?? 0)}</b></span>
             <span>{t("Transaction")}: <b>{numFull(hover.stat?.transactions ?? 0)}</b></span>
             <span>{t("Total Product Sold")}: <b>{numFull(hover.stat?.product_sold ?? 0)}</b></span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {selected && (
+      {selected && createPortal(
         <div style={overlay} onClick={() => setSelected(null)}>
           <div style={drawer} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -175,7 +183,8 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
               </table>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
