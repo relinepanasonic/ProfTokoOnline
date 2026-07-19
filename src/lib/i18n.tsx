@@ -77,6 +77,26 @@ const ID_DICT: Record<string, string> = {
 
   // misc
   "GMV": "GMV",
+
+  // Ads Performance
+  "View": "Dilihat", "Click": "Klik", "Order": "Pesanan", "Item Sold": "Produk Terjual",
+  "Add to Cart": "Masuk Keranjang",
+  "Group Ads": "Iklan Grup", "Independent Ads": "Iklan Independen",
+  "Sales by Ads Type": "Penjualan per Jenis Iklan",
+  "Ads Funnel": "Funnel Iklan",
+  "Item Sold vs Sales": "Produk Terjual vs Penjualan",
+  "Ads Group Performance": "Performa Grup Iklan",
+  "Campaign / group-level rows (GMV Max, Grup Hero, Grup Regular, etc.) — everything without a Kode Produk":
+    "Baris tingkat kampanye/grup (GMV Max, Grup Hero, Grup Reguler, dll.) — semua yang tanpa Kode Produk",
+  "Ads Product Performance": "Performa Produk Iklan",
+  "Merged from Total Ads, GMV Max, and Group Ads · joined on Kode Produk":
+    "Gabungan dari Total Ads, GMV Max, dan Iklan Grup · digabung berdasarkan Kode Produk",
+  "Campaign Name": "Nama Kampanye",
+  "Product Code": "Kode Produk", "Product Name": "Nama Produk",
+  "No campaign/group ads data yet": "Belum ada data iklan kampanye/grup",
+  "No product-level ads data yet": "Belum ada data iklan tingkat produk",
+  "No ads funnel data yet": "Belum ada data funnel iklan",
+  "Loading data…": "Memuat data…",
 };
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };

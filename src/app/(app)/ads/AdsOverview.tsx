@@ -15,6 +15,7 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -68,6 +69,7 @@ type Summary = {
 };
 
 export default function AdsOverview({ clientId, refreshKey }: { clientId: string; refreshKey?: number }) {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [d, setD] = useState<Summary | null>(null);
   const [err, setErr] = useState("");
@@ -104,10 +106,10 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
     );
   }
   if (!d) {
-    return <div className="panel" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>Memuat data…</div>;
+    return <div className="panel" style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>{t("Loading data…")}</div>;
   }
 
-  const t = d.totals;
+  const totals = d.totals;
   const monthly = byMonth(d.monthly);
   const soldSales = byMonth(d.sold_sales_trend);
   const groups = [...(d.groups || [])].sort((a, b) => (b.sales || 0) - (a.sales || 0));
@@ -125,25 +127,25 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
           gradient) number, ROAS is gold-gradient text on an otherwise
           plain card, everything else is the default blue card. ── */}
       <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(7,1fr)" }}>
-        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">Ads Cost</div><div className="val">{idr(t.total.ads_cost)}</div></div>
-        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">Sales</div><div className="val">{idr(t.total.sales)}</div></div>
-        <div className="kpi"><div className="lbl">ROAS</div><div className="val grad-gold">{roasF(t.total.roas)}</div></div>
-        <div className="kpi"><div className="kpi-icon">👁</div><div className="lbl">View</div><div className="val">{num(t.total.view)}</div></div>
-        <div className="kpi"><div className="kpi-icon">🖱</div><div className="lbl">Click</div><div className="val">{num(t.total.click)}</div></div>
-        <div className="kpi"><div className="kpi-icon">🧾</div><div className="lbl">Order</div><div className="val">{num(t.total.orders)}</div></div>
-        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">Item Sold</div><div className="val">{num(t.total.item_sold)}</div></div>
+        <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Cost")}</div><div className="val">{idr(totals.total.ads_cost)}</div></div>
+        <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">{t("Sales")}</div><div className="val">{idr(totals.total.sales)}</div></div>
+        <div className="kpi"><div className="lbl">{t("ROAS")}</div><div className="val grad-gold">{roasF(totals.total.roas)}</div></div>
+        <div className="kpi"><div className="kpi-icon">👁</div><div className="lbl">{t("View")}</div><div className="val">{num(totals.total.view)}</div></div>
+        <div className="kpi"><div className="kpi-icon">🖱</div><div className="lbl">{t("Click")}</div><div className="val">{num(totals.total.click)}</div></div>
+        <div className="kpi"><div className="kpi-icon">🧾</div><div className="lbl">{t("Order")}</div><div className="val">{num(totals.total.orders)}</div></div>
+        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">{t("Item Sold")}</div><div className="val">{num(totals.total.item_sold)}</div></div>
       </div>
 
       {/* ── GMV Max / Group Ads / Independent Ads ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
-        <CategoryCard title="GMV Max Auto" accent={BLUE} totals={t.gmv_max} />
-        <CategoryCard title="Group Ads" accent={BLUE_L} totals={t.group_ads} />
-        <CategoryCard title="Independent Ads" accent={BLUE_PALE} totals={t.independent} sub="Total − GMV Max − Group" />
+        <CategoryCard title="GMV Max Auto" accent={BLUE} totals={totals.gmv_max} t={t} />
+        <CategoryCard title={t("Group Ads")} accent={BLUE_L} totals={totals.group_ads} t={t} />
+        <CategoryCard title={t("Independent Ads")} accent={BLUE_PALE} totals={totals.independent} sub="Total − GMV Max − Group" t={t} />
       </div>
 
       {/* ── charts ── */}
       <div className="row c2" style={{ marginBottom: 18 }}>
-        <Panel title="Sales by Ads Type" hint="Stacked: GMV Max → Group → Independent · line = overall ROAS">
+        <Panel title={t("Sales by Ads Type")} hint="Stacked: GMV Max → Group → Independent · line = overall ROAS">
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={monthly} margin={{ top: 6, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
@@ -159,13 +161,13 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
             </ComposedChart>
           </ResponsiveContainer>
         </Panel>
-        <Panel title="Ads Funnel" hint="Dilihat → Klik → Add to Cart → Konversi · Total Ads">
-          <AdsFunnel funnel={d.funnel} />
+        <Panel title={t("Ads Funnel")} hint="Dilihat → Klik → Add to Cart → Konversi · Total Ads">
+          <AdsFunnel funnel={d.funnel} t={t} />
         </Panel>
       </div>
 
       <div className="row" style={{ marginBottom: 18 }}>
-        <Panel title="Item Sold vs Sales" hint="Produk Terjual vs Omzet Penjualan · Total Ads · separate scales">
+        <Panel title={t("Item Sold vs Sales")} hint="Produk Terjual vs Omzet Penjualan · Total Ads · separate scales">
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={soldSales} margin={{ top: 6, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
@@ -183,15 +185,15 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
 
       {/* ── Ads Group Performance (level='group' rows — no Kode Produk) ── */}
       <div className="panel" style={{ marginBottom: 18 }}>
-        <h3 style={{ margin: 0 }}>Ads Group Performance</h3>
-        <div className="hint" style={{ marginBottom: 14 }}>Campaign / group-level rows (GMV Max, Grup Hero, Grup Regular, etc.) — everything without a Kode Produk</div>
+        <h3 style={{ margin: 0 }}>{t("Ads Group Performance")}</h3>
+        <div className="hint" style={{ marginBottom: 14 }}>{t("Campaign / group-level rows (GMV Max, Grup Hero, Grup Regular, etc.) — everything without a Kode Produk")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 360 }}>
           <table className="tbl">
             <thead>
               <tr>
-                <th>Campaign Name</th><th className="num">Ads Cost</th><th className="num">Sales</th>
-                <th className="num">ROAS</th><th className="num">View</th><th className="num">Click</th>
-                <th className="num">Order</th><th className="num">Item Sold</th>
+                <th>{t("Campaign Name")}</th><th className="num">{t("Ads Cost")}</th><th className="num">{t("Sales")}</th>
+                <th className="num">{t("ROAS")}</th><th className="num">{t("View")}</th><th className="num">{t("Click")}</th>
+                <th className="num">{t("Order")}</th><th className="num">{t("Item Sold")}</th>
               </tr>
             </thead>
             <tbody>
@@ -208,7 +210,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
                 </tr>
               ))}
               {groups.length === 0 && (
-                <tr><td colSpan={8} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>No campaign/group ads data yet</td></tr>
+                <tr><td colSpan={8} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>{t("No campaign/group ads data yet")}</td></tr>
               )}
             </tbody>
           </table>
@@ -217,15 +219,15 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
 
       {/* ── Ads Product Performance (level='product' rows — has Kode Produk) ── */}
       <div className="panel" style={{ marginBottom: 18 }}>
-        <h3 style={{ margin: 0 }}>Ads Product Performance</h3>
-        <div className="hint" style={{ marginBottom: 14 }}>Merged from Total Ads, GMV Max, and Group Ads · joined on Kode Produk</div>
+        <h3 style={{ margin: 0 }}>{t("Ads Product Performance")}</h3>
+        <div className="hint" style={{ marginBottom: 14 }}>{t("Merged from Total Ads, GMV Max, and Group Ads · joined on Kode Produk")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead>
               <tr>
-                <th>Kode Produk</th><th>Nama Produk</th><th className="num">Ads Cost</th><th className="num">Sales</th>
-                <th className="num">ROAS</th><th className="num">View</th><th className="num">Click</th>
-                <th className="num">Order</th><th className="num">Item Sold</th>
+                <th>{t("Product Code")}</th><th>{t("Product Name")}</th><th className="num">{t("Ads Cost")}</th><th className="num">{t("Sales")}</th>
+                <th className="num">{t("ROAS")}</th><th className="num">{t("View")}</th><th className="num">{t("Click")}</th>
+                <th className="num">{t("Order")}</th><th className="num">{t("Item Sold")}</th>
               </tr>
             </thead>
             <tbody>
@@ -243,7 +245,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
                 </tr>
               ))}
               {products.length === 0 && (
-                <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>No product-level ads data yet</td></tr>
+                <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>{t("No product-level ads data yet")}</td></tr>
               )}
             </tbody>
           </table>
@@ -253,7 +255,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
   );
 }
 
-function CategoryCard({ title, accent, totals, sub }: { title: string; accent: string; totals: Totals; sub?: string }) {
+function CategoryCard({ title, accent, totals, sub, t }: { title: string; accent: string; totals: Totals; sub?: string; t: (k: string) => string }) {
   return (
     <div style={{ background: "linear-gradient(160deg,rgba(22,40,76,.7),rgba(9,17,36,.62))", border: `1px solid ${accent}40`, borderRadius: 16, padding: "16px 18px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
@@ -264,15 +266,15 @@ function CategoryCard({ title, accent, totals, sub }: { title: string; accent: s
         <div className="grad-gold" style={{ fontSize: 15, fontWeight: 800 }}>{roasF(totals.roas)}</div>
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,.08)" }}>
-        <span style={{ fontSize: 11, color: "var(--muted)" }}>Ads Cost</span>
+        <span style={{ fontSize: 11, color: "var(--muted)" }}>{t("Ads Cost")}</span>
         <span style={{ fontSize: 19, fontWeight: 800, color: "#fff" }}>{idrF(totals.ads_cost)}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 10, columnGap: 8, fontSize: 12 }}>
-        <Metric label="Sales" value={idr(totals.sales)} />
-        <Metric label="View" value={num(totals.view)} />
-        <Metric label="Click" value={num(totals.click)} />
-        <Metric label="Order" value={num(totals.orders)} />
-        <Metric label="Item Sold" value={num(totals.item_sold)} />
+        <Metric label={t("Sales")} value={idr(totals.sales)} />
+        <Metric label={t("View")} value={num(totals.view)} />
+        <Metric label={t("Click")} value={num(totals.click)} />
+        <Metric label={t("Order")} value={num(totals.orders)} />
+        <Metric label={t("Item Sold")} value={num(totals.item_sold)} />
       </div>
     </div>
   );
@@ -300,17 +302,17 @@ function Panel({ title, children }: { title: string; hint: string; children: Rea
 // gradient trapezoid, monotonically-tapering widths, % of top stage) —
 // duplicated rather than imported so this lazy-loaded chunk stays
 // independent, same convention DashboardCharts.tsx documents for itself.
-function AdsFunnel({ funnel }: { funnel: Funnel }) {
+function AdsFunnel({ funnel, t }: { funnel: Funnel; t: (k: string) => string }) {
   const isMobile = useIsMobile();
   const { view, click, add_to_cart, orders } = funnel;
   if (!view && !click && !add_to_cart && !orders) {
-    return <div style={{ textAlign: "center", color: "var(--muted)", padding: "40px 0", fontSize: 13 }}>No ads funnel data yet</div>;
+    return <div style={{ textAlign: "center", color: "var(--muted)", padding: "40px 0", fontSize: 13 }}>{t("No ads funnel data yet")}</div>;
   }
   const stages = [
-    { label: "View", value: view },
-    { label: "Click", value: click },
-    { label: "Add to Cart", value: add_to_cart },
-    { label: "Order", value: orders },
+    { label: t("View"), value: view },
+    { label: t("Click"), value: click },
+    { label: t("Add to Cart"), value: add_to_cart },
+    { label: t("Order"), value: orders },
   ];
   const W = isMobile ? 150 : 220, H = isMobile ? 190 : 260;
   const segH = H / stages.length;

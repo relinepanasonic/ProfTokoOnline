@@ -66,12 +66,12 @@ body{
 /* ===== LAYOUT ===== */
 .app{display:flex;min-height:100vh}
 .sidebar{
-  width:248px;position:fixed;top:0;bottom:0;left:0;z-index:30;
+  width:208px;position:fixed;top:0;bottom:0;left:0;z-index:30;
   display:flex;flex-direction:column;padding:18px 14px;
   background:linear-gradient(180deg, rgba(15,32,64,.97), rgba(10,22,40,.98));
   border-right:1px solid var(--card-border);backdrop-filter:blur(18px);color:var(--text-2);
 }
-.main{flex:1;margin-left:248px;padding:18px 22px 40px;min-width:0}
+.main{flex:1;margin-left:208px;padding:18px 22px 40px;min-width:0}
 
 .brand{display:flex;align-items:center;gap:11px;padding:6px 4px 16px;border-bottom:1px solid var(--line)}
 .brand .logo{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;
@@ -80,11 +80,11 @@ body{
 .brand .t2{font-size:11px;color:var(--gold);letter-spacing:.3px}
 
 .nav-list{list-style:none;padding:0;margin:16px 0 0;overflow-y:auto;flex:1}
-.nav-list li{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:11px;
-  cursor:pointer;color:var(--text-2);font-weight:600;margin-bottom:5px;transition:.18s}
+.nav-list li{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:11px;
+  cursor:pointer;color:var(--text-2);font-weight:600;font-size:13.5px;margin-bottom:5px;transition:.18s}
 .nav-list li:hover{background:var(--glass);color:#fff}
 .nav-list li.active{background:linear-gradient(135deg,var(--gold),var(--gold-soft));color:var(--navy-deep);box-shadow:0 6px 18px var(--glow)}
-.nav-list li .ic{width:18px;text-align:center}
+.nav-list li .ic{width:17px;text-align:center}
 .sidebar .foot{font-size:11px;color:var(--muted);padding:10px 8px;border-top:1px solid var(--line)}
 
 /* Topbar */
