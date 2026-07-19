@@ -6,10 +6,8 @@ import type { DataSource } from "@/lib/parse";
 import StoreSalesTable from "../StoreSalesTable";
 import UploadHere from "./UploadHere";
 import UploadLogTable from "./UploadLogTable";
-import UploadIklan from "../ads/UploadIklan";
 import FinanceUpload from "../product/FinanceUpload";
 import StoreUpload from "../store/StoreUpload";
-import { LEVELS } from "@/lib/adsConstants";
 import { GUIDE } from "@/lib/uploadGuides";
 import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
@@ -26,7 +24,6 @@ const SLOTS: { source: DataSource; label: string; hint: string; accept: string }
   { source: "ads",  label: "Ads Performa",     hint: "Data Keseluruhan Iklan", accept: ".xlsx,.xls,.csv" },
 ];
 const CARD1_SOURCES: DataSource[] = ["perf", "spos"];
-const GROUP_LEVELS = LEVELS.filter((l) => l.v !== "incubation");
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4", "Week 5"];
@@ -81,6 +78,12 @@ export default function UploadPage() {
 
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  // GMV Auto (Inkubasi) + Group Ads — separate from the SLOTS/files record
+  // above since they post to /api/ads-group/upload, not /api/upload, but
+  // share the same Card 2 row and the same top-of-form Owner/Brand/Store/
+  // Year/Month/Week (no more per-card duplicate forms).
+  const [inkubasiFile, setInkubasiFile] = useState<File | null>(null);
+  const [groupFile, setGroupFile] = useState<File | null>(null);
   // Bumped after a successful upload so <UploadLogTable> (which owns its
   // own uploads-list state) refetches.
   const [logRefreshKey, setLogRefreshKey] = useState(0);
@@ -177,7 +180,7 @@ export default function UploadPage() {
     if (!clientId) { setLog([t("Workspace not ready.")]); setBusy(false); return; }
     if (!manual.year || !manual.bulan) { setLog([t("Year and Bulan are required.")]); setBusy(false); return; }
     const chosen = SLOTS.filter((s) => files[s.source]);
-    if (!chosen.length) { setLog([t("Pick at least one file.")]); setBusy(false); return; }
+    if (!chosen.length && !inkubasiFile && !groupFile) { setLog([t("Pick at least one file.")]); setBusy(false); return; }
     await ensureStoreLink();
     const manualToSend = { ...manual, admin: adminName, tanggal_input: new Date().toISOString() };
     for (const slot of chosen) {
@@ -194,6 +197,24 @@ export default function UploadPage() {
         setLog((l) => [...l, `✗ ${slot.label}: ${String(e)}`]);
       }
     }
+    // GMV Auto (Inkubasi) + Group Ads — same shared form, different endpoint
+    // (/api/ads-group/upload) and payload shape (ads_level).
+    async function postGroup(file: File, label: string, adsLevel: string | null) {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("client_id", clientId!);
+      fd.append("manual", JSON.stringify(adsLevel ? { ...manualToSend, ads_level: adsLevel } : manualToSend));
+      try {
+        const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
+        const j = await res.json();
+        setLog((l) => [...l, res.ok ? `✓ ${label}: ${j.rows} rows` : `✗ ${label}: ${j.error}`]);
+      } catch (e) {
+        setLog((l) => [...l, `✗ ${label}: ${String(e)}`]);
+      }
+    }
+    if (inkubasiFile) await postGroup(inkubasiFile, "GMV Auto Performa", "incubation");
+    if (groupFile) await postGroup(groupFile, "Group Ads Performa", null);
+
     setBusy(false);
     setLogRefreshKey((k) => k + 1);
   }
@@ -335,14 +356,19 @@ export default function UploadPage() {
           ))}
         </div>
 
-        {/* Card 2: Ads Performance — All Level */}
+        {/* Card 2: Ads Performance — All Level. 3 boxes (Ads Performa, GMV
+            Auto Performa, Group Ads Performa) sharing this same form's
+            Owner/Brand/Store/Year/Month/Week — no more separate per-card
+            forms; matches UploadHere's layout exactly. */}
         <CardLabel title={t("Ads Performance")} sub="All Level" />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
           {SLOTS.filter((s) => s.source === "ads").map((s) => (
             <BrowseFile key={s.source} label={s.label} hint={s.hint} file={files[s.source] ?? null}
               onPick={(f) => setFiles((prev) => ({ ...prev, [s.source]: f }))}
               guideImage={GUIDE.ads} />
           ))}
+          <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
+          <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} guideImage={GUIDE.ads} />
         </div>
 
         <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
@@ -356,23 +382,6 @@ export default function UploadPage() {
             {log.map((l, i) => <div key={i} style={{ color: l.startsWith("✓") ? "var(--gold)" : "#f87171", marginBottom: 4 }}>{l}</div>)}
           </div>
         )}
-      </div>
-
-      {/* Card 2 continued: Inkubasi Performa + Group Performa — each is its
-          own upload zone with its own Owner/Brand/Store/period (same as the
-          Ads Performance page's identical widget), just narrowed to the
-          ads_level(s) this card covers. */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
-        <UploadIklan
-          clientId={clientId} supabase={supabase} onUploaded={() => setLogRefreshKey((k) => k + 1)}
-          title="Inkubasi Performa" lockLevel="incubation"
-          hint="Shopee Shop GMV Max / incubation export — one file per period."
-        />
-        <UploadIklan
-          clientId={clientId} supabase={supabase} onUploaded={() => setLogRefreshKey((k) => k + 1)}
-          title="Group Performa" levelChoices={GROUP_LEVELS}
-          hint="Export one ad group (Hero / Independent / Low Conversion) per file."
-        />
       </div>
 
       {/* Card 3 / 4: Finance Performa + Ops Performa — Sultan | King |
