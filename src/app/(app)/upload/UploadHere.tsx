@@ -6,6 +6,7 @@ import { MONTHS, WEEKS } from "@/lib/adsConstants";
 import { GUIDE } from "@/lib/uploadGuides";
 import UploadLogTable from "./UploadLogTable";
 import BrowseFile from "@/components/BrowseFile";
+import { useLang } from "@/lib/i18n";
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
@@ -27,6 +28,7 @@ type Profile = { role: string; client_id: string | null; scope_owner: string | n
 //      Sultan/King same as "Upload by Admin", each with its OWN independent
 //      Browse+Upload — not part of the shared button above.
 export default function UploadHere() {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [profile, setProfile] = useState<Profile | null>(null);
   const [clientId, setClientId] = useState("");
@@ -105,11 +107,11 @@ export default function UploadHere() {
   }
 
   async function submit() {
-    if (!manual.year || !manual.bulan) { setLog(["Year and Bulan are required."]); return; }
-    if (!manual.store_name) { setLog(["Select Owner → Brand → Store."]); return; }
-    if (!storeFile && !productFile && !adsFile && !inkubasiFile && !groupFile) { setLog(["Pick at least one file."]); return; }
+    if (!manual.year || !manual.bulan) { setLog([t("Year and Bulan are required.")]); return; }
+    if (!manual.store_name) { setLog([t("Select Owner → Brand → Store.")]); return; }
+    if (!storeFile && !productFile && !adsFile && !inkubasiFile && !groupFile) { setLog([t("Pick at least one file.")]); return; }
 
-    if (!clientId) { setLog(["Workspace not ready."]); return; }
+    if (!clientId) { setLog([t("Workspace not ready.")]); return; }
     setBusy(true); setLog([]);
     const resolvedCid = clientId;
 
@@ -169,7 +171,7 @@ export default function UploadHere() {
 
   async function submitOrder() {
     if (!clientId || !orderFile || !manual.store_name) return;
-    if (!manual.year || !manual.bulan) { setOrderLog("✗ Year and Bulan are required."); return; }
+    if (!manual.year || !manual.bulan) { setOrderLog("✗ " + t("Year and Bulan are required.")); return; }
     setOrderBusy(true); setOrderLog("");
     const fd = new FormData();
     fd.append("file", orderFile);
@@ -186,7 +188,7 @@ export default function UploadHere() {
 
   async function submitFinance() {
     if (!clientId || !financeFile || !manual.store_name) return;
-    if (!manual.year || !manual.bulan) { setFinanceLog("✗ Year and Bulan are required."); return; }
+    if (!manual.year || !manual.bulan) { setFinanceLog("✗ " + t("Year and Bulan are required.")); return; }
     setFinanceBusy(true); setFinanceLog("");
     const fd = new FormData();
     fd.append("file", financeFile);
@@ -207,50 +209,50 @@ export default function UploadHere() {
   return (
     <>
     <div className="panel">
-      <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
-      <div className="hint" style={{ marginBottom: 16 }}>Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.</div>
+      <h3 style={{ margin: 0 }}>{t("Upload Shopee Data")}</h3>
+      <div className="hint" style={{ marginBottom: 16 }}>{t("Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.")}</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14, marginBottom: 20 }}>
-        <F label="Year"><input type="number" value={manual.year} onChange={(e) => setManual((m) => ({ ...m, year: Number(e.target.value) }))} /></F>
-        <F label="Bulan">
+        <F label={t("Year")}><input type="number" value={manual.year} onChange={(e) => setManual((m) => ({ ...m, year: Number(e.target.value) }))} /></F>
+        <F label={t("Month")}>
           <select value={manual.bulan} onChange={(e) => setManual((m) => ({ ...m, bulan: e.target.value }))}>
-            <option value="">Month</option>
+            <option value="">{t("Month")}</option>
             {MONTHS.map((m) => <option key={m}>{m}</option>)}
           </select>
         </F>
-        <F label="Owner">
+        <F label={t("Owner")}>
           {isOwnerLogin
             ? <ReadonlyField value={manual.pic_client || "—"} />
             : <select value={manual.pic_client} onChange={(e) => setManual((m) => ({ ...m, pic_client: e.target.value, brand: "", store_name: "" }))}>
-                <option value="">Select owner…</option>
+                <option value="">{t("Select owner…")}</option>
                 {owners.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>}
         </F>
-        <F label="Brand">
+        <F label={t("Brand")}>
           {brandLocked
             ? <ReadonlyField value={manual.brand} />
             : <select value={manual.brand} onChange={(e) => setManual((m) => ({ ...m, brand: e.target.value, store_name: "" }))} disabled={!manual.pic_client}>
-                <option value="">{manual.pic_client ? "Select brand…" : "Owner first"}</option>
+                <option value="">{manual.pic_client ? t("Select brand…") : t("Owner first")}</option>
                 {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>}
         </F>
-        <F label="Store">
+        <F label={t("Store")}>
           {storeLocked
             ? <ReadonlyField value={manual.store_name} />
             : <select value={manual.store_name} onChange={(e) => setManual((m) => ({ ...m, store_name: e.target.value }))} disabled={!manual.brand}>
-                <option value="">{manual.brand ? "Select store…" : "Brand first"}</option>
+                <option value="">{manual.brand ? t("Select store…") : t("Brand first")}</option>
                 {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>}
         </F>
       </div>
 
-      <CardLabel title="Store Performance" sub="All Level" />
+      <CardLabel title={t("Store Performance")} sub="All Level" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
         <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} guideImage={GUIDE.store} />
         <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} guideImage={GUIDE.product} />
       </div>
 
-      <CardLabel title="Ads Performance" sub="All Level" />
+      <CardLabel title={t("Ads Performance")} sub="All Level" />
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
         <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} guideImage={GUIDE.ads} />
         <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
@@ -259,7 +261,7 @@ export default function UploadHere() {
 
       <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
         <button className="btn-gold" disabled={busy} onClick={submit} style={{ padding: "11px 40px", fontSize: 15 }}>
-          {busy ? "Uploading…" : "Upload"}
+          {busy ? t("Uploading…") : t("Upload")}
         </button>
       </div>
 
@@ -272,24 +274,24 @@ export default function UploadHere() {
       {canFinance && (
         <div style={{ marginTop: 28 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 8 }}>
-            <CardLabel title="Order Complete" sub="Sultan | King" />
-            <CardLabel title="Finance Detail" sub="Sultan | King" />
+            <CardLabel title={t("Order Complete")} sub="Sultan | King" />
+            <CardLabel title={t("Finance Detail")} sub="Sultan | King" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, alignItems: "start" }}>
             <div>
-              <BrowseFile label="Order Complete" hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} guideImage={GUIDE.order} />
+              <BrowseFile label={t("Order Complete")} hint="OrderCompleted.xlsx" file={orderFile} onPick={setOrderFile} guideImage={GUIDE.order} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
                 <button className="btn-gold" disabled={orderBusy || !orderFile} onClick={submitOrder} style={{ padding: "9px 30px", fontSize: 13.5 }}>
-                  {orderBusy ? "Uploading…" : "Upload"}
+                  {orderBusy ? t("Uploading…") : t("Upload")}
                 </button>
                 {orderLog && <span style={{ fontSize: 12, fontFamily: "monospace", color: orderLog.startsWith("✓") ? "var(--gold)" : "#f87171" }}>{orderLog}</span>}
               </div>
             </div>
             <div>
-              <BrowseFile label="Finance Detail" hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} guideImage={GUIDE.finance} />
+              <BrowseFile label={t("Finance Detail")} hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} guideImage={GUIDE.finance} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
                 <button className="btn-gold" disabled={financeBusy || !financeFile} onClick={submitFinance} style={{ padding: "9px 30px", fontSize: 13.5 }}>
-                  {financeBusy ? "Uploading…" : "Upload"}
+                  {financeBusy ? t("Uploading…") : t("Upload")}
                 </button>
                 {financeLog && <span style={{ fontSize: 12, fontFamily: "monospace", color: financeLog.startsWith("✓") ? "var(--gold)" : "#f87171" }}>{financeLog}</span>}
               </div>

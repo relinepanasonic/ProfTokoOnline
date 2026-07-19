@@ -12,6 +12,7 @@ import StoreUpload from "../store/StoreUpload";
 import { LEVELS } from "@/lib/adsConstants";
 import { GUIDE } from "@/lib/uploadGuides";
 import BrowseFile from "@/components/BrowseFile";
+import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,7 @@ function fmtID(iso: string): string {
 }
 
 export default function UploadPage() {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [manual, setManual] = useState({
@@ -145,10 +147,10 @@ export default function UploadPage() {
 
   async function submit() {
     setBusy(true); setLog([]);
-    if (!clientId) { setLog(["Workspace not ready."]); setBusy(false); return; }
-    if (!manual.year || !manual.bulan) { setLog(["Year and Bulan are required."]); setBusy(false); return; }
+    if (!clientId) { setLog([t("Workspace not ready.")]); setBusy(false); return; }
+    if (!manual.year || !manual.bulan) { setLog([t("Year and Bulan are required.")]); setBusy(false); return; }
     const chosen = SLOTS.filter((s) => files[s.source]);
-    if (!chosen.length) { setLog(["Pick at least one file."]); setBusy(false); return; }
+    if (!chosen.length) { setLog([t("Pick at least one file.")]); setBusy(false); return; }
     const manualToSend = { ...manual, admin: adminName, tanggal_input: new Date().toISOString() };
     for (const slot of chosen) {
       const fd = new FormData();
@@ -192,8 +194,8 @@ export default function UploadPage() {
     <>
       {showTabStrip && (
         <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <button onClick={() => setTab("here")} style={uploadTabBtn(tab === "here")}>Upload Here</button>
-          <button onClick={() => setTab("admin")} style={uploadTabBtn(tab === "admin")}>Upload by Admin</button>
+          <button onClick={() => setTab("here")} style={uploadTabBtn(tab === "here")}>{t("Upload Here")}</button>
+          <button onClick={() => setTab("admin")} style={uploadTabBtn(tab === "admin")}>{t("Upload by Admin")}</button>
         </div>
       )}
       {tab === "here" && showTabStrip && <UploadHere />}
@@ -201,7 +203,7 @@ export default function UploadPage() {
       {/* ───── Card 1 + 2: Store Performance / Ads Performance (All Level) ───── */}
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 4, flexWrap: "wrap" }}>
-          <h3 style={{ margin: 0 }}>Upload Shopee Data</h3>
+          <h3 style={{ margin: 0 }}>{t("Upload Shopee Data")}</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <a
               href="/Manual%20Book%203%20Core%20Report%20Download.pdf"
@@ -217,21 +219,21 @@ export default function UploadPage() {
             )}
           </div>
         </div>
-        <div className="hint" style={{ marginBottom: 16 }}>Attach one or more Shopee exports — Brand comes from your Owner → Brand → Store selection above.</div>
+        <div className="hint" style={{ marginBottom: 16 }}>{t("Attach one or more Shopee exports — Brand comes from your Owner → Brand → Store selection above.")}</div>
 
         {/* Row 1: Year · Month · Week */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
-          <Field label="Year">
+          <Field label={t("Year")}>
             <input type="number" value={manual.year} onChange={(e) => setManual((m) => ({ ...m, year: Number(e.target.value) }))} />
           </Field>
-          <Field label="Bulan">
+          <Field label={t("Month")}>
             <select value={manual.bulan} onChange={(e) => pickBulan(e.target.value)}>
-              <option value="">Month</option>
+              <option value="">{t("Month")}</option>
               {MONTHS.map((m) => <option key={m}>{m}</option>)}
               <option value="Baseline">📌 Baseline (Month Awal)</option>
             </select>
           </Field>
-          <Field label="Week">
+          <Field label={t("Week")}>
             <select value={manual.week} onChange={(e) => setManual((m) => ({ ...m, week: e.target.value }))}>
               {WEEKS.map((w) => <option key={w}>{w}</option>)}
               <option value={BASELINE_WEEK}>📌 {BASELINE_WEEK}</option>
@@ -241,21 +243,21 @@ export default function UploadPage() {
 
         {/* Row 2: Owner · Brand · Store Name (cascading) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 14 }}>
-          <Field label="Owner">
+          <Field label={t("Owner")}>
             <select value={manual.pic_client} onChange={(e) => pickOwner(e.target.value)} disabled={!clientId}>
-              <option value="">Select owner…</option>
+              <option value="">{t("Select owner…")}</option>
               {owners.map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </Field>
-          <Field label="Brand">
+          <Field label={t("Brand")}>
             <select value={manual.brand} onChange={(e) => pickBrand(e.target.value)} disabled={!manual.pic_client}>
-              <option value="">{manual.pic_client ? "Select brand…" : "Pick owner first"}</option>
+              <option value="">{manual.pic_client ? t("Select brand…") : t("Pick owner first")}</option>
               {brandsForOwner.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           </Field>
-          <Field label="Store Name">
+          <Field label={t("Store Name")}>
             <select value={manual.store_name} onChange={(e) => pickStore(e.target.value)} disabled={!manual.brand}>
-              <option value="">{manual.brand ? "Select store…" : "Pick brand first"}</option>
+              <option value="">{manual.brand ? t("Select store…") : t("Pick brand first")}</option>
               {storesForBrand.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
@@ -266,23 +268,23 @@ export default function UploadPage() {
           <Field label="Tanggal Mulai (Senin)">
             {isBaseline ? <BaselineDateBadge /> : <>
               <input type="date" value={manual.tanggal_mulai} onChange={(e) => pickStart(e.target.value)} />
-              <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Auto-snaps to Monday · {fmtID(manual.tanggal_mulai)}</span>
+              <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>{t("Auto-snaps to Monday")} · {fmtID(manual.tanggal_mulai)}</span>
             </>}
           </Field>
           <Field label="Tanggal Akhir (Minggu)">
             {isBaseline ? <BaselineDateBadge /> : <>
               <input type="date" value={manual.tanggal_berakhir} readOnly disabled style={{ opacity: .7, cursor: "not-allowed" }} />
-              <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>1 week after start · {fmtID(manual.tanggal_berakhir)}</span>
+              <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>{t("1 week after start")} · {fmtID(manual.tanggal_berakhir)}</span>
             </>}
           </Field>
           <Field label="Tanggal Input (log)">
             <input type="text" value={inputTime.toLocaleString("id-ID")} readOnly disabled style={{ opacity: .7, cursor: "not-allowed" }} />
-            <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>Recorded automatically</span>
+            <span style={{ fontSize: 10.5, color: "var(--muted)", marginTop: 3 }}>{t("Recorded automatically")}</span>
           </Field>
         </div>
 
         {/* Card 1: Store Performance — All Level */}
-        <CardLabel title="Store Performance" sub="All Level" />
+        <CardLabel title={t("Store Performance")} sub="All Level" />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 20 }}>
           {SLOTS.filter((s) => CARD1_SOURCES.includes(s.source)).map((s) => (
             <BrowseFile key={s.source} label={s.label} hint={s.hint} file={files[s.source] ?? null}
@@ -292,7 +294,7 @@ export default function UploadPage() {
         </div>
 
         {/* Card 2: Ads Performance — All Level */}
-        <CardLabel title="Ads Performance" sub="All Level" />
+        <CardLabel title={t("Ads Performance")} sub="All Level" />
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
           {SLOTS.filter((s) => s.source === "ads").map((s) => (
             <BrowseFile key={s.source} label={s.label} hint={s.hint} file={files[s.source] ?? null}
@@ -303,7 +305,7 @@ export default function UploadPage() {
 
         <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
           <button className="btn-gold" disabled={busy} onClick={submit} style={{ padding: "11px 40px", fontSize: 15 }}>
-            {busy ? "Uploading…" : "Upload"}
+            {busy ? t("Uploading…") : t("Upload")}
           </button>
         </div>
 
@@ -337,11 +339,11 @@ export default function UploadPage() {
       {canFinance && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
           <div>
-            <CardLabel title="Finance Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <CardLabel title={t("Finance Detail")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
             <FinanceUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
           <div>
-            <CardLabel title="Ops Performa" sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <CardLabel title={t("Operational Performance")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
             <StoreUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
         </div>

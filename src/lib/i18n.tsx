@@ -160,6 +160,26 @@ const ID_DICT: Record<string, string> = {
   "Ship Deadline": "Pesanan di Kirim", "Completed At": "Pesanan Selesai",
   "Courier": "Kurir", "Province": "Provinsi", "Status": "Status",
   "Others": "Lainnya",
+
+  // Upload
+  "Upload Shopee Data": "Unggah Data Shopee",
+  "Attach one or more Shopee exports — Brand comes from your Owner → Brand → Store selection above.":
+    "Lampirkan satu atau lebih file ekspor Shopee — Merek mengikuti pilihan Pemilik → Merek → Toko di atas.",
+  "Pick the month, confirm your store, and drop your Shopee exports — the week is filled in automatically.":
+    "Pilih bulan, konfirmasi toko Anda, dan letakkan file ekspor Shopee — minggu akan terisi otomatis.",
+  "Select owner…": "Pilih pemilik…", "Select brand…": "Pilih merek…", "Select store…": "Pilih toko…",
+  "Owner first": "Pilih pemilik dulu", "Brand first": "Pilih merek dulu", "Pick owner first": "Pilih pemilik dulu",
+  "Pick brand first": "Pilih merek dulu",
+  "Store Performance": "Performa Toko", "Order Complete": "Order Selesai",
+  "Uploading…": "Mengunggah…", "Upload": "Unggah",
+  "Year and Bulan are required.": "Tahun dan Bulan wajib diisi.",
+  "Select Owner → Brand → Store.": "Pilih Pemilik → Merek → Toko.",
+  "Pick at least one file.": "Pilih minimal satu file.",
+  "Workspace not ready.": "Workspace belum siap.",
+  "Auto-snaps to Monday": "Otomatis ke hari Senin",
+  "1 week after start": "1 minggu setelah mulai",
+  "Recorded automatically": "Tercatat otomatis",
+  "Store Name": "Nama Toko", "Upload by Admin": "Unggah oleh Admin", "Upload Here": "Unggah Di Sini",
 };
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };
