@@ -97,6 +97,37 @@ const ID_DICT: Record<string, string> = {
   "No product-level ads data yet": "Belum ada data iklan tingkat produk",
   "No ads funnel data yet": "Belum ada data funnel iklan",
   "Loading data…": "Memuat data…",
+
+  // Finance Detail
+  "Upload Data Keuangan First": "Unggah Data Keuangan Dulu",
+  "No Shopee Income (Laporan Penghasilan) data has been uploaded yet. Go to the \"Upload Keuangan\" tab to import one.":
+    "Belum ada data Income (Laporan Penghasilan) Shopee yang diunggah. Buka tab \"Upload Keuangan\" untuk mengimpornya.",
+  "Choose Store": "Pilih Store",
+  "Finance Detail is shown per store — pick a Store above to view its dashboard.":
+    "Detail Keuangan ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
+  "Gross Sales": "Penjualan Kotor", "Gross Profit": "Laba Kotor",
+  "Ads Spent": "Belanja Iklan", "Nett Profit": "Laba Bersih",
+  "Promotion Cost": "Biaya Promosi", "Refund": "Pengembalian Dana",
+  "Delivery Cost": "Biaya Pengiriman", "Affiliate Cost": "Biaya Afiliasi",
+  "Marketplace Fee": "Biaya Marketplace",
+  "Monthly Gross Sales vs Nett Profit": "Penjualan Kotor vs Laba Bersih Bulanan",
+  "Monthly Marketplace Fee": "Biaya Marketplace Bulanan",
+  "Monthly Promotion Cost": "Biaya Promosi Bulanan",
+  "Payment Method": "Metode Bayar", "Shipping Service": "Jasa Kirim",
+  "Daily Transaction Detail": "Detail Transaksi per Hari",
+  "Click a row to see that day's transaction detail · date based on release date":
+    "Klik baris untuk melihat detail transaksi hari itu · tanggal berdasarkan dana dilepaskan",
+  "Date": "Tanggal", "Orders": "Pesanan", "Net Income": "Laba Bersih",
+  "No data for these filters": "Tidak ada data untuk filter ini",
+  "Search": "Cari",
+  "Product Code / Product Name / Variant Name": "Kode Produk / Nama Produk / Nama Variasi",
+  "Variant Name": "Nama Variasi", "Variant Code": "Kode Variasi",
+  "Product Sold": "Produk Terjual", "Promotional Cost": "Biaya Promosi",
+  "Transaction": "Transaksi", "Close": "Tutup",
+  "Order No.": "No. Pesanan", "Buyer": "Pembeli", "Affiliate": "Afiliasi",
+  "No transactions": "Tidak ada transaksi",
+  "orders": "pesanan",
+  "Finance Dashboard": "Dashboard Keuangan",
 };
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };

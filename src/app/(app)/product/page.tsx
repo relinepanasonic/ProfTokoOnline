@@ -5,6 +5,7 @@ import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import UploadGate from "@/components/UploadGate";
+import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ const FinanceDashboard = dynamicImport(() => import("./FinanceDashboard"), { ssr
 const ModalProduct = dynamicImport(() => import("./ModalProduct"), { ssr: false });
 
 const TABS = [
-  { v: "dashboard", l: "Dashboard Keuangan" },
+  { v: "dashboard", l: "Finance Dashboard" },
   { v: "modal", l: "Modal Product" },
 ] as const;
 // Finance upload now lives on the consolidated /upload page (Finance Performa
@@ -23,6 +24,7 @@ const TABS = [
 const MANAGE_ROLES = ["superadmin", "client_admin", "branch_manager"];
 
 export default function Page() {
+  const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [clientId, setClientId] = useState("");
   const [tab, setTab] = useState<(typeof TABS)[number]["v"]>("dashboard");
@@ -41,15 +43,15 @@ export default function Page() {
     })();
   }, [supabase]);
 
-  const tabs = canManage ? TABS : TABS.filter((t) => t.v === "dashboard");
+  const tabs = canManage ? TABS : TABS.filter((tabItem) => tabItem.v === "dashboard");
 
   return (
     <UploadGate table="finance_rows">
     <>
       {canManage && (
         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          {tabs.map((t) => (
-            <button key={t.v} onClick={() => setTab(t.v)} style={tabBtn(tab === t.v)}>{t.l}</button>
+          {tabs.map((tabItem) => (
+            <button key={tabItem.v} onClick={() => setTab(tabItem.v)} style={tabBtn(tab === tabItem.v)}>{t(tabItem.l)}</button>
           ))}
         </div>
       )}
