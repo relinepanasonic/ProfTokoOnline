@@ -51,11 +51,35 @@ export type CityDetailRow = {
 type Feat = { type: "Feature"; properties: { name: string | null }; geometry: Geometry };
 let cachedGeo: FeatureCollection<Geometry, { name: string | null }> | null = null;
 
+type SortKey = "city" | "gmv" | "transactions" | "product_sold" | "sla_days" | "cancellations" | "returns";
+
 export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[]; cityDetail: CityDetailRow[] }) {
   const { t } = useLang();
   const [geo, setGeo] = useState(cachedGeo);
   const [hover, setHover] = useState<{ name: string; stat: ProvinceStat | null; x: number; y: number } | null>(null);
   const [selected, setSelected] = useState<{ name: string; rows: CityDetailRow[] } | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("transactions");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function selectProvince(name: string, rows: CityDetailRow[]) {
+    setSelected({ name, rows });
+    setSortKey("transactions");
+    setSortDir("desc");
+  }
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "city" ? "asc" : "desc"); }
+  }
+  const arrow = (k: SortKey) => sortKey !== k ? "" : sortDir === "asc" ? " ▲" : " ▼";
+  const sortedRows = useMemo(() => {
+    if (!selected) return [];
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...selected.rows].sort((a, b) => {
+      if (sortKey === "city") return a.city.localeCompare(b.city) * dir;
+      const av = a[sortKey] ?? -Infinity, bv = b[sortKey] ?? -Infinity;
+      return (av - bv) * dir;
+    });
+  }, [selected, sortKey, sortDir]);
 
   useEffect(() => {
     if (cachedGeo) return;
@@ -121,7 +145,7 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
               style={{ filter: glow, transition: "filter .2s", cursor: name ? "pointer" : "default" }}
               onMouseMove={(e) => name && setHover({ name, stat, x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHover(null)}
-              onClick={() => name && setSelected({ name, rows: cityByProvince.get(name) || [] })} />
+              onClick={() => name && selectProvince(name, cityByProvince.get(name) || [])} />
           );
         })}
       </svg>
@@ -156,16 +180,16 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
             <div className="tbl-wrap" style={{ maxHeight: "72vh" }}>
               <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
                 <thead><tr>
-                  <th>{t("City / Regency")}</th>
-                  <th className="num">{t("Sales")}</th>
-                  <th className="num">{t("Total Transaction")}</th>
-                  <th className="num">{t("Total Product Sold")}</th>
-                  <th className="num">SLA</th>
-                  <th className="num">{t("Total Cancellations")}</th>
-                  <th className="num">{t("Total Returned Products")}</th>
+                  <th style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("city")}>{t("City / Regency")}{arrow("city")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("gmv")}>{t("Sales")}{arrow("gmv")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("transactions")}>{t("Total Transaction")}{arrow("transactions")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("product_sold")}>{t("Total Product Sold")}{arrow("product_sold")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("sla_days")}>SLA{arrow("sla_days")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("cancellations")}>{t("Total Cancellations")}{arrow("cancellations")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("returns")}>{t("Total Returned Products")}{arrow("returns")}</th>
                 </tr></thead>
                 <tbody>
-                  {selected.rows.map((r) => (
+                  {sortedRows.map((r) => (
                     <tr key={r.city}>
                       <td style={{ fontWeight: 600 }}>{r.city}</td>
                       <td className="num">{rpFull(r.gmv)}</td>
@@ -176,7 +200,7 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
                       <td className="num">{numFull(r.returns)}</td>
                     </tr>
                   ))}
-                  {selected.rows.length === 0 && (
+                  {sortedRows.length === 0 && (
                     <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for this province")}</td></tr>
                   )}
                 </tbody>
