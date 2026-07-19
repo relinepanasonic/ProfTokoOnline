@@ -128,7 +128,7 @@ export default function RegisterPage() {
               </div>
             </Fld>
             <Fld label="No HP">
-              <input type="tel" autoComplete="tel" style={field} placeholder="08xxxxxxxxxx"
+              <input required type="tel" autoComplete="tel" style={field} placeholder="08xxxxxxxxxx"
                 value={form.no_hp} onChange={(e) => setForm({ ...form, no_hp: e.target.value })} />
             </Fld>
             <Fld label="Email">

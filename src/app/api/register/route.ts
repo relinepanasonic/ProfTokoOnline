@@ -33,8 +33,8 @@ export async function POST(req: NextRequest) {
   };
   const { nama, username, no_hp, email, password, brand, nama_toko } = body;
 
-  if (!nama || !username || !email || !password || !brand || !nama_toko)
-    return NextResponse.json({ error: "Nama, Username, Email, Password, Brand, and Nama Toko are required" }, { status: 400 });
+  if (!nama || !username || !no_hp || !email || !password || !brand || !nama_toko)
+    return NextResponse.json({ error: "Nama, Username, No HP, Email, Password, Brand, and Nama Toko are required" }, { status: 400 });
   if (!/^[a-zA-Z0-9_.-]+$/.test(username))
     return NextResponse.json({ error: "Username can only contain letters, numbers, dots, dashes and underscores" }, { status: 400 });
   if (password.length < 6)
