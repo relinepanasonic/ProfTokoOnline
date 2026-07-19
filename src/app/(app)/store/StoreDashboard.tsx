@@ -9,6 +9,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
+import { useTableSort } from "@/hooks/useTableSort";
+import SortableHeader from "@/components/SortableHeader";
 import type { CityDetailRow } from "./IndonesiaMap";
 
 // d3-geo + topojson-client only matter to this one map — loaded client-side
@@ -106,6 +108,12 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
 
   function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, store: "" })); }
 
+  // Must run unconditionally, before the hasAnyData/!d early returns below —
+  // safe [] fallback rather than being called after the guard. No
+  // initialKey: the daily table's default order is the backend's own
+  // date-ascending order, unchanged until the user clicks a header.
+  const dailySort = useTableSort<Summary["daily"][number]>(d?.daily ?? []);
+
   if (hasAnyData === null) return <Loader center />;
 
   if (!hasAnyData) {
@@ -196,16 +204,20 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         <div className="hint">{t("Click a row to see that day's transaction detail · date based on order completed time")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
-            <thead><tr><th>{t("Date")}</th><th className="num">{t("Orders")}</th><th className="num">GMV</th></tr></thead>
+            <thead><tr>
+              <SortableHeader label={t("Date")} sortKey="tx_date" currentSort={dailySort.sortConfig} onRequestSort={dailySort.requestSort} />
+              <SortableHeader label={t("Orders")} sortKey="orders" currentSort={dailySort.sortConfig} onRequestSort={dailySort.requestSort} className="num" />
+              <SortableHeader label="GMV" sortKey="gmv" currentSort={dailySort.sortConfig} onRequestSort={dailySort.requestSort} className="num" />
+            </tr></thead>
             <tbody>
-              {(d?.daily || []).map((r) => (
+              {dailySort.sortedData.map((r) => (
                 <tr key={r.tx_date} style={{ cursor: "pointer" }} onClick={() => setDrill(r.tx_date)}>
                   <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
                   <td className="num">{r.orders}</td>
                   <td className="num">{rpFull(r.gmv)}</td>
                 </tr>
               ))}
-              {(!d?.daily || d.daily.length === 0) && (
+              {dailySort.sortedData.length === 0 && (
                 <tr><td colSpan={3} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
               )}
             </tbody>

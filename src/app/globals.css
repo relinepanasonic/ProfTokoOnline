@@ -180,6 +180,13 @@ table.tbl td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--t
 table.tbl tr:hover td{background:rgba(201,162,39,.06)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 
+/* Universal sortable column header (SortableHeader.tsx) — stacked ▲▼,
+   dim gray by default, gold on whichever direction is active. */
+.sortable-th{padding-right:22px}
+.sort-arrows{display:inline-flex;flex-direction:column;margin-left:5px;line-height:.72;vertical-align:middle}
+.sort-arrow-up,.sort-arrow-down{font-size:.95em;color:rgba(255,255,255,.35)}
+.sort-arrow-up.active,.sort-arrow-down.active{color:var(--gold)}
+
 /* Wide P&L-style tables (e.g. Detail Product Profit): freeze the first two
    columns (Nama Product, Nama Variasi) while the rest of the row scrolls
    horizontally inside .tbl-wrap. Solid (non-gradient) background required

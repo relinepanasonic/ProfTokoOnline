@@ -8,6 +8,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
+import { useTableSort } from "@/hooks/useTableSort";
+import SortableHeader from "@/components/SortableHeader";
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
@@ -31,6 +33,7 @@ type Kpis = {
   sales: number; promotion_cost: number; refund: number; delivery_cost: number;
   affiliate_cost: number; marketplace_fee: number; misc: number; gross_profit: number; ads_cost: number;
 };
+type DailyRow = { tx_date: string; orders: number; sales: number; promotion_cost: number; marketplace_fee: number; net_income: number; refund: number };
 type Summary = {
   kpis: Kpis;
   monthly: { month: string; sales: number; profit: number }[];
@@ -40,7 +43,7 @@ type Summary = {
   monthly_costs: { month: string; promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number; marketplace_fee: number; misc: number }[];
   payment_method: { method: string; cnt: number }[];
   jasa_kirim: { service: string; cnt: number }[];
-  daily: { tx_date: string; orders: number; sales: number; promotion_cost: number; marketplace_fee: number; net_income: number; refund: number }[];
+  daily: DailyRow[];
 };
 type ProductRow = {
   kode_produk: string; nama_produk: string | null; kode_variasi: string; nama_variasi: string | null;
@@ -218,34 +221,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       </div>
 
       {activeTable === "transaksi" ? (
-      <div className="panel">
-        <div className="hint">{t("Click a row to see that day's transaction detail · date based on release date")}</div>
-        <div className="tbl-wrap" style={{ maxHeight: 350 }}>
-          <table className="tbl">
-            <thead><tr>
-              <th>{t("Date")}</th><th className="num">{t("Orders")}</th><th className="num">{t("Sales")}</th>
-              <th className="num">{t("Promotion Cost")}</th><th className="num">{t("Marketplace Fee")}</th>
-              <th className="num">{t("Net Income")}</th><th className="num">{t("Refund")}</th>
-            </tr></thead>
-            <tbody>
-              {(d?.daily || []).map((r) => (
-                <tr key={r.tx_date} style={{ cursor: "pointer" }} onClick={() => setDrill(r.tx_date)}>
-                  <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
-                  <td className="num">{r.orders}</td>
-                  <td className="num">{rpFull(r.sales)}</td>
-                  <td className="num">{rpFull(r.promotion_cost)}</td>
-                  <td className="num">{rpFull(r.marketplace_fee)}</td>
-                  <td className="num" style={{ color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income)}</td>
-                  <td className="num">{rpFull(r.refund)}</td>
-                </tr>
-              ))}
-              {(!d?.daily || d.daily.length === 0) && (
-                <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        <DailyTransactionTable rows={d?.daily || []} onRowClick={setDrill} t={t} />
       ) : (
         <ProductProfitTable rows={pd?.rows || []} t={t} />
       )}
@@ -259,29 +235,60 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   );
 }
 
+/* ── Daily Transaction Detail: universal sortable header ── */
+function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyRow[]; onRowClick: (day: string) => void; t: (k: string) => string }) {
+  const { sortedData, sortConfig, requestSort } = useTableSort<DailyRow>(rows);
+  return (
+    <div className="panel">
+      <h3>{t("Daily Transaction Detail")}</h3>
+      <div className="hint">{t("Click a row to see that day's transaction detail · date based on release date")}</div>
+      <div className="tbl-wrap" style={{ maxHeight: 350 }}>
+        <table className="tbl">
+          <thead><tr>
+            <SortableHeader label={t("Date")} sortKey="tx_date" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Orders")} sortKey="orders" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Sales")} sortKey="sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Promotion Cost")} sortKey="promotion_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Marketplace Fee")} sortKey="marketplace_fee" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Net Income")} sortKey="net_income" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Refund")} sortKey="refund" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+          </tr></thead>
+          <tbody>
+            {sortedData.map((r) => (
+              <tr key={r.tx_date} style={{ cursor: "pointer" }} onClick={() => onRowClick(r.tx_date)}>
+                <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
+                <td className="num">{r.orders}</td>
+                <td className="num">{rpFull(r.sales)}</td>
+                <td className="num">{rpFull(r.promotion_cost)}</td>
+                <td className="num">{rpFull(r.marketplace_fee)}</td>
+                <td className="num" style={{ color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income)}</td>
+                <td className="num">{rpFull(r.refund)}</td>
+              </tr>
+            ))}
+            {sortedData.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /* ── Detail Product Profit: 13-column variant-level P&L, search + sortable ── */
-type SortKey = "total_sales" | "total_modal" | "promotion_cost" | "refund" | "delivery_cost"
-  | "affiliate_cost" | "marketplace_fee" | "ads_cost" | "nett_profit";
 function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) => string }) {
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("total_sales");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = !q ? rows : rows.filter((r) =>
+    if (!q) return rows;
+    return rows.filter((r) =>
       (r.kode_produk || "").toLowerCase().includes(q) ||
       (r.nama_produk || "").toLowerCase().includes(q) ||
       (r.nama_variasi || "").toLowerCase().includes(q));
-    list = [...list].sort((a, b) => (a[sortKey] - b[sortKey]) * (sortDir === "asc" ? 1 : -1));
-    return list;
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, search]);
 
-  function toggleSort(k: SortKey) {
-    if (sortKey === k) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
-    else { setSortKey(k); setSortDir("desc"); }
-  }
-  const arrow = (k: SortKey) => sortKey !== k ? "" : sortDir === "asc" ? " ▲" : " ▼";
+  const { sortedData, sortConfig, requestSort } = useTableSort<ProductRow>(filtered, "total_sales");
 
   return (
     <div className="panel">
@@ -301,20 +308,20 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
             <th className="sticky-col sticky-col-1"><span className="sticky-inner">{t("Product Name")}</span></th>
             <th className="sticky-col sticky-col-2"><span className="sticky-inner">{t("Variant Name")}</span></th>
             <th>{t("Product Code")}</th><th>{t("Variant Code")}</th>
-            <th className="num" style={{ whiteSpace: "nowrap" }}>{t("Product Sold")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_sales")}>{t("Sales")}{arrow("total_sales")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("total_modal")}>Total Modal Product{arrow("total_modal")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("promotion_cost")}>{t("Promotional Cost")}{arrow("promotion_cost")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("refund")}>{t("Refund")}{arrow("refund")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("delivery_cost")}>{t("Delivery Cost")}{arrow("delivery_cost")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("affiliate_cost")}>{t("Affiliate Cost")}{arrow("affiliate_cost")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("marketplace_fee")}>{t("Market Place Fee")}{arrow("marketplace_fee")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("ads_cost")}>{t("Ads Cost")}{arrow("ads_cost")}</th>
-            <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("nett_profit")}>{t("Nett Profit")}{arrow("nett_profit")}</th>
+            <SortableHeader label={t("Product Sold")} sortKey="units_sold" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Sales")} sortKey="total_sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label="Total Modal Product" sortKey="total_modal" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Promotional Cost")} sortKey="promotion_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Refund")} sortKey="refund" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Delivery Cost")} sortKey="delivery_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Affiliate Cost")} sortKey="affiliate_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Market Place Fee")} sortKey="marketplace_fee" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Ads Cost")} sortKey="ads_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Nett Profit")} sortKey="nett_profit" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <th className="num" style={{ whiteSpace: "nowrap" }} title={t("Nett Profit ÷ Sales × 100%")}>%</th>
           </tr></thead>
           <tbody>
-            {filtered.map((r) => (
+            {sortedData.map((r) => (
               <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
                 <td className="sticky-col sticky-col-1" title={r.nama_produk || undefined}><span className="sticky-inner">{r.nama_produk || "—"}</span></td>
                 <td className="sticky-col sticky-col-2" title={r.nama_variasi || undefined}><span className="sticky-inner">{r.nama_variasi || "—"}</span></td>
@@ -333,7 +340,7 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
                 <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{r.total_sales > 0 ? `${(r.nett_profit / r.total_sales * 100).toFixed(1)}%` : "—"}</td>
               </tr>
             ))}
-            {filtered.length === 0 && (
+            {sortedData.length === 0 && (
               <tr><td colSpan={15} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
             )}
           </tbody>

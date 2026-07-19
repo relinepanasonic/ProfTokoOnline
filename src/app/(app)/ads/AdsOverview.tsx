@@ -17,6 +17,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 import Loader from "@/components/Loader";
+import { useTableSort } from "@/hooks/useTableSort";
+import SortableHeader from "@/components/SortableHeader";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -159,6 +161,11 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
     setSel((s) => ({ ...s, store, owner: link?.owner || s.owner, brand: link?.brand || s.brand }));
   }
 
+  // Hooks must run unconditionally (before the !d early returns below), so
+  // these use a safe [] fallback rather than being called after the guard.
+  const groupsSort = useTableSort<GroupRow>(d?.groups ?? [], "sales");
+  const productsSort = useTableSort<ProductRow>(d?.products ?? [], "sales");
+
   const filterBar = (
     <>
       {filtersErr && (
@@ -200,8 +207,6 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
   const totals = d.totals;
   const monthly = byMonth(d.monthly);
   const soldSales = byMonth(d.sold_sales_trend);
-  const groups = [...(d.groups || [])].sort((a, b) => (b.sales || 0) - (a.sales || 0));
-  const products = [...(d.products || [])].sort((a, b) => (b.sales || 0) - (a.sales || 0));
 
   return (
     <>
@@ -280,13 +285,18 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
           <table className="tbl">
             <thead>
               <tr>
-                <th>{t("Campaign Name")}</th><th className="num">{t("Ads Cost")}</th><th className="num">{t("Sales")}</th>
-                <th className="num">{t("ROAS")}</th><th className="num">{t("View")}</th><th className="num">{t("Click")}</th>
-                <th className="num">{t("Order")}</th><th className="num">{t("Item Sold")}</th>
+                <SortableHeader label={t("Campaign Name")} sortKey="nama_iklan" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} />
+                <SortableHeader label={t("Ads Cost")} sortKey="ads_cost" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("Sales")} sortKey="sales" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("ROAS")} sortKey="roas" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("View")} sortKey="view" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("Click")} sortKey="click" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("Order")} sortKey="orders" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
+                <SortableHeader label={t("Item Sold")} sortKey="item_sold" currentSort={groupsSort.sortConfig} onRequestSort={groupsSort.requestSort} className="num" />
               </tr>
             </thead>
             <tbody>
-              {groups.map((g, i) => (
+              {groupsSort.sortedData.map((g, i) => (
                 <tr key={i}>
                   <td style={{ fontWeight: 600 }}>{g.nama_iklan || "—"}</td>
                   <td className="num">{idrF(g.ads_cost)}</td>
@@ -298,7 +308,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
                   <td className="num">{num(g.item_sold)}</td>
                 </tr>
               ))}
-              {groups.length === 0 && (
+              {groupsSort.sortedData.length === 0 && (
                 <tr><td colSpan={8} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>{t("No campaign/group ads data yet")}</td></tr>
               )}
             </tbody>
@@ -314,13 +324,19 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
           <table className="tbl">
             <thead>
               <tr>
-                <th>{t("Product Code")}</th><th>{t("Product Name")}</th><th className="num">{t("Ads Cost")}</th><th className="num">{t("Sales")}</th>
-                <th className="num">{t("ROAS")}</th><th className="num">{t("View")}</th><th className="num">{t("Click")}</th>
-                <th className="num">{t("Order")}</th><th className="num">{t("Item Sold")}</th>
+                <SortableHeader label={t("Product Code")} sortKey="kode_produk" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} />
+                <SortableHeader label={t("Product Name")} sortKey="nama_produk" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} />
+                <SortableHeader label={t("Ads Cost")} sortKey="ads_cost" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("Sales")} sortKey="sales" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("ROAS")} sortKey="roas" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("View")} sortKey="view" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("Click")} sortKey="click" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("Order")} sortKey="orders" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
+                <SortableHeader label={t("Item Sold")} sortKey="item_sold" currentSort={productsSort.sortConfig} onRequestSort={productsSort.requestSort} className="num" />
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => (
+              {productsSort.sortedData.map((p) => (
                 <tr key={p.kode_produk}>
                   <td style={{ fontFamily: "monospace", fontSize: 11.5, color: "var(--muted)" }}>{p.kode_produk}</td>
                   <td style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.nama_produk || ""}>{p.nama_produk || "—"}</td>
@@ -333,7 +349,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
                   <td className="num">{num(p.item_sold)}</td>
                 </tr>
               ))}
-              {products.length === 0 && (
+              {productsSort.sortedData.length === 0 && (
                 <tr><td colSpan={9} style={{ color: "var(--muted)", textAlign: "center", padding: 20 }}>{t("No product-level ads data yet")}</td></tr>
               )}
             </tbody>
