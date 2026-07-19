@@ -345,7 +345,7 @@ export default function UploadHere() {
         </div>
       )}
     </div>
-    <UploadLogTable clientId={clientId} refreshKey={logRefreshKey} />
+    <UploadLogTable clientId={clientId} refreshKey={logRefreshKey} variant="compact" />
     </>
   );
 }

@@ -32,7 +32,7 @@ function categoryOf(source: UploadSource): Category {
 
 type UploadRow = {
   id: string; source: UploadSource; filename: string | null; row_count: number; created_at: string;
-  meta: { pic_client?: string; store_name?: string; bulan?: string; week?: string; year?: number; admin?: string; ads_level?: string } | null;
+  meta: { pic_client?: string; brand?: string; store_name?: string; bulan?: string; week?: string; year?: number; admin?: string; ads_level?: string } | null;
 };
 
 function fmtUploadTime(iso: string): string {
@@ -45,10 +45,10 @@ function fmtUploadTime(iso: string): string {
 // Shared Upload Log — same grouped-batch table on both "Upload by Admin"
 // and "Upload Here". clientId scopes the query; bump refreshKey after a
 // successful upload elsewhere on the page to make this refetch.
-export default function UploadLogTable({ clientId, refreshKey }: { clientId: string; refreshKey?: number }) {
+export default function UploadLogTable({ clientId, refreshKey, variant = "full" }: { clientId: string; refreshKey?: number; variant?: "full" | "compact" }) {
   const [supabase] = useState(() => createClient());
   const [uploads, setUploads] = useState<UploadRow[]>([]);
-  const [flt, setFlt] = useState({ year: "", month: "", week: "", owner: "", store: "", category: "" });
+  const [flt, setFlt] = useState({ year: "", month: "", week: "", owner: "", brand: "", store: "", category: "" });
 
   const loadUploads = useCallback(async (cid: string) => {
     if (!cid) { setUploads([]); return; }
@@ -80,15 +80,18 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
   const fMonths = uniqU((u) => u.meta?.bulan);
   const fWeeks  = uniqU((u) => u.meta?.week);
   const fOwners = uniqU((u) => u.meta?.pic_client);
-  const fStores = flt.owner
-    ? uniqU((u) => u.meta?.pic_client === flt.owner ? u.meta?.store_name : null)
-    : uniqU((u) => u.meta?.store_name);
+  const fBrands = uniqU((u) => u.meta?.brand);
+  const fStores = uniqU((u) =>
+    (!flt.owner || u.meta?.pic_client === flt.owner) && (!flt.brand || u.meta?.brand === flt.brand)
+      ? u.meta?.store_name : null
+  );
 
   const shownUploads = uploads.filter((u) =>
     (!flt.year   || String(u.meta?.year) === flt.year) &&
     (!flt.month  || u.meta?.bulan === flt.month) &&
     (!flt.week   || u.meta?.week === flt.week) &&
     (!flt.owner  || u.meta?.pic_client === flt.owner) &&
+    (!flt.brand  || u.meta?.brand === flt.brand) &&
     (!flt.store  || u.meta?.store_name === flt.store) &&
     (!flt.category || categoryOf(u.source) === flt.category)
   );
@@ -141,47 +144,85 @@ export default function UploadLogTable({ clientId, refreshKey }: { clientId: str
         </span>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 10 }}>
-        <Field label="Year">
-          <select value={flt.year} onChange={(e) => setFlt((f) => ({ ...f, year: e.target.value }))}>
-            <option value="">All years</option>
-            {fYears.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </Field>
-        <Field label="Month">
-          <select value={flt.month} onChange={(e) => setFlt((f) => ({ ...f, month: e.target.value }))}>
-            <option value="">All months</option>
-            {fMonths.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </Field>
-        <Field label="Week">
-          <select value={flt.week} onChange={(e) => setFlt((f) => ({ ...f, week: e.target.value }))}>
-            <option value="">All weeks</option>
-            {fWeeks.map((w) => <option key={w} value={w}>{w}</option>)}
-          </select>
-        </Field>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr) auto", gap: 10, marginBottom: 14, alignItems: "end" }}>
-        <Field label="Owner">
-          <select value={flt.owner} onChange={(e) => setFlt((f) => ({ ...f, owner: e.target.value, store: "" }))}>
-            <option value="">All owners</option>
-            {fOwners.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </Field>
-        <Field label="Store">
-          <select value={flt.store} onChange={(e) => setFlt((f) => ({ ...f, store: e.target.value }))}>
-            <option value="">All stores</option>
-            {fStores.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
-        <Field label="Type">
-          <select value={flt.category} onChange={(e) => setFlt((f) => ({ ...f, category: e.target.value }))}>
-            <option value="">All types</option>
-            {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
-          </select>
-        </Field>
-        <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", store: "", category: "" })} style={{ height: 38 }}>Reset</button>
-      </div>
+      {variant === "compact" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr) auto", gap: 10, marginBottom: 14, alignItems: "end" }}>
+          <Field label="Year">
+            <select value={flt.year} onChange={(e) => setFlt((f) => ({ ...f, year: e.target.value }))}>
+              <option value="">All years</option>
+              {fYears.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </Field>
+          <Field label="Month">
+            <select value={flt.month} onChange={(e) => setFlt((f) => ({ ...f, month: e.target.value }))}>
+              <option value="">All months</option>
+              {fMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </Field>
+          <Field label="Brand">
+            <select value={flt.brand} onChange={(e) => setFlt((f) => ({ ...f, brand: e.target.value, store: "" }))}>
+              <option value="">All brands</option>
+              {fBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </Field>
+          <Field label="Store">
+            <select value={flt.store} onChange={(e) => setFlt((f) => ({ ...f, store: e.target.value }))}>
+              <option value="">All stores</option>
+              {fStores.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Type">
+            <select value={flt.category} onChange={(e) => setFlt((f) => ({ ...f, category: e.target.value }))}>
+              <option value="">All types</option>
+              {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+            </select>
+          </Field>
+          <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", brand: "", store: "", category: "" })} style={{ height: 38 }}>Reset</button>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 10 }}>
+            <Field label="Year">
+              <select value={flt.year} onChange={(e) => setFlt((f) => ({ ...f, year: e.target.value }))}>
+                <option value="">All years</option>
+                {fYears.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </Field>
+            <Field label="Month">
+              <select value={flt.month} onChange={(e) => setFlt((f) => ({ ...f, month: e.target.value }))}>
+                <option value="">All months</option>
+                {fMonths.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </Field>
+            <Field label="Week">
+              <select value={flt.week} onChange={(e) => setFlt((f) => ({ ...f, week: e.target.value }))}>
+                <option value="">All weeks</option>
+                {fWeeks.map((w) => <option key={w} value={w}>{w}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr) auto", gap: 10, marginBottom: 14, alignItems: "end" }}>
+            <Field label="Owner">
+              <select value={flt.owner} onChange={(e) => setFlt((f) => ({ ...f, owner: e.target.value, store: "" }))}>
+                <option value="">All owners</option>
+                {fOwners.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </Field>
+            <Field label="Store">
+              <select value={flt.store} onChange={(e) => setFlt((f) => ({ ...f, store: e.target.value }))}>
+                <option value="">All stores</option>
+                {fStores.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="Type">
+              <select value={flt.category} onChange={(e) => setFlt((f) => ({ ...f, category: e.target.value }))}>
+                <option value="">All types</option>
+                {(Object.keys(CATEGORY_LABEL) as Category[]).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+              </select>
+            </Field>
+            <button className="btn-ghost" onClick={() => setFlt({ year: "", month: "", week: "", owner: "", brand: "", store: "", category: "" })} style={{ height: 38 }}>Reset</button>
+          </div>
+        </>
+      )}
 
       <div className="tbl-wrap">
         <table className="tbl">
