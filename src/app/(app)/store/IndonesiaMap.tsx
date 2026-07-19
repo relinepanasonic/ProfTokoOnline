@@ -70,7 +70,9 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
     if (sortKey === k) setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
     else { setSortKey(k); setSortDir(k === "city" ? "asc" : "desc"); }
   }
-  const arrow = (k: SortKey) => sortKey !== k ? "" : sortDir === "asc" ? " ▲" : " ▼";
+  const arrow = (k: SortKey) => sortKey !== k ? null : (
+    <span style={{ fontSize: "0.7em", marginLeft: 4 }}>{sortDir === "asc" ? "▲" : "▼"}</span>
+  );
   const sortedRows = useMemo(() => {
     if (!selected) return [];
     const dir = sortDir === "asc" ? 1 : -1;
@@ -180,13 +182,13 @@ export default function IndonesiaMap({ data, cityDetail }: { data: ProvinceStat[
             <div className="tbl-wrap" style={{ maxHeight: "72vh" }}>
               <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
                 <thead><tr>
-                  <th style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("city")}>{t("City / Regency")}{arrow("city")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("gmv")}>{t("Sales")}{arrow("gmv")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("transactions")}>{t("Total Transaction")}{arrow("transactions")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("product_sold")}>{t("Total Product Sold")}{arrow("product_sold")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("sla_days")}>SLA{arrow("sla_days")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("cancellations")}>{t("Total Cancellations")}{arrow("cancellations")}</th>
-                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap" }} onClick={() => toggleSort("returns")}>{t("Total Returned Products")}{arrow("returns")}</th>
+                  <th style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("city")}>{t("City / Regency")}{arrow("city")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("gmv")}>{t("Sales")}{arrow("gmv")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("transactions")}>{t("Total Transaction")}{arrow("transactions")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("product_sold")}>{t("Total Product Sold")}{arrow("product_sold")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("sla_days")}>SLA{arrow("sla_days")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("cancellations")}>{t("Total Cancellations")}{arrow("cancellations")}</th>
+                  <th className="num" style={{ cursor: "pointer", whiteSpace: "nowrap", paddingRight: 22 }} onClick={() => toggleSort("returns")}>{t("Total Returned Products")}{arrow("returns")}</th>
                 </tr></thead>
                 <tbody>
                   {sortedRows.map((r) => (
