@@ -91,6 +91,7 @@ export default function DashboardPage() {
   const [d, setD] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
+  const [filtersErr, setFiltersErr] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -113,10 +114,12 @@ export default function DashboardPage() {
         const { data: c } = await supabase.from("clients").select("store_label").eq("id", p.client_id).single();
         if (c?.store_label) { label = c.store_label; setStoreLabel(label); }
       }
-      const [{ data: f }, { data: sl }] = await Promise.all([
+      const [{ data: f, error: fErr }, { data: sl, error: slErr }] = await Promise.all([
         supabase.rpc("dashboard_filters"),
         supabase.from("store_links").select("owner,brand,store_name").order("owner"),
       ]);
+      const rpcErr = fErr || slErr;
+      setFiltersErr(rpcErr ? `${rpcErr.message} (code: ${rpcErr.code || "?"})` : "");
       if (f) setFilters(f as Filters);
       setLinks((sl as StoreLink[]) || []);
       try {
@@ -197,6 +200,11 @@ export default function DashboardPage() {
               Statement timeout — table bloat from repeated uploads is slowing this query down again. Run <b>VACUUM (FULL, ANALYZE) sales_rows;</b> in the Supabase SQL Editor (as its own query, not inside a migration) to fix it.
             </div>
           )}
+        </div>
+      )}
+      {filtersErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ Filter options query failed (Year/Month/Owner dropdowns will stay empty): {filtersErr}
         </div>
       )}
 

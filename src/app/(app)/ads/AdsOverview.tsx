@@ -76,6 +76,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
   const [supabase] = useState(() => createClient());
   const [d, setD] = useState<Summary | null>(null);
   const [err, setErr] = useState("");
+  const [filtersErr, setFiltersErr] = useState("");
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<Filters>({ years: [], months: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
@@ -98,10 +99,12 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
     } catch { /* ignore */ }
 
     (async () => {
-      const [{ data: f }, { data: sl }] = await Promise.all([
+      const [{ data: f, error: fErr }, { data: sl, error: slErr }] = await Promise.all([
         supabase.rpc("ads_rollup_filters"),
         supabase.from("store_links").select("owner,brand,store_name").eq("client_id", clientId).order("owner"),
       ]);
+      const rpcErr = fErr || slErr;
+      setFiltersErr(rpcErr ? `${rpcErr.message} (code: ${rpcErr.code || "?"})` : "");
       if (f) setFilters(f as Filters);
       setLinks((sl as StoreLink[]) || []);
       try { localStorage.setItem(metaCacheKey, JSON.stringify({ filters: f, links: sl })); } catch { /* quota */ }
@@ -157,15 +160,22 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
   }
 
   const filterBar = (
-    <div className="filterbar">
-      <Sel label={t("Year")} value={sel.year} onChange={(v) => setSel((s) => ({ ...s, year: v }))} opts={filters.years.map(String)} all={t("All Years")} />
-      <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
-      {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
-      {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
-      <Sel label={t("Store")} value={sel.store} onChange={pickStore} opts={storesForBrandOwner} all={t("All Stores")} />
-      <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", owner: "", brand: "", store: "" })}>{t("Reset")}</button>
-      {loading && <Loader />}
-    </div>
+    <>
+      {filtersErr && (
+        <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, color: "#fca5a5", fontSize: 13, fontFamily: "monospace" }}>
+          ⚠ Filter options query failed (Year/Month/Owner dropdowns will stay empty): {filtersErr}
+        </div>
+      )}
+      <div className="filterbar">
+        <Sel label={t("Year")} value={sel.year} onChange={(v) => setSel((s) => ({ ...s, year: v }))} opts={filters.years.map(String)} all={t("All Years")} />
+        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
+        {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
+        {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
+        <Sel label={t("Store")} value={sel.store} onChange={pickStore} opts={storesForBrandOwner} all={t("All Stores")} />
+        <button className="btn-ghost" onClick={() => setSel({ year: "", month: "", owner: "", brand: "", store: "" })}>{t("Reset")}</button>
+        {loading && <Loader />}
+      </div>
+    </>
   );
 
   if (err && !d) {
