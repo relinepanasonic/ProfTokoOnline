@@ -550,12 +550,16 @@ function CampaignChart({ data, t }: { data: { name: string; store_name: string |
             <div style={{ height: 5, background: "rgba(255,255,255,0.05)", borderRadius: 99, overflow: "hidden", marginBottom: 6 }}>
               <div style={{ width: `${widthPct}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, ${BLUE}, ${BLUE_L})`, boxShadow: `0 0 8px ${BLUE}66` }} />
             </div>
-            <div style={{ display: "flex", gap: 14, fontSize: 10.5, color: "var(--muted)", flexWrap: "wrap", rowGap: 4 }}>
-              <span>👁 {num(c.views)} {t("Views")}</span>
-              <span>🖱 {num(c.clicks)} {t("Clicks")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
-              <span>🛒 {num(c.add_to_cart)} {t("Cart")} <span style={{ color: GOLD_L }}>({cartRate.toFixed(1)}%)</span></span>
-              <span>💰 {idr(c.ad_cost)} {t("Ads Cost")}</span>
-              <span>🎯 {c.ad_cost ? (c.sales / c.ad_cost).toFixed(2) + "×" : "—"} {t("ROAS")}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 10.5, color: "var(--muted)" }}>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", rowGap: 4 }}>
+                <span>👁 {num(c.views)} {t("Views")}</span>
+                <span>🖱 {num(c.clicks)} {t("Clicks")} <span style={{ color: BLUE_L }}>({ctr.toFixed(1)}%)</span></span>
+                <span>🛒 {num(c.add_to_cart)} {t("In-Cart")} <span style={{ color: GOLD_L }}>({cartRate.toFixed(1)}%)</span></span>
+              </div>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", rowGap: 4 }}>
+                <span>💰 {idr(c.ad_cost)} {t("Ads Cost")}</span>
+                <span>🎯 {c.ad_cost ? (c.sales / c.ad_cost).toFixed(2) + "×" : "—"} {t("ROAS")}</span>
+              </div>
             </div>
           </div>
         );
