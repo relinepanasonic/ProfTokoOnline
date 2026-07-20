@@ -56,7 +56,7 @@ type Summary = {
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
 type DealerRow = Summary["dealers"][number] & { cart_rate: number };
-type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
+type Filters = { years: number[]; months: string[]; stores: string[] };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -92,7 +92,7 @@ export default function DashboardPage() {
   const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
-  const [filters, setFilters] = useState<Filters>({ years: [], months: [], cities: [], stores: [] });
+  const [filters, setFilters] = useState<Filters>({ years: [], months: [], stores: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
   const [d, setD] = useState<Summary | null>(null);
@@ -116,14 +116,21 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       let label = "Store";
-      const { data: p } = await supabase.from("profiles").select("client_id").eq("id", user.id).single();
-      if (p?.client_id) {
-        const { data: c } = await supabase.from("clients").select("store_label").eq("id", p.client_id).single();
+      const { data: p } = await supabase.from("profiles").select("client_id,role").eq("id", user.id).single();
+      const prof = p as { client_id: string | null; role: string } | null;
+      // Owners are locked to their own tenant; staff (superadmin/client_admin/
+      // advertiser) fall back to the first-created client — same convention
+      // used on StoreDashboard/AdsOverview/Upload.
+      const cid = prof?.role === "branch_manager"
+        ? (prof.client_id || "")
+        : ((await supabase.from("clients").select("id").order("created_at").limit(1)).data as { id: string }[] | null)?.[0]?.id || "";
+      if (prof?.client_id) {
+        const { data: c } = await supabase.from("clients").select("store_label").eq("id", prof.client_id).single();
         if (c?.store_label) { label = c.store_label; setStoreLabel(label); }
       }
       const [{ data: f, error: fErr }, { data: sl, error: slErr }] = await Promise.all([
-        supabase.rpc("dashboard_filters"),
-        supabase.from("store_links").select("owner,brand,store_name").order("owner"),
+        supabase.rpc("dashboard_filters", { p_client_id: cid || null }),
+        supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("owner"),
       ]);
       const rpcErr = fErr || slErr;
       setFiltersErr(rpcErr ? `${rpcErr.message} (code: ${rpcErr.code || "?"})` : "");
