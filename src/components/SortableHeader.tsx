@@ -27,10 +27,12 @@ export default function SortableHeader<T>({
       title={title}
       onClick={() => onRequestSort(sortKey)}
     >
-      {label}
-      <span className="sort-arrows">
-        <span className={"sort-arrow-up" + (active && currentSort.direction === "asc" ? " active" : "")}>▲</span>
-        <span className={"sort-arrow-down" + (active && currentSort.direction === "desc" ? " active" : "")}>▼</span>
+      <span className="sortable-th-inner">
+        <span>{label}</span>
+        <span className="sort-arrows">
+          <span className={"sort-arrow-up" + (active && currentSort.direction === "asc" ? " active" : "")}>▲</span>
+          <span className={"sort-arrow-down" + (active && currentSort.direction === "desc" ? " active" : "")}>▼</span>
+        </span>
       </span>
     </th>
   );

@@ -60,6 +60,7 @@ const ID_DICT: Record<string, string> = {
   "ROAS Trend": "Tren ROAS", "No data yet": "Belum ada data",
   "Click row for details": "Klik baris untuk detail",
   "Store Data per": "Detail Data per",
+  "Detail Store Data": "Detail Data Toko",
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",

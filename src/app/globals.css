@@ -181,9 +181,11 @@ table.tbl tr:hover td{background:rgba(201,162,39,.06)}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* Universal sortable column header (SortableHeader.tsx) — stacked ▲▼,
-   dim gray by default, gold on whichever direction is active. */
-.sortable-th{padding-right:22px}
-.sort-arrows{display:inline-flex;flex-direction:column;margin-left:5px;line-height:.72;vertical-align:middle}
+   dim gray by default, gold on whichever direction is active. The inner
+   flex row pins the arrow to the column's right edge regardless of text
+   alignment (label left, arrow right), matching the design reference. */
+.sortable-th-inner{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
+.sort-arrows{display:inline-flex;flex-direction:column;flex-shrink:0;line-height:.72}
 .sort-arrow-up,.sort-arrow-down{font-size:.95em;color:rgba(255,255,255,.35)}
 .sort-arrow-up.active,.sort-arrow-down.active{color:var(--gold)}
 

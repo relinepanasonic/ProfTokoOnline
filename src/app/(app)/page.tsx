@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
 import UploadGate from "@/components/UploadGate";
 import { useLang } from "@/lib/i18n";
+import { useTableSort } from "@/hooks/useTableSort";
+import SortableHeader from "@/components/SortableHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +51,7 @@ type Summary = {
   top_campaigns: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
   dealers: { store_name: string; city: string; sales: number; traffic: number; in_cart: number; orders: number; ad_cost: number; roas: number | null; trend?: { month: string; sales: number; ad_cost: number | null }[] }[];
 };
+type DealerRow = Summary["dealers"][number] & { cart_rate: number };
 type Filters = { years: number[]; months: string[]; cities: string[]; stores: string[] };
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
@@ -187,6 +190,10 @@ export default function DashboardPage() {
   const adCostSeries   = byMonth(d?.cost_roas || []).map((x) => x.cost);
   const [drillStore, setDrillStore] = useState<Summary["dealers"][number] | null>(null);
 
+  // cart_rate is derived (not a stored field) so it can be sorted too.
+  const dealerRows: DealerRow[] = (d?.dealers || []).map((r) => ({ ...r, cart_rate: r.traffic ? (r.in_cart / r.traffic) * 100 : 0 }));
+  const dealersSort = useTableSort<DealerRow>(dealerRows, "sales");
+
   return (
     <UploadGate>
     <>
@@ -279,19 +286,23 @@ export default function DashboardPage() {
 
       {/* ── Dealer table ── */}
       <div className="panel">
-        <h3>{t("Store Data per")} {t(storeLabel)}</h3>
+        <h3>{t("Detail Store Data")}</h3>
         <div className="hint">{t("Sorted by sales · Baseline excluded · line shows SPOS sales trend")} · {t("Click row for details")}</div>
         <div className="tbl-wrap" style={{ maxHeight: 440 }}>
           <table className="tbl">
             <thead><tr>
-              <th>{t(storeLabel)}</th><th>{t("Trend")}</th>
-              <th className="num">{t("Sales")}</th><th className="num">{t("Traffic")}</th>
-              <th className="num">{t("In-Cart")}</th><th className="num">{t("Cart Rate")}</th>
-              <th className="num">{t("Ads Cost")}</th><th className="num">{t("ROAS Trend")}</th><th className="num">{t("ROAS")}</th>
+              <SortableHeader label={t(storeLabel)} sortKey="store_name" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} />
+              <th>{t("Trend")}</th>
+              <SortableHeader label={t("Sales")} sortKey="sales" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
+              <SortableHeader label={t("Traffic")} sortKey="traffic" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
+              <SortableHeader label={t("In-Cart")} sortKey="in_cart" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
+              <SortableHeader label={t("Cart Rate")} sortKey="cart_rate" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
+              <SortableHeader label={t("Ads Cost")} sortKey="ad_cost" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
+              <th className="num">{t("ROAS Trend")}</th>
+              <SortableHeader label={t("ROAS")} sortKey="roas" currentSort={dealersSort.sortConfig} onRequestSort={dealersSort.requestSort} className="num" />
             </tr></thead>
             <tbody>
-              {(d?.dealers||[]).map((r, i) => {
-                const cr = r.traffic ? (r.in_cart / r.traffic) * 100 : 0;
+              {dealersSort.sortedData.map((r, i) => {
                 const roasTrend = r.trend?.map((tr) => ({ month: tr.month, value: tr.ad_cost ? tr.sales / tr.ad_cost : 0 }));
                 return (
                   <tr key={i} style={{ cursor: "pointer" }} onClick={() => setDrillStore(r)}>
@@ -300,7 +311,7 @@ export default function DashboardPage() {
                     <td className="num">{idr(r.sales)}</td>
                     <td className="num">{num(r.traffic)}</td>
                     <td className="num">{num(r.in_cart)}</td>
-                    <td className="num">{cr.toFixed(1)}%</td>
+                    <td className="num">{r.cart_rate.toFixed(1)}%</td>
                     <td className="num">{idr(r.ad_cost)}</td>
                     <td className="num"><Sparkline data={roasTrend} /></td>
                     <td className="num">
@@ -311,7 +322,7 @@ export default function DashboardPage() {
                   </tr>
                 );
               })}
-              {(!d?.dealers||d.dealers.length===0) && (
+              {dealersSort.sortedData.length===0 && (
                 <tr><td colSpan={9} style={{ textAlign:"center", color:"var(--muted)", padding:20 }}>{t("No data yet")}</td></tr>
               )}
             </tbody>
