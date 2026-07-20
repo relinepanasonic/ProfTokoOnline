@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
 
   if (error || !inv) return NextResponse.json({ error: "Invalid invite link" }, { status: 404 });
   if (inv.used_at)    return NextResponse.json({ error: "This invite has already been used" }, { status: 410 });
-  if (new Date(inv.expires_at) < new Date()) return NextResponse.json({ error: "This invite has expired" }, { status: 410 });
+  // expires_at is nullable — NULL means lifetime (Unclaimed Owners invites).
+  if (inv.expires_at && new Date(inv.expires_at) < new Date()) return NextResponse.json({ error: "This invite has expired" }, { status: 410 });
 
   // Also fetch pre-set username if stored in invite
   const { data: fullInv } = await db.from("invites").select("owner_name,store_name,role,expires_at,username").eq("token", token).single();
@@ -41,13 +42,14 @@ export async function POST(req: NextRequest) {
   // Validate invite
   const { data: inv, error: ie } = await db
     .from("invites")
-    .select("id,owner_name,store_name,role,client_id,used_at,expires_at")
+    .select("id,owner_name,store_name,role,client_id,used_at,expires_at,plan_type,duration_days")
     .eq("token", token)
     .single();
 
   if (ie || !inv) return NextResponse.json({ error: "Invalid invite token" }, { status: 404 });
   if (inv.used_at) return NextResponse.json({ error: "This invite has already been used" }, { status: 410 });
-  if (new Date(inv.expires_at) < new Date()) return NextResponse.json({ error: "This invite link has expired" }, { status: 410 });
+  // expires_at is nullable — NULL means lifetime (Unclaimed Owners invites).
+  if (inv.expires_at && new Date(inv.expires_at) < new Date()) return NextResponse.json({ error: "This invite link has expired" }, { status: 410 });
 
   // Check username not taken
   const { data: uCheck } = await db.from("profiles").select("id").ilike("username", username).maybeSingle();
@@ -63,11 +65,15 @@ export async function POST(req: NextRequest) {
 
   const uid = authData.user.id;
 
-  // New Owner (branch_manager) accounts start on a 30-day Sultan free trial
-  // (migration 0055). A Superadmin can change the plan later on the Users
-  // page. Non-owner roles carry no plan.
+  // New Owner (branch_manager) accounts default to a 30-day Sultan free
+  // trial (migration 0055) unless the invite carries its own plan_type/
+  // duration_days (Unclaimed Owners invites: king/90d — migration 0095).
+  // A Superadmin can change the plan later on the Users page. Non-owner
+  // roles carry no plan.
   const isOwner = inv.role === "branch_manager";
-  const trialEnd = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  const planType = inv.plan_type || "sultan";
+  const planDays = inv.duration_days ?? 30;
+  const trialEnd = new Date(Date.now() + planDays * 86_400_000).toISOString();
 
   // Update profile (trigger creates the row; we patch it)
   // For Owner (branch_manager) logins, owner_name IS the Core List Owner
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
     client_id:    inv.client_id,
     scope_store:  inv.store_name ?? null,
     scope_owner:  isOwner ? inv.owner_name : null,
-    plan_type:        isOwner ? "sultan" : null,
+    plan_type:        isOwner ? planType : null,
     subscription_end: isOwner ? trialEnd : null,
   });
 

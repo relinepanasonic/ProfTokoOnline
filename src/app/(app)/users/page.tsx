@@ -17,9 +17,12 @@ type Profile = {
 type Invite = {
   id: string; token: string; owner_name: string;
   store_name: string | null; role: string;
-  created_at: string; expires_at: string; used_at: string | null;
+  created_at: string; expires_at: string | null; used_at: string | null;
 };
 type StoreLink = { owner: string | null; store_name: string | null };
+// Owners present in the Core List (store_links) with no branch_manager
+// account yet — from get_unclaimed_owners() (migration 0095).
+type UnclaimedOwner = { owner_name: string; client_id: string; invite_status: "No Link" | "Pending Signup"; token: string | null };
 
 const INVITE_ROLES = [
   { v: "branch_manager", l: "Owner" },
@@ -89,6 +92,8 @@ export default function UsersPage() {
   const [supabase] = useState(() => createClient());
   const [rows,    setRows]    = useState<Profile[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [unclaimed, setUnclaimed] = useState<UnclaimedOwner[]>([]);
+  const [genBusy, setGenBusy] = useState<string | null>(null); // owner_name currently generating
   const [stores,  setStores]  = useState<StoreLink[]>([]);
   const [token,   setToken]   = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -115,6 +120,8 @@ export default function UsersPage() {
     setRows((p as Profile[]) || []);
     const r = await fetch("/api/invites", { headers: h });
     if (r.ok) { const j = await r.json(); setInvites(j.invites || []); }
+    const { data: u } = await supabase.rpc("get_unclaimed_owners");
+    setUnclaimed((u as UnclaimedOwner[]) || []);
   }, [supabase, getAuthHeader]);
 
   useEffect(() => {
@@ -150,6 +157,30 @@ export default function UsersPage() {
     const h = await getAuthHeader();
     await fetch("/api/invites", { method: "DELETE", headers: { ...h, "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
     reload();
+  }
+
+  // Unclaimed Owners: lifetime King invite, 90 days from claim.
+  async function generateUnclaimedInvite(o: UnclaimedOwner) {
+    setGenBusy(o.owner_name);
+    try {
+      const h = await getAuthHeader();
+      const res = await fetch("/api/invites", {
+        method: "POST", headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner_name: o.owner_name, role: "branch_manager", client_id: o.client_id,
+          plan_type: "king", duration_days: 90, lifetime: true,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) { alert(j.error || "Failed to generate invite"); return; }
+      if (typeof window !== "undefined") copyText(`${window.location.origin}/join/${j.token}`);
+      await reload();
+    } finally {
+      setGenBusy(null);
+    }
+  }
+  function copyPendingOwnerLink(t: string) {
+    if (typeof window !== "undefined") copyText(`${window.location.origin}/join/${t}`);
   }
 
   async function deleteUser(p: Profile) {
@@ -191,7 +222,7 @@ export default function UsersPage() {
   }
 
   const inviteUrl = token && typeof window !== "undefined" ? `${window.location.origin}/join/${token}` : "";
-  const pending = invites.filter((i) => !i.used_at && new Date(i.expires_at) > new Date());
+  const pending = invites.filter((i) => !i.used_at && (!i.expires_at || new Date(i.expires_at) > new Date()));
   // Self-registered trial owners not yet reached out to — surfaced so a
   // Superadmin can work through new signups during their 30-day window.
   const toContact = rows
@@ -309,6 +340,39 @@ export default function UsersPage() {
         </table>
       </div>
 
+      {/* ── Unclaimed Owners: Core List owners with no login yet ── */}
+      {unclaimed.length > 0 && (
+        <div style={{ marginTop: 28 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#7b8db0", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Unclaimed Owners
+          </div>
+          <div className="hint" style={{ marginBottom: 10 }}>Owners in the Core List with no account yet — generate a lifetime King invite link.</div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {unclaimed.map((o) => (
+              <div key={`${o.client_id}::${o.owner_name}`} style={{ background: "rgba(201,162,39,0.05)", border: "1px solid rgba(201,162,39,0.15)", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 140, fontWeight: 600, fontSize: 14, color: "#e8edf8" }}>{o.owner_name}</div>
+                {o.invite_status === "Pending Signup" ? (
+                  <>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "#f59e0b" }}>
+                      Not Signed Up Yet
+                    </span>
+                    <button onClick={() => o.token && copyPendingOwnerLink(o.token)}
+                      style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(201,162,39,0.3)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 12, cursor: "pointer" }}>
+                      Copy Link
+                    </button>
+                  </>
+                ) : (
+                  <button disabled={genBusy === o.owner_name} onClick={() => generateUnclaimedInvite(o)}
+                    style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(59,130,246,0.3)", background: "rgba(59,130,246,0.1)", color: "#60a5fa", fontSize: 12, cursor: genBusy === o.owner_name ? "default" : "pointer", opacity: genBusy === o.owner_name ? 0.6 : 1 }}>
+                    {genBusy === o.owner_name ? "Generating…" : "Generate Invite Link"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Pending Invites ── */}
       {pending.length > 0 && (
         <div style={{ marginTop: 28 }}>
@@ -324,7 +388,7 @@ export default function UsersPage() {
                     <div style={{ fontWeight: 600, fontSize: 14, color: "#e8edf8" }}>{inv.owner_name}</div>
                     <div style={{ fontSize: 12, color: "#7b8db0" }}>{ROLE_LABEL[inv.role] || inv.role}{inv.store_name ? ` · ${inv.store_name}` : ""}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#7b8db0" }}>Expires {new Date(inv.expires_at).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 11, color: "#7b8db0" }}>{inv.expires_at ? `Expires ${new Date(inv.expires_at).toLocaleDateString()}` : "Never expires"}</div>
                   <button onClick={() => copyText(url)}
                     style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(201,162,39,0.3)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 12, cursor: "pointer" }}>
                     Copy Link
