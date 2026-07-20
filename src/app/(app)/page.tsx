@@ -92,6 +92,7 @@ export default function DashboardPage() {
   const { t } = useLang();
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
+  const [clientId, setClientId] = useState("");
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], stores: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
@@ -124,6 +125,7 @@ export default function DashboardPage() {
       const cid = prof?.role === "branch_manager"
         ? (prof.client_id || "")
         : ((await supabase.from("clients").select("id").order("created_at").limit(1)).data as { id: string }[] | null)?.[0]?.id || "";
+      setClientId(cid);
       if (prof?.client_id) {
         const { data: c } = await supabase.from("clients").select("store_label").eq("id", prof.client_id).single();
         if (c?.store_label) { label = c.store_label; setStoreLabel(label); }
@@ -143,6 +145,9 @@ export default function DashboardPage() {
   }, [supabase]);
 
   const load = useCallback(async () => {
+    // dashboard_summary now requires p_client_id (migration 0094) — wait for
+    // the meta effect to resolve it rather than firing an unresolvable call.
+    if (!clientId) return;
     // Stale-while-revalidate: paint the last-seen result for this exact filter
     // selection instantly from localStorage (huge mobile win — no blank wait
     // for the ~5s query), then refresh in the background.
@@ -155,6 +160,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     const { data, error } = await supabase.rpc("dashboard_summary", {
+      p_client_id: clientId,
       p_year:  sel.year  ? Number(sel.year) : null,
       p_month: sel.month || null,
       p_city:  sel.city  || null,
@@ -170,7 +176,7 @@ export default function DashboardPage() {
       try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
     }
     setLoading(false);
-  }, [supabase, sel]);
+  }, [supabase, sel, clientId]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
