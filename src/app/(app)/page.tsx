@@ -93,6 +93,11 @@ export default function DashboardPage() {
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
   const [clientId, setClientId] = useState("");
+  const [userId, setUserId] = useState("");
+  // An Owner (branch_manager) is hard-scoped to their own scope_owner: the
+  // Owner filter renders read-only and p_owner is always forced server-side.
+  const [role, setRole] = useState("");
+  const [scopeOwner, setScopeOwner] = useState("");
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], stores: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
@@ -103,9 +108,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     (async () => {
-      // paint filter bar + store label instantly from last session's cache
+      // Resolve the user FIRST — the meta cache is namespaced per user id so
+      // a shared browser never paints the previous account's owner list or
+      // KPIs before the network fetch lands.
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setUserId(user.id);
+
       try {
-        const raw = localStorage.getItem("ptoko_dash_meta_v2");
+        const raw = localStorage.getItem(`ptoko_dash_meta_v2:${user.id}`);
         if (raw) {
           const m = JSON.parse(raw) as { filters?: Filters; links?: StoreLink[]; storeLabel?: string };
           if (m.filters) setFilters(m.filters);
@@ -114,16 +125,18 @@ export default function DashboardPage() {
         }
       } catch { /* ignore */ }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
       let label = "Store";
-      const { data: p } = await supabase.from("profiles").select("client_id,role").eq("id", user.id).single();
-      const prof = p as { client_id: string | null; role: string } | null;
+      const { data: p } = await supabase.from("profiles").select("client_id,role,scope_owner").eq("id", user.id).single();
+      const prof = p as { client_id: string | null; role: string; scope_owner: string | null } | null;
+      const isOwner = prof?.role === "branch_manager";
+      const owner = isOwner ? (prof?.scope_owner || "") : "";
+      setRole(prof?.role || "");
+      setScopeOwner(owner);
       // Owners are locked to their own tenant; staff (superadmin/client_admin/
       // advertiser) fall back to the first-created client — same convention
       // used on StoreDashboard/AdsOverview/Upload.
-      const cid = prof?.role === "branch_manager"
-        ? (prof.client_id || "")
+      const cid = isOwner
+        ? (prof?.client_id || "")
         : ((await supabase.from("clients").select("id").order("created_at").limit(1)).data as { id: string }[] | null)?.[0]?.id || "";
       setClientId(cid);
       if (prof?.client_id) {
@@ -131,7 +144,7 @@ export default function DashboardPage() {
         if (c?.store_label) { label = c.store_label; setStoreLabel(label); }
       }
       const [{ data: f, error: fErr }, { data: sl, error: slErr }] = await Promise.all([
-        supabase.rpc("dashboard_filters", { p_client_id: cid || null }),
+        supabase.rpc("dashboard_filters", { p_client_id: cid || null, p_owner: owner || null }),
         supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("owner"),
       ]);
       const rpcErr = fErr || slErr;
@@ -139,7 +152,7 @@ export default function DashboardPage() {
       if (f) setFilters(f as Filters);
       setLinks((sl as StoreLink[]) || []);
       try {
-        localStorage.setItem("ptoko_dash_meta_v2", JSON.stringify({ filters: f, links: sl, storeLabel: label }));
+        localStorage.setItem(`ptoko_dash_meta_v2:${user.id}`, JSON.stringify({ filters: f, links: sl, storeLabel: label }));
       } catch { /* quota */ }
     })();
   }, [supabase]);
@@ -147,11 +160,16 @@ export default function DashboardPage() {
   const load = useCallback(async () => {
     // dashboard_summary now requires p_client_id (migration 0094) — wait for
     // the meta effect to resolve it rather than firing an unresolvable call.
-    if (!clientId) return;
+    if (!clientId || !userId) return;
+    // An Owner is hard-scoped to their own scope_owner regardless of what the
+    // (read-only) Owner filter shows — this also narrows the query up front so
+    // it never scans the whole tenant, which is what caused the 57014 timeout.
+    const effectiveOwner = role === "branch_manager" ? (scopeOwner || null) : (sel.owner || null);
     // Stale-while-revalidate: paint the last-seen result for this exact filter
     // selection instantly from localStorage (huge mobile win — no blank wait
-    // for the ~5s query), then refresh in the background.
-    const cacheKey = "ptoko_dash_v2:" + JSON.stringify(sel);
+    // for the ~5s query), then refresh in the background. Namespaced per user
+    // so a shared browser never shows another account's cached KPIs.
+    const cacheKey = `ptoko_dash_v2:${userId}:${JSON.stringify(sel)}`;
     let hadCache = false;
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -164,7 +182,7 @@ export default function DashboardPage() {
       p_year:  sel.year  ? Number(sel.year) : null,
       p_month: sel.month || null,
       p_city:  sel.city  || null,
-      p_owner: sel.owner || null,
+      p_owner: effectiveOwner,
       p_brand: sel.brand || null,
       p_store: sel.store || null,
     });
@@ -176,7 +194,7 @@ export default function DashboardPage() {
       try { localStorage.setItem(cacheKey, JSON.stringify(data)); } catch { /* quota */ }
     }
     setLoading(false);
-  }, [supabase, sel, clientId]);
+  }, [supabase, sel, clientId, userId, role, scopeOwner]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
 
@@ -236,7 +254,18 @@ export default function DashboardPage() {
       <div className="filterbar">
         <Sel label={t("Year")}  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={filters.years.map(String)} all={t("All Years")} />
         <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={[...filters.months].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b))} all={t("All Months")} />
-        {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
+        {role === "branch_manager"
+          ? (
+            /* Owners are hard-scoped to their own scope_owner — no dropdown,
+               no other owners' names, and p_owner is forced server-side. */
+            <div className="fld">
+              <label>{t("Owner")}</label>
+              <div style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "rgba(255,255,255,.03)", color: "#cdd9f0", fontSize: 13.5, minHeight: 38, display: "flex", alignItems: "center", whiteSpace: "nowrap" }}>
+                {scopeOwner || "—"}
+              </div>
+            </div>
+          )
+          : owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
         <Sel label={t(storeLabel)} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${t(storeLabel)}`} />
         <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>{t("Reset")}</button>
