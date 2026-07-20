@@ -8,6 +8,7 @@ import UploadGate from "@/components/UploadGate";
 import { useLang } from "@/lib/i18n";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
+import { sortByBucket } from "@/lib/timeBuckets";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,9 @@ type Summary = {
   brand_share: { brand: string; sales: number }[];
   by_category: { category: string; sales: number }[];
   cost_roas: { month: string; cost: number; roas: number | null }[];
+  // Dynamic-granularity series for the Monthly/Weekly Performance chart:
+  // bucket = month name (All Months) or week label (a month selected).
+  perf_trend: { bucket: string; sales: number; traffic: number; in_cart: number }[];
   traffic_trend: { month: string; traffic: number; in_cart: number; transactions: number; visitor_cart_adds: number }[];
   avg_store_trend: { store_name: string; avg_sales: number }[];
   top_campaigns: { name: string; store_name: string | null; views: number; clicks: number; add_to_cart: number; orders: number; sales: number; ad_cost: number }[];
@@ -218,7 +222,7 @@ export default function DashboardPage() {
       {/* ── Filters ── */}
       <div className="filterbar">
         <Sel label={t("Year")}  value={sel.year}  onChange={(v) => setSel((s) => ({ ...s, year: v }))}  opts={filters.years.map(String)} all={t("All Years")} />
-        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
+        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={[...filters.months].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b))} all={t("All Months")} />
         {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
         <Sel label={t(storeLabel)} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${t(storeLabel)}`} />
@@ -247,10 +251,10 @@ export default function DashboardPage() {
       {/* first-load spinner (no cached data yet) */}
       {loading && !d && <Loader center />}
 
-      {/* ── Monthly performance: Traffic vs In-Cart vs Sales ── */}
+      {/* ── Monthly/Weekly performance: Traffic vs In-Cart vs Sales ── */}
       <div className="row">
-        <Panel title={t("Monthly Performance")} hint={t("Traffic vs In-Cart vs Sales · SPOS")}>
-          <MonthlySalesChart data={buildMonthlyPerf(d)} />
+        <Panel title={sel.month ? t("Weekly Performance") : t("Monthly Performance")} hint={t("Traffic vs In-Cart vs Sales · SPOS")}>
+          <MonthlySalesChart data={buildPerfTrend(d)} />
         </Panel>
       </div>
 
@@ -368,18 +372,29 @@ function Empty() {
   );
 }
 
-// Merge monthly_sales + traffic_trend into one series for the combined chart.
-function buildMonthlyPerf(d: Summary | null): { month: string; sales: number; traffic: number; in_cart: number }[] {
+// perf_trend from the RPC is already bucketed (month or week); map its
+// `bucket` field onto the `month` key MonthlySalesChart expects, drop
+// baseline, and sort bucket-aware (chronological months or Week 1…5).
+// Falls back to the old monthly merge (monthly_sales + traffic_trend) when
+// perf_trend is absent — keeps the chart populated if the frontend deploys
+// before migration 0089 runs.
+function buildPerfTrend(d: Summary | null): { month: string; sales: number; traffic: number; in_cart: number }[] {
+  if (d?.perf_trend?.length) {
+    const rows = d.perf_trend
+      .filter((r) => r.bucket?.toLowerCase().trim() !== "baseline")
+      .map((r) => ({ month: r.bucket, sales: r.sales, traffic: r.traffic, in_cart: r.in_cart }));
+    return sortByBucket(rows, "month");
+  }
   const salesByMonth = new Map((d?.monthly_sales || []).map((x) => [x.month, x.sales]));
   const trafficByMonth = new Map((d?.traffic_trend || []).map((x) => [x.month, x]));
   const months = [...new Set([...salesByMonth.keys(), ...trafficByMonth.keys()])]
     .filter((m) => m?.toLowerCase().trim() !== "baseline");
-  return byMonth(months.map((month) => ({ month }))).map(({ month }) => ({
+  return sortByBucket(months.map((month) => ({
     month,
     sales: salesByMonth.get(month) ?? 0,
     traffic: trafficByMonth.get(month)?.traffic ?? 0,
     in_cart: trafficByMonth.get(month)?.in_cart ?? 0,
-  }));
+  })), "month");
 }
 
 /* ── trend sparkline: one smooth line, green = up / red = down, soft glow + faint area ── */

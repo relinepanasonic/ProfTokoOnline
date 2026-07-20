@@ -9,6 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, AreaChart, Area, Cell, Legend,
 } from "recharts";
+import { bucketAxisLabel } from "@/lib/timeBuckets";
 
 // Shared with globals.css's mobile breakpoint (max-width:760px). Duplicated
 // from page.tsx (rather than imported) so this chunk has no dependency back
@@ -211,7 +212,7 @@ export function MonthlySalesChart({ data }: { data: { month: string; sales: numb
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="month" tickFormatter={sm} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
+          <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
           <YAxis yAxisId="l" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <YAxis yAxisId="r" orientation="right" tick={axis} tickFormatter={(v) => num(Number(v))} axisLine={false} tickLine={false} width={44} />
           <Tooltip

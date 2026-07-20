@@ -10,6 +10,7 @@ import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
+import { sortByBucket, bucketAxisLabel } from "@/lib/timeBuckets";
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
@@ -37,6 +38,10 @@ type DailyRow = { tx_date: string; orders: number; sales: number; promotion_cost
 type Summary = {
   kpis: Kpis;
   monthly: { month: string; sales: number; profit: number }[];
+  // Per-day Gross Sales + Gross Profit — populated only when a month is
+  // selected (Nett Profit has no honest daily form; see migration 0091).
+  daily_gross: { day: string; gross_sales: number; gross_profit: number }[];
+  // month value doubles as an ISO date string when a month is selected.
   monthly_fee: { month: string; fee: number }[];
   monthly_discount: { month: string; discount: number }[];
   monthly_ads_cost: { month: string; ad_cost: number }[];
@@ -188,21 +193,32 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         <div className="kpi kpi-cost"><div className="kpi-icon">🏪</div><div className="lbl">{t("Marketplace Fee")}</div><div className="val">{k ? rpC(k.marketplace_fee) : "—"}</div><MiniSparkline data={feeSeries} color={BLUE} /></div>
       </div>
 
-      {/* Monthly Gross Sales vs Nett Profit */}
+      {/* Gross Sales vs Nett Profit — monthly by default, or daily Gross
+          Sales vs Gross Profit when a single month is selected (Nett has
+          no honest daily form; see migration 0091). */}
       <div className="row">
-        <Panel title={t("Monthly Gross Sales vs Nett Profit")} hint="Gross Sales (bar) vs Nett Profit setelah Ads Spent dan Total Modal Product (garis)">
-          <GrossVsNettChart data={grossNettData} t={t} />
-        </Panel>
+        {(() => {
+          // Daily mode only when a month is selected AND the RPC returned a
+          // daily series (guards the window before migration 0091 runs).
+          const showDaily = !!sel.month && (d?.daily_gross?.length ?? 0) > 0;
+          return (
+            <Panel title={showDaily ? t("Daily Gross Sales vs Gross Profit") : t("Monthly Gross Sales vs Nett Profit")} hint="Gross Sales (bar) vs Nett Profit setelah Ads Spent dan Total Modal Product (garis)">
+              {showDaily
+                ? <DailyGrossChart data={sortByBucket(d?.daily_gross || [], "day")} t={t} />
+                : <GrossVsNettChart data={grossNettData} t={t} />}
+            </Panel>
+          );
+        })()}
       </div>
 
       {/* Fee + Discount + Pies — one row, 4 across, so 4 breakdown charts
           only cost one stacked row's height instead of two. */}
       <div className="row c4">
-        <Panel title={t("Monthly Marketplace Fee")} hint="Total Admin & Layanan fee per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_fee || [])} dataKey="fee" top={BLUE_L} bottom={BLUE} />
+        <Panel title={sel.month ? t("Daily Marketplace Fee") : t("Monthly Marketplace Fee")} hint="Total Admin & Layanan fee per bulan">
+          <SimpleBarChart data={sortByBucket(d?.monthly_fee || [], "month")} dataKey="fee" top={BLUE_L} bottom={BLUE} />
         </Panel>
-        <Panel title={t("Monthly Promotion Cost")} hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
-          <SimpleBarChart data={byMonth(d?.monthly_discount || [])} dataKey="discount" top={GOLD_L} bottom={GOLD} />
+        <Panel title={sel.month ? t("Daily Promotion Cost") : t("Monthly Promotion Cost")} hint="Total diskon produk + voucher (I, K, L, M, N, O) per bulan">
+          <SimpleBarChart data={sortByBucket(d?.monthly_discount || [], "month")} dataKey="discount" top={GOLD_L} bottom={GOLD} />
         </Panel>
         <Panel title={t("Payment Method")} hint="Jumlah pesanan per metode pembayaran">
           <DonutChart data={(d?.payment_method || []).map((p) => ({ name: p.method, value: p.cnt }))} t={t} />
@@ -519,6 +535,37 @@ function GrossVsNettChart({ data, t }: { data: GrossNettMonth[]; t: (k: string) 
     </div>
   );
 }
+// Daily variant shown when a single month is selected: Gross Sales (bar) +
+// Gross Profit (line) — both real per-transaction finance_rows fields, so
+// unlike Nett Profit they have an honest daily form.
+type DailyGrossRow = { day: string; gross_sales: number; gross_profit: number };
+function DailyGrossChart({ data, t }: { data: DailyGrossRow[]; t: (k: string) => string }) {
+  if (!data.length) return <Empty />;
+  return (
+    <div style={{ width: "100%", height: 300 }}>
+      <ResponsiveContainer>
+        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 18, bottom: 8 }}>
+          <defs>
+            <linearGradient id="dgc-sales" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={GOLD_L} />
+              <stop offset="100%" stopColor={GOLD} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+          <XAxis dataKey="day" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
+          <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
+          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketAxisLabel(String(l))}
+            formatter={(v, n) => [rpFull(Number(v)), n === "gross_sales" ? t("Gross Sales") : t("Gross Profit")]} />
+          <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8}
+            formatter={(v) => (v === "gross_sales" ? t("Gross Sales") : t("Gross Profit"))} />
+          <Bar dataKey="gross_sales" name="gross_sales" fill="url(#dgc-sales)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+          <Line type="monotone" dataKey="gross_profit" name="gross_profit" stroke={BLUE} strokeWidth={2.5}
+            dot={{ r: 3, fill: BLUE, strokeWidth: 0 }} activeDot={{ r: 5 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 function SimpleBarChart({ data, dataKey, top, bottom }: { data: Record<string, unknown>[]; dataKey: string; top: string; bottom: string }) {
   if (!data.length) return <Empty />;
   const gid = `sbg-${dataKey}`;
@@ -533,9 +580,9 @@ function SimpleBarChart({ data, dataKey, top, bottom }: { data: Record<string, u
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-          <XAxis dataKey="month" tick={axis} axisLine={false} tickLine={false} />
+          <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [rpFull(Number(v)), ""]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
+          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketAxisLabel(String(l))} formatter={(v) => [rpFull(Number(v)), ""]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
           <Bar dataKey={dataKey} radius={[6, 6, 0, 0]} maxBarSize={104} fill={`url(#${gid})`} />
         </BarChart>
       </ResponsiveContainer>

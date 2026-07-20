@@ -19,6 +19,7 @@ import { useLang } from "@/lib/i18n";
 import Loader from "@/components/Loader";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
+import { sortByBucket, bucketAxisLabel } from "@/lib/timeBuckets";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -33,14 +34,6 @@ function useIsMobile() {
 }
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
-const SHORT_MONTH: Record<string, string> = {
-  Baseline:"Base", Januari:"Jan", Februari:"Feb", Maret:"Mar", April:"Apr",
-  Mei:"Mei", Juni:"Jun", Juli:"Jul", Agustus:"Agu", September:"Sep",
-  Oktober:"Okt", November:"Nov", Desember:"Des",
-};
-const sm = (m: string) => SHORT_MONTH[m] ?? (m || "").slice(0, 3);
-const byMonth = <T extends { month: string }>(a: T[]) =>
-  [...(a || [])].sort((x, y) => MONTH_ORDER.indexOf(x.month) - MONTH_ORDER.indexOf(y.month));
 
 const idr  = (n: number) => "Rp " + new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 }).format(n || 0);
 const idrF = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
@@ -175,7 +168,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
       )}
       <div className="filterbar">
         <Sel label={t("Year")} value={sel.year} onChange={(v) => setSel((s) => ({ ...s, year: v }))} opts={filters.years.map(String)} all={t("All Years")} />
-        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={filters.months} all={t("All Months")} />
+        <Sel label={t("Month")} value={sel.month} onChange={(v) => setSel((s) => ({ ...s, month: v }))} opts={[...filters.months].sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b))} all={t("All Months")} />
         {owners.length > 0 && <Sel label={t("Owner")} value={sel.owner} onChange={pickOwner} opts={owners} all={t("All Owners")} />}
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
         <Sel label={t("Store")} value={sel.store} onChange={pickStore} opts={storesForBrandOwner} all={t("All Stores")} />
@@ -205,8 +198,8 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
   }
 
   const totals = d.totals;
-  const monthly = byMonth(d.monthly);
-  const soldSales = byMonth(d.sold_sales_trend);
+  const monthly = sortByBucket(d.monthly, "month");
+  const soldSales = sortByBucket(d.sold_sales_trend, "month");
 
   return (
     <>
@@ -239,14 +232,14 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
 
       {/* ── charts ── */}
       <div className="row c2" style={{ marginBottom: 18 }}>
-        <Panel title={t("Sales by Ads Type")} hint="Stacked: GMV Max → Group → Independent · line = overall ROAS">
+        <Panel title={t("Sales by Ads Type") + (sel.month ? " · " + t("Weekly") : "")} hint="Stacked: GMV Max → Group → Independent · line = overall ROAS">
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={monthly} margin={{ top: 6, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-              <XAxis dataKey="month" tickFormatter={sm} tick={axis} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
               <YAxis yAxisId="left" tick={axis} axisLine={false} tickLine={false} tickFormatter={idr} />
               <YAxis yAxisId="right" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(1) + "×"} />
-              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "ROAS" ? [roasF(Number(v)), n] : [idrF(Number(v)), n]} labelFormatter={(l) => sm(String(l))} />
+              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "ROAS" ? [roasF(Number(v)), n] : [idrF(Number(v)), n]} labelFormatter={(l) => bucketAxisLabel(String(l))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar yAxisId="left" dataKey="gmv_max_sales" stackId="s" name="GMV Max Auto" fill={BLUE} radius={[0,0,0,0]} />
               <Bar yAxisId="left" dataKey="group_sales" stackId="s" name="Group Ads" fill={BLUE_L} radius={[0,0,0,0]} />
@@ -261,14 +254,14 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
       </div>
 
       <div className="row" style={{ marginBottom: 18 }}>
-        <Panel title={t("Item Sold vs Sales")} hint="Produk Terjual vs Omzet Penjualan · Total Ads · separate scales">
+        <Panel title={t("Item Sold vs Sales") + (sel.month ? " · " + t("Weekly") : "")} hint="Produk Terjual vs Omzet Penjualan · Total Ads · separate scales">
           <ResponsiveContainer width="100%" height={240}>
             <ComposedChart data={soldSales} margin={{ top: 6, right: 10, left: -10, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-              <XAxis dataKey="month" tickFormatter={sm} tick={axis} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
               <YAxis yAxisId="left" tick={axis} axisLine={false} tickLine={false} tickFormatter={num} />
               <YAxis yAxisId="right" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={idr} />
-              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "Sales" ? [idrF(Number(v)), n] : [num(Number(v)), n]} labelFormatter={(l) => sm(String(l))} />
+              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "Sales" ? [idrF(Number(v)), n] : [num(Number(v)), n]} labelFormatter={(l) => bucketAxisLabel(String(l))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line yAxisId="left" type="monotone" dataKey="item_sold" name="Item Sold" stroke={BLUE_L} strokeWidth={2} dot={{ r: 3 }} />
               <Line yAxisId="right" type="monotone" dataKey="sales" name="Sales" stroke={GOLD_L} strokeWidth={2} dot={{ r: 3 }} />
