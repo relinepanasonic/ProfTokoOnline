@@ -183,6 +183,10 @@ export default function UploadPage() {
     if (!chosen.length && !inkubasiFile && !groupFile) { setLog([t("Pick at least one file.")]); setBusy(false); return; }
     await ensureStoreLink();
     const manualToSend = { ...manual, admin: adminName, tanggal_input: new Date().toISOString() };
+    // rollup_warning means the rows landed but the dashboard's pre-aggregated
+    // summary failed to refresh (e.g. a statement timeout) — surfaced instead
+    // of silently going stale, see migration 0102.
+    const warn = (j: { rollup_warning?: string }) => j.rollup_warning ? ` ⚠ ${j.rollup_warning}` : "";
     for (const slot of chosen) {
       const fd = new FormData();
       fd.append("file", files[slot.source]!);
@@ -192,7 +196,7 @@ export default function UploadPage() {
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const j = await res.json();
-        setLog((l) => [...l, res.ok ? `✓ ${slot.label}: ${j.rows} rows` : `✗ ${slot.label}: ${j.error}`]);
+        setLog((l) => [...l, res.ok ? `✓ ${slot.label}: ${j.rows} rows${warn(j)}` : `✗ ${slot.label}: ${j.error}`]);
       } catch (e) {
         setLog((l) => [...l, `✗ ${slot.label}: ${String(e)}`]);
       }
@@ -207,7 +211,7 @@ export default function UploadPage() {
       try {
         const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
         const j = await res.json();
-        setLog((l) => [...l, res.ok ? `✓ ${label}: ${j.rows} rows` : `✗ ${label}: ${j.error}`]);
+        setLog((l) => [...l, res.ok ? `✓ ${label}: ${j.rows} rows${warn(j)}` : `✗ ${label}: ${j.error}`]);
       } catch (e) {
         setLog((l) => [...l, `✗ ${label}: ${String(e)}`]);
       }

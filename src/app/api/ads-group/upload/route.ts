@@ -142,13 +142,17 @@ export async function POST(req: NextRequest) {
 
   // Rebuild the pre-aggregated ads rollup (migration 0067) — same reasoning
   // as refresh_dashboard_rollup: keeps Ads Performance reading a small
-  // summary table instead of scanning all of ad_groups under RLS.
-  await admin.rpc("refresh_ads_rollup");
+  // summary table instead of scanning all of ad_groups under RLS. Error is
+  // surfaced (not silently discarded) — see migration 0102 for the exact
+  // shape of bug this class of silent failure caused on the Dashboard side.
+  const { error: adsErr } = await admin.rpc("refresh_ads_rollup");
+  if (adsErr) console.error("refresh_ads_rollup failed:", adsErr);
 
   return NextResponse.json({
     ok: true,
     upload_id: upload.id,
     rows: records.length,
     grup_iklan: parsed.grupIklan,
+    ...(adsErr ? { rollup_warning: adsErr.message } : {}),
   });
 }

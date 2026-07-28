@@ -47,15 +47,19 @@ const roleColor: Record<string, string> = {
 
 // Owner subscription plans. `days` is the default duration auto-filled when
 // the plan is picked (superadmin can override with custom free days; 0 = unlimited).
+// "prof" is not a self-serve SaaS plan — it's our agency-managed real-client
+// tier (see Unclaimed Owners below), always lifetime.
 const PLANS = [
-  { v: "lapak",  l: "Lapak · Basic (30d)",    days: 30,  color: "#94a3b8" },
+  { v: "lapak",  l: "Juragan · Basic (30d)",  days: 30,  color: "#94a3b8" },
   { v: "sultan", l: "Sultan · Premium (30d)", days: 30,  color: "#3b82f6" },
   { v: "king",   l: "King · Premium (395d)",  days: 395, color: "#c9a227" },
+  { v: "prof",   l: "Prof · Lifetime",        days: 0,   color: "#8b5cf6" },
 ];
 const PLAN_META: Record<string, { l: string; color: string }> = {
-  lapak:  { l: "Lapak",  color: "#94a3b8" },
-  sultan: { l: "Sultan", color: "#3b82f6" },
-  king:   { l: "King",   color: "#c9a227" },
+  lapak:  { l: "Juragan", color: "#94a3b8" },
+  sultan: { l: "Sultan",  color: "#3b82f6" },
+  king:   { l: "King",    color: "#c9a227" },
+  prof:   { l: "Prof",    color: "#8b5cf6" },
 };
 function daysLeft(expires: string | null): number | null {
   if (!expires) return null;
@@ -159,7 +163,8 @@ export default function UsersPage() {
     reload();
   }
 
-  // Unclaimed Owners: lifetime King invite, 90 days from claim.
+  // Unclaimed Owners: lifetime Prof invite — our team uploads the 5 core
+  // files for these real clients (see UploadHere.tsx's isProf lock).
   async function generateUnclaimedInvite(o: UnclaimedOwner) {
     setGenBusy(o.owner_name);
     try {
@@ -168,7 +173,7 @@ export default function UsersPage() {
         method: "POST", headers: { ...h, "Content-Type": "application/json" },
         body: JSON.stringify({
           owner_name: o.owner_name, role: "branch_manager", client_id: o.client_id,
-          plan_type: "king", duration_days: 90, lifetime: true,
+          plan_type: "prof", duration_days: 0, lifetime: true,
         }),
       });
       const j = await res.json();
@@ -346,7 +351,7 @@ export default function UsersPage() {
           <div style={{ fontSize: 12, fontWeight: 600, color: "#7b8db0", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>
             Unclaimed Owners
           </div>
-          <div className="hint" style={{ marginBottom: 10 }}>Owners in the Core List with no account yet — generate a lifetime King invite link.</div>
+          <div className="hint" style={{ marginBottom: 10 }}>Owners in the Core List with no account yet — generate a lifetime Prof invite link.</div>
           <div style={{ display: "grid", gap: 8 }}>
             {unclaimed.map((o) => (
               <div key={`${o.client_id}::${o.owner_name}`} style={{ background: "rgba(201,162,39,0.05)", border: "1px solid rgba(201,162,39,0.15)", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>

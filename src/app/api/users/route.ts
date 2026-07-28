@@ -112,10 +112,10 @@ export async function PATCH(req: NextRequest) {
 }
 
 // PUT /api/users — set an Owner's subscription plan + duration. Superadmin only.
-// Each plan has a fixed default duration (Lapak/Sultan = 30d, King = 395d); the
-// caller may override with an explicit `days` (custom free days). days = 0 →
-// unlimited (no expiry).
-const PLAN_DAYS: Record<string, number> = { lapak: 30, sultan: 30, king: 395 };
+// Each plan has a fixed default duration (Lapak/Sultan = 30d, King = 395d,
+// Prof = lifetime); the caller may override with an explicit `days` (custom
+// free days). days = 0 → unlimited (no expiry).
+const PLAN_DAYS: Record<string, number> = { lapak: 30, sultan: 30, king: 395, prof: 0 };
 export async function PUT(req: NextRequest) {
   const mgr = await getManager();
   if (!mgr || mgr.role !== "superadmin")
@@ -123,7 +123,7 @@ export async function PUT(req: NextRequest) {
 
   const { id, plan_type, days } = await req.json() as { id: string; plan_type: string; days?: number };
   if (!id || !(plan_type in PLAN_DAYS))
-    return NextResponse.json({ error: "id and a valid plan_type (lapak/sultan/king) are required" }, { status: 400 });
+    return NextResponse.json({ error: "id and a valid plan_type (lapak/sultan/king/prof) are required" }, { status: 400 });
 
   const admin = createAdminClient();
   const { data: target } = await admin.from("profiles").select("role").eq("id", id).single();

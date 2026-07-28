@@ -167,25 +167,29 @@ export default function UploadHere() {
       return { ok: res.ok, j };
     }
 
+    // rollup_warning means the rows landed but the dashboard's pre-aggregated
+    // summary failed to refresh (e.g. a statement timeout) — surfaced instead
+    // of silently going stale, see migration 0102.
+    const warn = (j: { rollup_warning?: string }) => j.rollup_warning ? ` ⚠ ${j.rollup_warning}` : "";
     if (storeFile) {
       const { ok, j } = await postCore("perf", storeFile);
-      results.push(ok ? `✓ Store Performa: ${j.rows} rows` : `✗ Store Performa: ${j.error}`);
+      results.push(ok ? `✓ Store Performa: ${j.rows} rows${warn(j)}` : `✗ Store Performa: ${j.error}`);
     }
     if (productFile) {
       const { ok, j } = await postCore("spos", productFile);
-      results.push(ok ? `✓ Product Performa: ${j.rows} rows` : `✗ Product Performa: ${j.error}`);
+      results.push(ok ? `✓ Product Performa: ${j.rows} rows${warn(j)}` : `✗ Product Performa: ${j.error}`);
     }
     if (adsFile) {
       const { ok, j } = await postCore("ads", adsFile);
-      results.push(ok ? `✓ Ads Performa: ${j.rows} rows` : `✗ Ads Performa: ${j.error}`);
+      results.push(ok ? `✓ Ads Performa: ${j.rows} rows${warn(j)}` : `✗ Ads Performa: ${j.error}`);
     }
     if (inkubasiFile) {
       const { ok, j } = await postGroup(inkubasiFile, "incubation");
-      results.push(ok ? `✓ GMV Auto Performa: ${j.rows} rows` : `✗ GMV Auto Performa: ${j.error}`);
+      results.push(ok ? `✓ GMV Auto Performa: ${j.rows} rows${warn(j)}` : `✗ GMV Auto Performa: ${j.error}`);
     }
     if (groupFile) {
       const { ok, j } = await postGroup(groupFile, null);
-      results.push(ok ? `✓ Group Ads Performa: ${j.rows} rows` : `✗ Group Ads Performa: ${j.error}`);
+      results.push(ok ? `✓ Group Ads Performa: ${j.rows} rows${warn(j)}` : `✗ Group Ads Performa: ${j.error}`);
     }
 
     setLog(results);
@@ -232,8 +236,12 @@ export default function UploadHere() {
     setFinanceBusy(false);
   }
 
-  const canFinance = !isOwnerLogin || ((planType === "sultan" || planType === "king")
+  const canFinance = !isOwnerLogin || ((planType === "sultan" || planType === "king" || planType === "prof")
     && (!subEnd || new Date(subEnd) > new Date()));
+  // Prof accounts are agency-managed real clients — our team uploads the 5
+  // core Shopee files for them, so that section is locked here; they keep
+  // self-serve access to Order Complete + Finance Detail (canFinance above).
+  const isProf = isOwnerLogin && planType === "prof";
 
   return (
     <>
@@ -291,36 +299,44 @@ export default function UploadHere() {
         </div>
       </div>
 
-      <CardLabel title={t("Store Performance")} sub="All Level" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
-        <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} guideImage={GUIDE.store} />
-        <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} guideImage={GUIDE.product} />
-      </div>
-
-      <CardLabel title={t("Ads Performance")} sub="All Level" />
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
-        <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} guideImage={GUIDE.ads} />
-        <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
-        <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} guideImage={GUIDE.ads} />
-      </div>
-
-      <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
-        <button className="btn-gold" disabled={busy} onClick={submit} style={{ padding: "11px 40px", fontSize: 15 }}>
-          {busy ? t("Uploading…") : t("Upload")}
-        </button>
-      </div>
-
-      {log.length > 0 && (
-        <div style={{ background: "rgba(7,13,26,.8)", border: "1px solid var(--line)", borderRadius: 12, padding: 16, fontFamily: "monospace", fontSize: 12, marginTop: 16 }}>
-          {log.map((l, i) => <div key={i} style={{ color: l.startsWith("✓") ? "var(--gold)" : "#f87171", marginBottom: 4 }}>{l}</div>)}
+      {isProf ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "16px 18px", borderRadius: 14, border: "1px dashed rgba(201,162,39,.35)", background: "rgba(15,32,64,.4)", marginBottom: 20, color: "var(--muted)", fontSize: 13 }}>
+          🔒 {t("Store Performance, Product Performance and Ads Performance are uploaded by our team for Prof accounts.")}
         </div>
+      ) : (
+        <>
+          <CardLabel title={t("Store Performance")} sub="All Level" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
+            <BrowseFile label="Store Performa" hint="sales_overview" file={storeFile} onPick={setStoreFile} guideImage={GUIDE.store} />
+            <BrowseFile label="Product Performa" hint="parentskudetail" file={productFile} onPick={setProductFile} guideImage={GUIDE.product} />
+          </div>
+
+          <CardLabel title={t("Ads Performance")} sub="All Level" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 20, alignItems: "start" }}>
+            <BrowseFile label="Ads Performa" hint="Data Keseluruhan Iklan" file={adsFile} onPick={setAdsFile} guideImage={GUIDE.ads} />
+            <BrowseFile label="GMV Auto Performa" hint="Inkubasi" file={inkubasiFile} onPick={setInkubasiFile} guideImage={GUIDE.ads} />
+            <BrowseFile label="Group Ads Performa" hint="Grup Iklan" file={groupFile} onPick={setGroupFile} guideImage={GUIDE.ads} />
+          </div>
+
+          <div style={{ display: "flex", gap: 14, alignItems: "center", justifyContent: "center" }}>
+            <button className="btn-gold" disabled={busy} onClick={submit} style={{ padding: "11px 40px", fontSize: 15 }}>
+              {busy ? t("Uploading…") : t("Upload")}
+            </button>
+          </div>
+
+          {log.length > 0 && (
+            <div style={{ background: "rgba(7,13,26,.8)", border: "1px solid var(--line)", borderRadius: 12, padding: 16, fontFamily: "monospace", fontSize: 12, marginTop: 16 }}>
+              {log.map((l, i) => <div key={i} style={{ color: l.startsWith("✓") ? "var(--gold)" : "#f87171", marginBottom: 4 }}>{l}</div>)}
+            </div>
+          )}
+        </>
       )}
 
       {canFinance && (
         <div style={{ marginTop: 28 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 8 }}>
-            <CardLabel title={t("Order Complete")} sub="Sultan | King" />
-            <CardLabel title={t("Finance Detail")} sub="Sultan | King" />
+            <CardLabel title={t("Order Complete")} sub="Sultan | King | Prof" />
+            <CardLabel title={t("Finance Detail")} sub="Sultan | King | Prof" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, alignItems: "start" }}>
             <div>

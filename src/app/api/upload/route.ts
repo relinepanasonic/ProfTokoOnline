@@ -182,12 +182,29 @@ export async function POST(req: NextRequest) {
   // Rebuild the pre-aggregated dashboard rollup once, now that every chunk
   // has landed (migration 0052). This is what keeps the dashboard reading a
   // small, bloat-free summary table instead of scanning all of sales_rows.
-  await admin.rpc("refresh_dashboard_rollup");
+  // These errors used to be silently discarded (migration 0060's exact bug,
+  // regressed by 0097 — see migration 0102): the rows land in sales_rows
+  // and the upload reports success, but the rollup dashboard_summary()
+  // reads from never picks up the new data. Surface the error instead so a
+  // stuck refresh (e.g. a statement timeout as sales_rows grows) is visible
+  // in the upload log rather than silently going stale.
+  const rollupWarnings: string[] = [];
+  const { error: dashErr } = await admin.rpc("refresh_dashboard_rollup");
+  if (dashErr) { console.error("refresh_dashboard_rollup failed:", dashErr); rollupWarnings.push(`dashboard: ${dashErr.message}`); }
   // Same reasoning for Ads Performance (migration 0067) — only ads uploads
   // feed ads_rollup, no need to refresh it for spos/perf.
-  if (source === "ads") await admin.rpc("refresh_ads_rollup");
+  if (source === "ads") {
+    const { error: adsErr } = await admin.rpc("refresh_ads_rollup");
+    if (adsErr) { console.error("refresh_ads_rollup failed:", adsErr); rollupWarnings.push(`ads: ${adsErr.message}`); }
+  }
   // Modal Product's catalog (migration 0071) — only spos uploads feed it.
-  if (source === "spos") await admin.rpc("refresh_product_catalog");
+  if (source === "spos") {
+    const { error: catErr } = await admin.rpc("refresh_product_catalog");
+    if (catErr) { console.error("refresh_product_catalog failed:", catErr); rollupWarnings.push(`catalog: ${catErr.message}`); }
+  }
 
-  return NextResponse.json({ ok: true, upload_id: upload.id, rows: inserted });
+  return NextResponse.json({
+    ok: true, upload_id: upload.id, rows: inserted,
+    ...(rollupWarnings.length ? { rollup_warning: rollupWarnings.join("; ") } : {}),
+  });
 }

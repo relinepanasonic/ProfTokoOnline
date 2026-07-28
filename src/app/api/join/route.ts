@@ -67,13 +67,14 @@ export async function POST(req: NextRequest) {
 
   // New Owner (branch_manager) accounts default to a 30-day Sultan free
   // trial (migration 0055) unless the invite carries its own plan_type/
-  // duration_days (Unclaimed Owners invites: king/90d — migration 0095).
-  // A Superadmin can change the plan later on the Users page. Non-owner
-  // roles carry no plan.
+  // duration_days (Unclaimed Owners invites: prof/lifetime — migration
+  // 0100). A Superadmin can change the plan later on the Users page.
+  // Non-owner roles carry no plan. duration_days === 0 means unlimited
+  // (mirrors /api/users' PUT), not "expires immediately".
   const isOwner = inv.role === "branch_manager";
   const planType = inv.plan_type || "sultan";
   const planDays = inv.duration_days ?? 30;
-  const trialEnd = new Date(Date.now() + planDays * 86_400_000).toISOString();
+  const trialEnd = planDays > 0 ? new Date(Date.now() + planDays * 86_400_000).toISOString() : null;
 
   // Update profile (trigger creates the row; we patch it)
   // For Owner (branch_manager) logins, owner_name IS the Core List Owner

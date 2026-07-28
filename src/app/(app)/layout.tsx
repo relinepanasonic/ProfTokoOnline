@@ -44,15 +44,20 @@ const ROLE_LABEL: Record<Role, string> = {
 // Users page. Core List (brand/store management) is a superadmin/client_admin
 // tool only — no owner plan sees it; Upload is first in both lists so it's
 // the landing page owners hit first.
-type Plan = "lapak" | "sultan" | "king";
-const PLAN_LABEL: Record<Plan, string> = { lapak: "Lapak", sultan: "Sultan", king: "King" };
-const PREMIUM_PLANS: Plan[] = ["sultan", "king"];
+// "prof" — agency-managed real clients (our team uploads the 5 core Shopee
+// files for them; see UploadHere.tsx's isProf lock). Its label ("Prof")
+// doubles as the Owner-role display name for these logins, since the topbar
+// shows PLAN_LABEL[plan] in place of ROLE_LABEL[role] for any Owner login
+// (see the user-badge JSX below) — no separate role/label wiring needed.
+type Plan = "lapak" | "sultan" | "king" | "prof";
+const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Prof" };
+const PREMIUM_PLANS: Plan[] = ["sultan", "king", "prof"];
 // Which pages each owner plan may see.
-const LAPAK_PAGES   = ["/upload", "/", "/marketfee"];
-const SULTAN_PAGES  = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/marketfee"];
+const LAPAK_PAGES  = ["/upload", "/", "/marketfee"];
+const FULL_PAGES    = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/marketfee"];
 
 function ownerPages(plan: Plan): string[] {
-  return PREMIUM_PLANS.includes(plan) ? SULTAN_PAGES : LAPAK_PAGES;
+  return PREMIUM_PLANS.includes(plan) ? FULL_PAGES : LAPAK_PAGES;
 }
 
 function LangToggle() {
