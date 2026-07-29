@@ -188,8 +188,11 @@ export async function POST(req: NextRequest) {
   // reads from never picks up the new data. Surface the error instead so a
   // stuck refresh (e.g. a statement timeout as sales_rows grows) is visible
   // in the upload log rather than silently going stale.
+  // Scoped to this upload's client_id (migration 0104) — previously every
+  // upload rebuilt EVERY tenant's rollup data, which is what made this call
+  // slow/lock-heavy enough to start timing out as more tenants onboarded.
   const rollupWarnings: string[] = [];
-  const { error: dashErr } = await admin.rpc("refresh_dashboard_rollup");
+  const { error: dashErr } = await admin.rpc("refresh_dashboard_rollup", { p_client_id: clientId });
   if (dashErr) { console.error("refresh_dashboard_rollup failed:", dashErr); rollupWarnings.push(`dashboard: ${dashErr.message}`); }
   // Same reasoning for Ads Performance (migration 0067) — only ads uploads
   // feed ads_rollup, no need to refresh it for spos/perf.

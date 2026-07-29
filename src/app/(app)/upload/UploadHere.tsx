@@ -146,15 +146,23 @@ export default function UploadHere() {
     const manualToSend = { ...manual, week, tanggal_input: new Date().toISOString() };
     const results: string[] = [];
 
+    // Both wrapped in try/catch: a killed serverless function (e.g. Vercel's
+    // maxDuration) returns a plaintext platform error page, not JSON — an
+    // unguarded res.json() throws on that and would otherwise leave submit()
+    // stuck with busy=true forever and no visible error.
     async function postCore(source: "perf" | "spos" | "ads", file: File) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("source", source);
       fd.append("client_id", resolvedCid);
       fd.append("manual", JSON.stringify(manualToSend));
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const j = await res.json();
-      return { ok: res.ok, j };
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const j = await res.json();
+        return { ok: res.ok, j };
+      } catch (e) {
+        return { ok: false, j: { error: String(e) } };
+      }
     }
 
     async function postGroup(file: File, adsLevel: string | null) {
@@ -162,9 +170,13 @@ export default function UploadHere() {
       fd.append("file", file);
       fd.append("client_id", resolvedCid);
       fd.append("manual", JSON.stringify(adsLevel ? { ...manualToSend, ads_level: adsLevel } : manualToSend));
-      const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
-      const j = await res.json();
-      return { ok: res.ok, j };
+      try {
+        const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
+        const j = await res.json();
+        return { ok: res.ok, j };
+      } catch (e) {
+        return { ok: false, j: { error: String(e) } };
+      }
     }
 
     // rollup_warning means the rows landed but the dashboard's pre-aggregated
