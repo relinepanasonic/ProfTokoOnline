@@ -47,6 +47,20 @@ const HEADER_HINTS: Record<DataSource, string[]> = {
 };
 
 export async function POST(req: NextRequest) {
+  try {
+    return await handleUpload(req);
+  } catch (e) {
+    // Any uncaught throw (a parse error, a Postgres exception surfacing as
+    // a thrown error rather than an {error} result, etc.) would otherwise
+    // fall through to Next.js's default error page — plain text/HTML, not
+    // JSON — which breaks every caller's `await res.json()`. Guarantee JSON
+    // on every exit path instead.
+    console.error("Upload route crashed:", e);
+    return NextResponse.json({ error: e instanceof Error ? e.message : "An error occurred" }, { status: 500 });
+  }
+}
+
+async function handleUpload(req: NextRequest) {
   // 1. Verify the caller and resolve their profile (client + role).
   const supabase = await createClient();
   const {
@@ -195,14 +209,16 @@ export async function POST(req: NextRequest) {
   const { error: dashErr } = await admin.rpc("refresh_dashboard_rollup", { p_client_id: clientId });
   if (dashErr) { console.error("refresh_dashboard_rollup failed:", dashErr); rollupWarnings.push(`dashboard: ${dashErr.message}`); }
   // Same reasoning for Ads Performance (migration 0067) — only ads uploads
-  // feed ads_rollup, no need to refresh it for spos/perf.
+  // feed ads_rollup, no need to refresh it for spos/perf. Client-scoped
+  // (migration 0105) — its unscoped TRUNCATE was the other realistic source
+  // of "lock timeout" in a multi-file batch upload, alongside dashboard_rollup.
   if (source === "ads") {
-    const { error: adsErr } = await admin.rpc("refresh_ads_rollup");
+    const { error: adsErr } = await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
     if (adsErr) { console.error("refresh_ads_rollup failed:", adsErr); rollupWarnings.push(`ads: ${adsErr.message}`); }
   }
   // Modal Product's catalog (migration 0071) — only spos uploads feed it.
   if (source === "spos") {
-    const { error: catErr } = await admin.rpc("refresh_product_catalog");
+    const { error: catErr } = await admin.rpc("refresh_product_catalog", { p_client_id: clientId });
     if (catErr) { console.error("refresh_product_catalog failed:", catErr); rollupWarnings.push(`catalog: ${catErr.message}`); }
   }
 

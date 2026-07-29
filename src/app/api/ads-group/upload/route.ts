@@ -25,6 +25,18 @@ function inferGroupLevel(grupIklan: string | null): string {
 // as the core SPOS/Ads/Performa flow (/api/upload); only the client/store
 // scope is restricted for Owners.
 export async function POST(req: NextRequest) {
+  try {
+    return await handleAdsGroupUpload(req);
+  } catch (e) {
+    // Guarantee JSON on every exit path — an uncaught throw would otherwise
+    // fall through to Next.js's default error page (plain text/HTML), which
+    // breaks every caller's `await res.json()`.
+    console.error("Ads-group upload route crashed:", e);
+    return NextResponse.json({ error: e instanceof Error ? e.message : "An error occurred" }, { status: 500 });
+  }
+}
+
+async function handleAdsGroupUpload(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
@@ -145,7 +157,7 @@ export async function POST(req: NextRequest) {
   // summary table instead of scanning all of ad_groups under RLS. Error is
   // surfaced (not silently discarded) — see migration 0102 for the exact
   // shape of bug this class of silent failure caused on the Dashboard side.
-  const { error: adsErr } = await admin.rpc("refresh_ads_rollup");
+  const { error: adsErr } = await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
   if (adsErr) console.error("refresh_ads_rollup failed:", adsErr);
 
   return NextResponse.json({

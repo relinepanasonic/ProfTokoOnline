@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MONTHS, WEEKS, LEVELS, type AdLevel } from "@/lib/adsConstants";
+import { safeJson } from "@/lib/safeJson";
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 
@@ -52,7 +53,7 @@ export default function UploadIklan({ clientId, supabase, onUploaded, title, hin
     fd.append("manual", JSON.stringify({ ...m, tanggal_input: new Date().toISOString() }));
     try {
       const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
-      const j = await res.json();
+      const j = await safeJson(res);
       setLog(res.ok ? `✓ ${j.grup_iklan || "Grup"}: ${j.rows} rows imported` : `✗ ${j.error}`);
       if (res.ok) { setFile(null); onUploaded(); }
     } catch (e) { setLog("✗ " + String(e)); }

@@ -11,6 +11,7 @@ import StoreUpload from "../store/StoreUpload";
 import { GUIDE } from "@/lib/uploadGuides";
 import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
+import { safeJson } from "@/lib/safeJson";
 
 export const dynamic = "force-dynamic";
 
@@ -195,7 +196,7 @@ export default function UploadPage() {
       fd.append("client_id", clientId);
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const j = await res.json();
+        const j = await safeJson(res);
         setLog((l) => [...l, res.ok ? `✓ ${slot.label}: ${j.rows} rows${warn(j)}` : `✗ ${slot.label}: ${j.error}`]);
       } catch (e) {
         setLog((l) => [...l, `✗ ${slot.label}: ${String(e)}`]);
@@ -210,7 +211,7 @@ export default function UploadPage() {
       fd.append("manual", JSON.stringify(adsLevel ? { ...manualToSend, ads_level: adsLevel } : manualToSend));
       try {
         const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
-        const j = await res.json();
+        const j = await safeJson(res);
         setLog((l) => [...l, res.ok ? `✓ ${label}: ${j.rows} rows${warn(j)}` : `✗ ${label}: ${j.error}`]);
       } catch (e) {
         setLog((l) => [...l, `✗ ${label}: ${String(e)}`]);

@@ -7,6 +7,7 @@ import { GUIDE } from "@/lib/uploadGuides";
 import UploadLogTable from "./UploadLogTable";
 import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
+import { safeJson } from "@/lib/safeJson";
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
@@ -158,7 +159,7 @@ export default function UploadHere() {
       fd.append("manual", JSON.stringify(manualToSend));
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const j = await res.json();
+        const j = await safeJson(res);
         return { ok: res.ok, j };
       } catch (e) {
         return { ok: false, j: { error: String(e) } };
@@ -172,7 +173,7 @@ export default function UploadHere() {
       fd.append("manual", JSON.stringify(adsLevel ? { ...manualToSend, ads_level: adsLevel } : manualToSend));
       try {
         const res = await fetch("/api/ads-group/upload", { method: "POST", body: fd });
-        const j = await res.json();
+        const j = await safeJson(res);
         return { ok: res.ok, j };
       } catch (e) {
         return { ok: false, j: { error: String(e) } };
@@ -223,7 +224,7 @@ export default function UploadHere() {
     fd.append("manual", JSON.stringify({ year: manual.year, bulan: manual.bulan, pic_client: manual.pic_client, brand: manual.brand, store_name: manual.store_name }));
     try {
       const res = await fetch("/api/store/upload", { method: "POST", body: fd });
-      const j = await res.json();
+      const j = await safeJson(res);
       setOrderLog(res.ok ? `✓ ${j.rows} rows` : `✗ ${j.error}`);
       if (res.ok) setOrderFile(null);
     } catch (e) { setOrderLog("✗ " + String(e)); }
@@ -241,7 +242,7 @@ export default function UploadHere() {
     fd.append("manual", JSON.stringify({ year: manual.year, bulan: manual.bulan, pic_client: manual.pic_client, brand: manual.brand, store_name: manual.store_name }));
     try {
       const res = await fetch("/api/finance/upload", { method: "POST", body: fd });
-      const j = await res.json();
+      const j = await safeJson(res);
       setFinanceLog(res.ok ? `✓ ${j.rows} rows` : `✗ ${j.error}`);
       if (res.ok) setFinanceFile(null);
     } catch (e) { setFinanceLog("✗ " + String(e)); }

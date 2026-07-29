@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { safeJson } from "@/lib/safeJson";
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -42,7 +43,7 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
     fd.append("manual", JSON.stringify(m));
     try {
       const res = await fetch("/api/finance/upload", { method: "POST", body: fd });
-      const j = await res.json();
+      const j = await safeJson(res);
       setLog(res.ok ? `✓ ${j.rows} transactions imported` : `✗ ${j.error}`);
       if (res.ok) { setFile(null); onUploaded(); }
     } catch (e) { setLog("✗ " + String(e)); }
