@@ -150,6 +150,36 @@ async function handleUpload(req: NextRequest) {
   if (upErr || !upload)
     return NextResponse.json({ error: upErr?.message || "UPLOAD_FAIL" }, { status: 500 });
 
+  // Uploads are idempotent: every row this file produces shares the same
+  // (client_id, source, year, month, week, store_name) — mapRow() stamps all
+  // of them from the manual selection — so re-uploading a slice must REPLACE
+  // it, not append a second copy. Without this, each retry silently doubled
+  // that week's sales/traffic/ad-spend and grew the table forever (which is
+  // what migration 0106 has to clean up retroactively). Only runs when the
+  // whole slice key is present, so a partially-specified upload can never
+  // delete more than it replaces.
+  const slice = {
+    year: manual.year ?? null,
+    month: manual.bulan ?? null,
+    week: manual.week ?? null,
+    store_name: manual.store_name ?? null,
+  };
+  if (slice.year != null && slice.month && slice.week && slice.store_name) {
+    const { error: delErr } = await admin
+      .from("sales_rows")
+      .delete()
+      .eq("client_id", clientId)
+      .eq("source", source)
+      .eq("year", slice.year)
+      .eq("month", slice.month)
+      .eq("week", slice.week)
+      .eq("store_name", slice.store_name);
+    if (delErr) {
+      await admin.from("uploads").delete().eq("id", upload.id);
+      return NextResponse.json({ error: `Could not clear previous upload: ${delErr.message}` }, { status: 500 });
+    }
+  }
+
   const mapped = dataRows
     .filter((r) => Array.isArray(r) && r.some((c) => c !== "" && c != null))
     .map((r) => {
@@ -193,32 +223,45 @@ async function handleUpload(req: NextRequest) {
     .update({ row_count: inserted })
     .eq("id", upload.id);
 
-  // Rebuild the pre-aggregated dashboard rollup once, now that every chunk
-  // has landed (migration 0052). This is what keeps the dashboard reading a
-  // small, bloat-free summary table instead of scanning all of sales_rows.
-  // These errors used to be silently discarded (migration 0060's exact bug,
-  // regressed by 0097 — see migration 0102): the rows land in sales_rows
-  // and the upload reports success, but the rollup dashboard_summary()
-  // reads from never picks up the new data. Surface the error instead so a
-  // stuck refresh (e.g. a statement timeout as sales_rows grows) is visible
-  // in the upload log rather than silently going stale.
-  // Scoped to this upload's client_id (migration 0104) — previously every
-  // upload rebuilt EVERY tenant's rollup data, which is what made this call
-  // slow/lock-heavy enough to start timing out as more tenants onboarded.
+  // Refresh the derived tables the dashboards actually read from. These are
+  // SLICE-scoped (migration 0107): an upload can only change the one
+  // (client_id, source, year, month, week, store_name) slice it carries, so
+  // only that slice is recomputed — a few hundred rows, milliseconds, and it
+  // stays that way however large the database grows. Earlier versions
+  // re-aggregated the client's whole history on every upload, which is what
+  // made this the recurring source of 57014 timeouts and lock timeouts
+  // (0060 → 0102 → 0104/0105 all tuned that same unbounded work).
+  //
+  // Errors are surfaced rather than discarded (migration 0102): the rows land
+  // in sales_rows regardless, so a failed refresh would otherwise leave the
+  // dashboard silently stale behind a green checkmark.
   const rollupWarnings: string[] = [];
-  const { error: dashErr } = await admin.rpc("refresh_dashboard_rollup", { p_client_id: clientId });
+  const canSlice = slice.year != null && slice.month && slice.week && slice.store_name;
+  const { error: dashErr } = canSlice
+    ? await admin.rpc("refresh_dashboard_rollup_slice", {
+        p_client_id: clientId, p_source: source, p_year: slice.year,
+        p_month: slice.month, p_week: slice.week, p_store_name: slice.store_name,
+      })
+    // No slice key (shouldn't happen — the UI requires Year/Month/Store) —
+    // fall back to the client-wide rebuild so data is never left stale.
+    : await admin.rpc("refresh_dashboard_rollup", { p_client_id: clientId });
   if (dashErr) { console.error("refresh_dashboard_rollup failed:", dashErr); rollupWarnings.push(`dashboard: ${dashErr.message}`); }
-  // Same reasoning for Ads Performance (migration 0067) — only ads uploads
-  // feed ads_rollup, no need to refresh it for spos/perf. Client-scoped
-  // (migration 0105) — its unscoped TRUNCATE was the other realistic source
-  // of "lock timeout" in a multi-file batch upload, alongside dashboard_rollup.
+  // Only ads uploads feed ads_rollup (migration 0067).
   if (source === "ads") {
-    const { error: adsErr } = await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
+    const { error: adsErr } = canSlice
+      ? await admin.rpc("refresh_ads_rollup_slice", {
+          p_client_id: clientId, p_year: slice.year,
+          p_month: slice.month, p_week: slice.week, p_store_name: slice.store_name,
+        })
+      : await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
     if (adsErr) { console.error("refresh_ads_rollup failed:", adsErr); rollupWarnings.push(`ads: ${adsErr.message}`); }
   }
   // Modal Product's catalog (migration 0071) — only spos uploads feed it.
+  // Scoped to the products in THIS upload (0107): it derives a latest-known
+  // price across history, so it can't be period-sliced, but it can skip
+  // every product the upload didn't touch.
   if (source === "spos") {
-    const { error: catErr } = await admin.rpc("refresh_product_catalog", { p_client_id: clientId });
+    const { error: catErr } = await admin.rpc("refresh_product_catalog_for_upload", { p_upload_id: upload.id });
     if (catErr) { console.error("refresh_product_catalog failed:", catErr); rollupWarnings.push(`catalog: ${catErr.message}`); }
   }
 

@@ -144,6 +144,27 @@ async function handleAdsGroupUpload(req: NextRequest) {
     raw: r.raw,
   }));
 
+  // Idempotent: re-uploading the same ad group for the same period REPLACES
+  // it instead of appending a duplicate copy (see migration 0106, which
+  // cleans up the duplicates the old append-only behavior accumulated).
+  // Keyed by grup_iklan as well as the period/store, so the several groups
+  // that legitimately share one week don't delete each other.
+  if (manual.year != null && manual.bulan && manual.week && manual.store_name && grupIklan) {
+    const { error: delErr } = await admin
+      .from("ad_groups")
+      .delete()
+      .eq("client_id", clientId)
+      .eq("year", manual.year)
+      .eq("month", manual.bulan)
+      .eq("week", manual.week)
+      .eq("store_name", manual.store_name)
+      .eq("grup_iklan", grupIklan);
+    if (delErr) {
+      await admin.from("uploads").delete().eq("id", upload.id);
+      return NextResponse.json({ error: `Could not clear previous upload: ${delErr.message}` }, { status: 500 });
+    }
+  }
+
   const { error: insErr } = await admin.from("ad_groups").insert(records);
   if (insErr) {
     await admin.from("uploads").delete().eq("id", upload.id);
@@ -157,7 +178,15 @@ async function handleAdsGroupUpload(req: NextRequest) {
   // summary table instead of scanning all of ad_groups under RLS. Error is
   // surfaced (not silently discarded) — see migration 0102 for the exact
   // shape of bug this class of silent failure caused on the Dashboard side.
-  const { error: adsErr } = await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
+  // Slice-scoped (migration 0107) — recomputes only this week/store, not the
+  // client's whole ad history. See /api/upload for the full reasoning.
+  const canSlice = manual.year != null && manual.bulan && manual.week && manual.store_name;
+  const { error: adsErr } = canSlice
+    ? await admin.rpc("refresh_ads_rollup_slice", {
+        p_client_id: clientId, p_year: manual.year,
+        p_month: manual.bulan, p_week: manual.week, p_store_name: manual.store_name,
+      })
+    : await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
   if (adsErr) console.error("refresh_ads_rollup failed:", adsErr);
 
   return NextResponse.json({
