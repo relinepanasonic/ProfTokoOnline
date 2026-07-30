@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 anon.txt
+
+# Client data + reference assets — real business spreadsheets, never commit.
+# (Accidentally committed once in de61555 via `git add -A`; see RUNBOOK note.)
+supabase/File Client/
+supabase/Sample File Download/
+supabase/Image Manual Book Tarik Data/
