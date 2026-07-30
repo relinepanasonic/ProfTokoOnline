@@ -239,7 +239,11 @@ export default function DashboardPage() {
           ⚠ Dashboard query failed: {loadErr}
           {loadErr.includes("57014") && (
             <div style={{ marginTop: 4, color: "#f87171" }}>
-              Statement timeout — table bloat from repeated uploads is slowing this query down again. Run <b>VACUUM (FULL, ANALYZE) sales_rows;</b> in the Supabase SQL Editor (as its own query, not inside a migration) to fix it.
+              Statement timeout. This is almost never table bloat — measured 2026-07-30, the
+              tables were 0% dead rows and still timed out. Check the RLS policies first
+              (bare <b>my_role()</b>/<b>my_client_id()</b> calls get re-run per row; they must
+              stay wrapped as <b>(select my_role())</b> — see migration 0108), then the query
+              plan. Do not simply raise a statement_timeout.
             </div>
           )}
         </div>
