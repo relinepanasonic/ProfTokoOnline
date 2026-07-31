@@ -200,6 +200,47 @@ const ID_DICT: Record<string, string> = {
   "1 week after start": "1 minggu setelah mulai",
   "Recorded automatically": "Tercatat otomatis",
   "Store Name": "Nama Toko", "Upload by Admin": "Unggah oleh Admin", "Upload Here": "Unggah Di Sini",
+
+  // ── Client PDF report (/report) ──
+  "Report": "Laporan",
+  "Download PDF": "Unduh PDF",
+  "Back to Dashboard": "Kembali ke Dasbor",
+  "Marketplace Performance Report": "Laporan Performa Marketplace",
+  "Generated": "Dibuat",
+  "All Periods": "Semua Periode",
+  "Performance Scorecard": "Ringkasan Performa",
+  "Compared with": "Dibandingkan dengan",
+  "Compared with the starting baseline": "Dibandingkan dengan baseline awal",
+  "Conversion Rate": "Tingkat Konversi",
+  "Sales Trend": "Tren Penjualan",
+  "Weekly within the selected month": "Mingguan dalam bulan terpilih",
+  "Monthly across the selected period": "Bulanan sepanjang periode terpilih",
+  "No sales data for this selection": "Tidak ada data penjualan untuk pilihan ini",
+  "Customer Funnel": "Funnel Pelanggan",
+  "Where visitors are gained and lost": "Di mana pengunjung didapat dan hilang",
+  // "Product Views" / "In-Cart" / "Transactions" / "Cart Rate" / "Product"
+  // are already defined above and reused here on purpose, so the report's
+  // wording matches the Dashboard exactly.
+  "Cart → Order": "Keranjang → Pesanan",
+  "visitors who add to cart": "pengunjung yang masuk keranjang",
+  "carts that become orders": "keranjang yang jadi pesanan",
+  "visitors who complete an order": "pengunjung yang menyelesaikan pesanan",
+  "Advertising Efficiency": "Efisiensi Iklan",
+  "Return by ad type": "Hasil per tipe iklan",
+  "Ad Type": "Tipe Iklan",
+  "Share of Spend": "Porsi Belanja",
+  "No ads data for this selection": "Tidak ada data iklan untuk pilihan ini",
+  "Product Performance": "Performa Produk",
+  "Top sellers and top advertised products": "Produk terlaris dan produk teriklan teratas",
+  "Top Products by Sales": "Produk Teratas berdasarkan Penjualan",
+  "Top Advertised Products": "Produk Teriklan Teratas",
+  "No product data": "Tidak ada data produk",
+  "No advertised product data": "Tidak ada data produk teriklan",
+  "Store Comparison": "Perbandingan Toko",
+  "Relative contribution and efficiency": "Kontribusi dan efisiensi relatif",
+  "Findings & Recommendations": "Temuan & Rekomendasi",
+  "Prioritised — most urgent first": "Diprioritaskan — paling mendesak dulu",
+  "Not enough data to generate findings for this selection": "Data belum cukup untuk membuat temuan pada pilihan ini",
 };
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (key: string) => string };

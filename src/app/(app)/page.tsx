@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useId } from "react";
+import Link from "next/link";
 import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
@@ -273,6 +274,27 @@ export default function DashboardPage() {
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
         <Sel label={t(storeLabel)} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${t(storeLabel)}`} />
         <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>{t("Reset")}</button>
+        {/* Carries the active filters into the report so it always matches
+            what the user is currently looking at. An Owner's scope is
+            re-forced server-side in the report, so a hand-edited URL can't
+            widen it. */}
+        <Link
+          className="btn-report"
+          href={{
+            pathname: "/report",
+            query: Object.fromEntries(
+              Object.entries({
+                year: sel.year,
+                month: sel.month,
+                owner: role === "branch_manager" ? scopeOwner : sel.owner,
+                brand: sel.brand,
+                store: sel.store,
+              }).filter(([, v]) => v)
+            ),
+          }}
+        >
+          <span aria-hidden="true">⬇</span> {t("Report")}
+        </Link>
         {loading && <Loader />}
       </div>
 
