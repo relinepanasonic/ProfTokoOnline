@@ -434,10 +434,17 @@ table.tbl-sticky2{width:max-content;min-width:100%}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important}
 }
 
-/* Report button in the Dashboard filter bar — gold, matches .btn-gold's
-   weight but sits inline with the .btn-ghost Reset control. */
-.btn-report{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:10px;
-  font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap;cursor:pointer;
+/* Report button in the Dashboard filter bar — gold, smaller than .btn-gold,
+   pinned to the right edge of the filter card via margin-left:auto. */
+.btn-report{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:9px;
+  font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;cursor:pointer;
   color:var(--navy-deep);background:linear-gradient(135deg,var(--gold),var(--gold-soft));
-  border:1px solid rgba(201,162,39,.5)}
-.btn-report:hover{filter:brightness(1.07)}
+  border:1px solid rgba(201,162,39,.5);margin-left:auto}
+.btn-report:hover:not(:disabled){filter:brightness(1.07)}
+.btn-report:disabled{cursor:default;opacity:.92}
+/* Spinner sits on the LEFT of the "Building Report" label, gold ring on the
+   button's own darker text color so it reads against the gold fill. */
+.btn-report-spin{width:13px;height:13px;border-radius:50%;flex-shrink:0;
+  border:2px solid rgba(11,20,38,.35);border-top-color:var(--navy-deep);
+  animation:btn-report-spin .7s linear infinite}
+@keyframes btn-report-spin{to{transform:rotate(360deg)}}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useId } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamicImport from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
@@ -91,6 +91,7 @@ function RadialGauge({ pct, size = 42, stroke = 5, color = GOLD }: { pct: number
 
 export default function DashboardPage() {
   const { t } = useLang();
+  const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
   const [clientId, setClientId] = useState("");
@@ -106,6 +107,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState("");
   const [filtersErr, setFiltersErr] = useState("");
+  // Stays true until the route change unmounts this page — /report runs four
+  // RPCs, so the button needs to keep showing progress the whole way.
+  const [reportBusy, setReportBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -210,6 +214,23 @@ export default function DashboardPage() {
     return base;
   })();
 
+  // Carries the active filters into the report so it always matches what the
+  // user is looking at. An Owner's scope_owner is re-forced server-side in
+  // /report, so a hand-edited URL can't widen the result.
+  function openReport() {
+    const q = new URLSearchParams();
+    const vals: Record<string, string> = {
+      year: sel.year,
+      month: sel.month,
+      owner: role === "branch_manager" ? scopeOwner : sel.owner,
+      brand: sel.brand,
+      store: sel.store,
+    };
+    for (const [key, v] of Object.entries(vals)) if (v) q.set(key, v);
+    setReportBusy(true);
+    router.push(`/report?${q.toString()}`);
+  }
+
   function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, brand: "", store: "" })); }
   function pickBrand(brand: string) { setSel((s) => ({ ...s, brand, store: "" })); }
   function pickStore(store: string) {
@@ -274,28 +295,15 @@ export default function DashboardPage() {
         {brandsForOwner.length > 0 && <Sel label={t("Brand")} value={sel.brand} onChange={pickBrand} opts={brandsForOwner} all={t("All Brands")} />}
         <Sel label={t(storeLabel)} value={sel.store} onChange={pickStore} opts={filteredStores} all={`${t("All")} ${t(storeLabel)}`} />
         <button className="btn-ghost" onClick={() => setSel({ year:"", month:"", city:"", store:"", owner:"", brand:"" })}>{t("Reset")}</button>
-        {/* Carries the active filters into the report so it always matches
-            what the user is currently looking at. An Owner's scope is
-            re-forced server-side in the report, so a hand-edited URL can't
-            widen it. */}
-        <Link
-          className="btn-report"
-          href={{
-            pathname: "/report",
-            query: Object.fromEntries(
-              Object.entries({
-                year: sel.year,
-                month: sel.month,
-                owner: role === "branch_manager" ? scopeOwner : sel.owner,
-                brand: sel.brand,
-                store: sel.store,
-              }).filter(([, v]) => v)
-            ),
-          }}
-        >
-          <span aria-hidden="true">⬇</span> {t("Report")}
-        </Link>
         {loading && <Loader />}
+        {/* Pinned right (margin-left:auto). A button rather than a Link so the
+            click can show a spinner while /report loads — that route runs four
+            RPCs, so the wait is long enough to need feedback. */}
+        <button className="btn-report" onClick={openReport} disabled={reportBusy}>
+          {reportBusy
+            ? <><span className="btn-report-spin" aria-hidden="true" />{t("Building Report")}</>
+            : <><span aria-hidden="true">⬇</span> {t("Report")}</>}
+        </button>
       </div>
 
       {/* ── KPIs (skeleton values while first-loading with no cached data) ── */}
