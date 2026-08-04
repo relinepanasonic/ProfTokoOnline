@@ -132,7 +132,19 @@ export function mapRow(
     orders_ready      = toNum(get("__COL_Q")) ?? toNum(get("Pesanan Siap Dikirim"));
     orders_created    = toNum(get("__COL_T")) ?? toNum(get("Total Pembeli (Pesanan Dibuat)"));
     visitor_cart_adds = toNum(get("__COL_AH")) ?? toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
-    clicks = toNum(get("__COL_L")) ?? toNum(get("Produk Diklik"));
+    // __COL_L is positional and should be correct regardless of header text —
+    // but a jsonb_object_keys() survey across every historical spos upload
+    // (2026-08) turned up many click-adjacent header variants across export
+    // eras/languages, which means column position itself may not be stable
+    // across every export version. "Produk Diklik" / "Product Clicks" are
+    // the same metric (EN/ID); bqCol("Product Clicks") already yields
+    // "Product_Clicks" via get()'s own fallback, so that variant needs no
+    // separate entry here. Deliberately NOT merged, because they are
+    // different metrics, not naming variants of this one: "Persentase
+    // Klik(...)" (a %, not a count), "Klik Pencarian"/"Search Clicks"
+    // (search-only subset), "Produk Unik Diklik"/"Unique Product Clicks"
+    // (unique, not total), "Jumlah Klik(...)" (ambiguous scope).
+    clicks = toNum(get("__COL_L")) ?? toNum(get("Produk Diklik")) ?? toNum(get("Product Clicks"));
   } else if (source === "ads") {
     // Fixed positions (EN export): K impressions, L clicks, N add-to-cart,
     // P conversions, V items, X GMV, Z expense.
