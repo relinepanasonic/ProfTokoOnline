@@ -41,7 +41,7 @@ function useIsMobile() {
 }
 
 type Summary = {
-  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; orders_created: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null };
+  kpis: { sales: number; gmv: number; traffic: number; in_cart: number; orders: number; transactions: number; orders_created: number; product_views: number; visitor_cart_adds: number; ad_cost: number; roas: number | null; clicks: number; units_sold: number };
   monthly_sales: { month: string; sales: number }[];
   store_monthly: { month: string; gmv: number }[];
   top_products: { name: string; sales: number }[];
@@ -339,8 +339,8 @@ export default function DashboardPage() {
         <Panel title={t("Top 10 Best-Selling Products")} hint={t("Sales · SPOS parent rows")}>
           <HBarsChart data={d?.top_products||[]} />
         </Panel>
-        <Panel title={t("Shopping Funnel")} hint={t("Product Views → Visitors → Orders Created → Transactions — older months partly 0 until new SPOS upload")}>
-          <FunnelChart productViews={k?.product_views ?? 0} pengunjung={k?.traffic ?? 0} ordersCreated={k?.orders_created ?? 0} transaksi={k?.orders ?? 0} t={t} />
+        <Panel title={t("Product Funnel")} hint={t("Impression → Click → In Cart → Sales · Product Performance (SPOS) — Click partly 0 until new SPOS upload")}>
+          <FunnelChart impression={k?.product_views ?? 0} click={k?.clicks ?? 0} inCart={k?.in_cart ?? 0} sales={k?.units_sold ?? 0} t={t} />
         </Panel>
       </div>
 
@@ -547,24 +547,25 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
-/* ── Shopping funnel: Traffic → In-Cart → Orders (real typed fields only —
-     "clicks" isn't captured anywhere in this schema, so it's not shown).
-     Tapered trapezoid shape, blue narrowing down to gold at the final
+/* ── Product funnel: Impression → Click → In Cart → Sales, sourced entirely
+     from the Product Performance (SPOS) export's own columns (migration
+     0110) — K "Jumlah Produk Dilihat", L "Produk Diklik", AI "Dimasukkan ke
+     Keranjang (Produk)", S "Produk (Pesanan Siap Dikirim)". Tapered
+     trapezoid shape, blue narrowing down to gold at the final
      (revenue-generating) stage — our own identity, not a copied palette. ── */
-function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: {
-  productViews: number; pengunjung: number; ordersCreated: number; transaksi: number; t: (k: string) => string;
+function FunnelChart({ impression, click, inCart, sales, t }: {
+  impression: number; click: number; inCart: number; sales: number; t: (k: string) => string;
 }) {
   const isMobile = useIsMobile();
-  // Gate on ANY stage having data, not just productViews specifically —
-  // productViews/ordersCreated are brand-new fields that read 0 for every
-  // pre-existing upload, which was blanking the whole chart even when
-  // Pengunjung/Transaksi (older fields) have real data.
-  if (!productViews && !pengunjung && !ordersCreated && !transaksi) return <Empty />;
+  // Click is a brand-new field (0110) that reads 0 for every pre-existing
+  // upload — gate on ANY stage having data so the chart doesn't blank out
+  // just because Click hasn't been re-uploaded yet.
+  if (!impression && !click && !inCart && !sales) return <Empty />;
   const stages = [
-    { label: t("Product Views"), value: productViews },
-    { label: t("Visitors"), value: pengunjung },
-    { label: t("Orders Created"), value: ordersCreated },
-    { label: t("Transactions"), value: transaksi },
+    { label: t("Impression"), value: impression },
+    { label: t("Click"), value: click },
+    { label: t("In Cart"), value: inCart },
+    { label: t("Sales"), value: sales },
   ];
   // On mobile the side-by-side layout squeezed the label column to nothing
   // (labels/numbers were getting clipped) — shrink the SVG and stack it
@@ -573,12 +574,12 @@ function FunnelChart({ productViews, pengunjung, ordersCreated, transaksi, t }: 
   const segH = H / stages.length;
   const minW = W * 0.24;
   // Scale against whichever stage is actually largest (not always stage 0 —
-  // productViews reads 0 until re-uploaded, so Pengunjung is often the real
-  // peak right now). Then cascade-clamp so every later segment is never
-  // WIDER than the one above it — a funnel must taper monotonically, even
-  // when a brand-new field (0 for old uploads) sits between two stages that
-  // both have real data, which previously made it flare back out.
-  const max = Math.max(productViews, pengunjung, ordersCreated, transaksi, 1);
+  // Click reads 0 until re-uploaded, so Impression is often the real peak
+  // right now). Then cascade-clamp so every later segment is never WIDER
+  // than the one above it — a funnel must taper monotonically, even when a
+  // brand-new field (0 for old uploads) sits between two stages that both
+  // have real data, which would otherwise make it flare back out.
+  const max = Math.max(impression, click, inCart, sales, 1);
   const widths: number[] = [];
   stages.forEach((s, i) => {
     const raw = minW + (W - minW) * Math.max(s.value / max, 0.06);

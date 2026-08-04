@@ -99,7 +99,11 @@ export function mapRow(
   let orders_ready: number | null = null;        // SPOS Q  "Pesanan Siap Dikirim" (true transaction count)
   let orders_created: number | null = null;      // SPOS T  "Total Pembeli (Pesanan Dibuat)" (funnel stage 3)
   let visitor_cart_adds: number | null = null;   // SPOS AH "Pengunjung Produk (Menambahkan Produk ke Keranjang)"
-  let clicks: number | null = null;              // Ads "Jumlah Klik"
+  // Both sources happen to put a click count at column L, but it's a
+  // different metric per export — SPOS L "Produk Diklik" (product-level
+  // clicks) vs Ads L "Jumlah Klik" (ad-level clicks). Same shared field,
+  // populated by whichever branch below actually runs for this row.
+  let clicks: number | null = null;              // SPOS L "Produk Diklik" / Ads "Jumlah Klik"
   let add_to_cart: number | null = null;         // Ads "Add to Cart"
   let ad_type: string | null = null;             // Ads D "Jenis Iklan" — "Product Ad" for real
                                                   // product campaigns; empty/null for shop-wide
@@ -128,6 +132,7 @@ export function mapRow(
     orders_ready      = toNum(get("__COL_Q")) ?? toNum(get("Pesanan Siap Dikirim"));
     orders_created    = toNum(get("__COL_T")) ?? toNum(get("Total Pembeli (Pesanan Dibuat)"));
     visitor_cart_adds = toNum(get("__COL_AH")) ?? toNum(get("Pengunjung Produk (Menambahkan Produk ke Keranjang)"));
+    clicks = toNum(get("__COL_L")) ?? toNum(get("Produk Diklik"));
   } else if (source === "ads") {
     // Fixed positions (EN export): K impressions, L clicks, N add-to-cart,
     // P conversions, V items, X GMV, Z expense.

@@ -65,10 +65,17 @@ const ID_DICT: Record<string, string> = {
   "ROAS Trend": "Tren ROAS", "No data yet": "Belum ada data",
   "Click row for details": "Klik baris untuk detail",
   "Store Data per": "Detail Data per",
+  "Baseline Dealer": "Baseline Dealer",
+  "Month Awal snapshot per": "Snapshot Month Awal per",
+  "No Baseline data yet": "Belum ada data Baseline",
   "Detail Store Data": "Detail Data Toko",
 
   // funnel / campaigns
   "Shopping Funnel": "Funnel Belanja",
+  "Product Funnel": "Funnel Produk",
+  "Impression → Click → In Cart → Sales · Product Performance (SPOS) — Click partly 0 until new SPOS upload":
+    "Dilihat → Diklik → Masuk Keranjang → Terjual · Performa Produk (SPOS) — Diklik sebagian 0 sampai unggah SPOS baru",
+  "Impression": "Dilihat", "In Cart": "Masuk Keranjang",
   "Product Views": "Produk Dilihat", "Visitors": "Pengunjung",
   "Orders Created": "Transaksi Dibuat", "Transactions": "Transaksi Dikirim",
   "Product Views → Visitors → Orders Created → Transactions — older months partly 0 until new SPOS upload":
