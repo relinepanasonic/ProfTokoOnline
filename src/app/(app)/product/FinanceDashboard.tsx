@@ -623,21 +623,35 @@ function DonutChart({ data, t }: { data: { name: string; value: number }[]; t: (
   const filtered = data.filter((x) => x.value > 0);
   if (!filtered.length) return <Empty />;
   const total = filtered.reduce((s, x) => s + x.value, 0);
+  // A long tail (Shipping Service routinely has 15-20 distinct couriers) was
+  // rendering one outside label per slice — a pile of overlapping "0%"s —
+  // and a legend taller than the chart itself. Keep the top slices by
+  // volume and fold the rest into one "Others" wedge; that alone fixes both
+  // problems, since there are now at most MAX_SLICES+1 labels/legend rows
+  // regardless of how many raw categories exist.
+  const MAX_SLICES = 6;
+  const sorted = [...filtered].sort((a, b) => b.value - a.value);
+  const top = sorted.slice(0, MAX_SLICES);
+  const restTotal = sorted.slice(MAX_SLICES).reduce((s, x) => s + x.value, 0);
+  const chartData = restTotal > 0 ? [...top, { name: t("Others"), value: restTotal }] : top;
   return (
-    <div style={{ width: "100%", height: 300, position: "relative" }}>
+    <div style={{ width: "100%", height: 240, position: "relative" }}>
       <ResponsiveContainer>
         <PieChart>
-          <Pie data={filtered} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={68} outerRadius={105} paddingAngle={2} strokeWidth={0}
-            label={({ percent }) => percent ? `${(percent * 100).toFixed(0)}%` : ""} labelLine={false}>
-            {filtered.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="rgba(6,14,33,0.6)" strokeWidth={2} />)}
+          <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={52} outerRadius={80} paddingAngle={2} strokeWidth={0}
+            // Skip the label on slivers too thin to fit a number legibly —
+            // that overlap is what made the chart look messy in the first
+            // place. Tiny slices are still fully visible in the legend/tooltip.
+            label={({ percent }) => percent && percent >= 0.06 ? `${(percent * 100).toFixed(0)}%` : ""} labelLine={false}>
+            {chartData.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} stroke="rgba(6,14,33,0.6)" strokeWidth={2} />)}
           </Pie>
           <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => [`${v} ${t("orders")}`, n as string]} />
-          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc", paddingTop: 8 }} />
+          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 9.5, color: "#9ab0cc", paddingTop: 6, lineHeight: "16px" }} />
         </PieChart>
       </ResponsiveContainer>
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-60%)", textAlign: "center", pointerEvents: "none" }}>
-        <div style={{ fontSize: 10, color: "#7089aa", marginBottom: 2 }}>TOTAL</div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: GOLD }}>{total} {t("orders")}</div>
+        <div style={{ fontSize: 9, color: "#7089aa", marginBottom: 2 }}>TOTAL</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: GOLD }}>{total} {t("orders")}</div>
       </div>
     </div>
   );
