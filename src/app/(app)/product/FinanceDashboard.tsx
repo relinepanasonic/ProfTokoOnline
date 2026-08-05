@@ -178,14 +178,17 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         </div>
       ) : (
       <>
-      {/* All 10 KPIs in one row — was 2 stacked rows of 5, merged to
-          reclaim a whole row's height (see .kpi-grid-10 in globals.css). */}
-      <div className="kpi-grid kpi-grid-10">
+      {/* Row 1: Gross Sales -> Nett Profit (the P&L walk). Row 2: the 5 cost
+          lines that get subtracted along the way. Was briefly one row of 10
+          (kpi-grid-10) to save height, split back to 2x5 per request. */}
+      <div className="kpi-grid kpi-grid-5">
         <div className="kpi kpi-hero"><div className="kpi-icon">💰</div><div className="lbl">{t("Gross Sales")}</div><div className="val">{k ? rpC(k.sales) : "—"}</div><MiniSparkline data={salesSeries} color={GOLD} /></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">📈</div><div className="lbl">{t("Gross Profit")}</div><div className="val">{k ? rpC(k.gross_profit) : "—"}</div><MiniSparkline data={profitSeries} color={GOLD} /></div>
         <div className="kpi"><div className="kpi-icon">📣</div><div className="lbl">{t("Ads Spent")}</div><div className="val">{k ? rpC(k.ads_cost) : "—"}</div><MiniSparkline data={adsSeries} color={BLUE} /></div>
         <div className="kpi"><div className="kpi-icon">🏷️</div><div className="lbl">Total Modal Product</div><div className="val">{rpC(totalModal)}</div><MiniSparkline data={modalSeries} color={GOLD_L} /></div>
         <div className="kpi kpi-roas"><div className="kpi-icon">✅</div><div className="lbl">{t("Nett Profit")}</div><div className="val" style={{ color: nettProfit >= 0 ? undefined : "#f87171" }}>{rpC(nettProfit)}</div><MiniSparkline data={nettSeries} color={GOLD} /></div>
+      </div>
+      <div className="kpi-grid kpi-grid-5">
         <div className="kpi kpi-cost"><div className="kpi-icon">🎟️</div><div className="lbl">{t("Promotion Cost")}</div><div className="val">{k ? rpC(k.promotion_cost) : "—"}</div><MiniSparkline data={promoSeries} color={BLUE} /></div>
         <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">{t("Refund")}</div><div className="val">{k ? rpC(k.refund) : "—"}</div><MiniSparkline data={refundSeries} color={BLUE} /></div>
         <div className="kpi kpi-cost"><div className="kpi-icon">🚚</div><div className="lbl">{t("Delivery Cost")}</div><div className="val">{k ? rpC(k.delivery_cost) : "—"}</div><MiniSparkline data={deliverySeries} color={BLUE} /></div>
