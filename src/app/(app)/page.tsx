@@ -520,6 +520,22 @@ function Sparkline({ data }: { data?: { month: string; value: number }[] }) {
 
 /* ── mini trend line for a KPI card — replaces the old text sub-label ── */
 /* Mountain-style mini area sparkline (gradient fill under a glowing line) — replaces the old plain polyline */
+// Catmull-Rom -> cubic-bezier smoothing (tension 1/6, the standard
+// conversion) — smooth curve without pulling in a charting library.
+function smoothPath(coords: (readonly [number, number])[]): string {
+  if (coords.length < 2) return "";
+  let d = `M${coords[0][0].toFixed(2)},${coords[0][1].toFixed(2)}`;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i === 0 ? i : i - 1];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[i + 2 < coords.length ? i + 2 : i + 1];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`;
+  }
+  return d;
+}
 function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const gid = "msg-" + useId().replace(/[^a-zA-Z0-9]/g, "");
   if (data.length < 2) return <div style={{ height: 30 }} />;
@@ -529,9 +545,9 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
   const stepX = (w - 2 * pad) / (data.length - 1);
   const y = (v: number) => h - pad - ((v - min) / range) * (h - 2 * pad);
   const coords = data.map((v, i) => [pad + i * stepX, y(v)] as const);
-  const line = coords.map(([x, cy], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${cy.toFixed(1)}`).join(" ");
+  const line = smoothPath(coords);
   const [lastX, lastY] = coords[coords.length - 1];
-  const area = `${line} L${lastX.toFixed(1)},${h} L${coords[0][0].toFixed(1)},${h} Z`;
+  const area = `${line} L${lastX.toFixed(2)},${h} L${coords[0][0].toFixed(2)},${h} Z`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 30, marginTop: 6, display: "block" }}>
       <defs>
@@ -541,7 +557,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
         </linearGradient>
       </defs>
       <path d={area} fill={`url(#${gid})`} stroke="none" />
-      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" opacity={0.95} />
+      <path d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" opacity={0.75} />
       <circle cx={lastX} cy={lastY} r={2.6} fill={color} />
     </svg>
   );
