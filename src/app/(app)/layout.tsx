@@ -21,8 +21,10 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/product",   icon: "💹", label: "Finance Detail",      roles: ["superadmin"] },
   { href: "/store",     icon: "🏬", label: "Operational Performance", roles: ["superadmin"] },
-  { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager"] },
-  { href: "/marketfee", icon: "💰", label: "Market Place Fee",    roles: ["superadmin", "branch_manager", "client_admin"] },
+  // client_admin added: Marketplace Fee (write access) now lives as a tab
+  // under Price Calculator (/calc/marketplace-fee) instead of its own nav
+  // item — client_admin needs this entry visible to reach it.
+  { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager", "client_admin"] },
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
@@ -52,9 +54,11 @@ const ROLE_LABEL: Record<Role, string> = {
 type Plan = "lapak" | "sultan" | "king" | "prof";
 const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Prof" };
 const PREMIUM_PLANS: Plan[] = ["sultan", "king", "prof"];
-// Which pages each owner plan may see.
-const LAPAK_PAGES  = ["/upload", "/", "/marketfee"];
-const FULL_PAGES    = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/marketfee"];
+// Which pages each owner plan may see. Market Place Fee moved from its own
+// "/marketfee" route to a tab under Price Calculator (/calc/marketplace-fee)
+// — both lists updated to the new path so Owner access is unchanged.
+const LAPAK_PAGES  = ["/upload", "/", "/calc/marketplace-fee"];
+const FULL_PAGES    = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/calc/marketplace-fee"];
 
 function ownerPages(plan: Plan): string[] {
   return PREMIUM_PLANS.includes(plan) ? FULL_PAGES : LAPAK_PAGES;
