@@ -10,6 +10,8 @@ export const maxDuration = 60;
 // name (not fixed position), same convention as /api/marketfee/import.
 const HEADER_MAP: { header: string; field: string; kind: "text" | "num" }[] = [
   { header: "Item Product",   field: "item_name",       kind: "text" },
+  { header: "Owner",          field: "owner",           kind: "text" },
+  { header: "Store",          field: "store_name",      kind: "text" },
   { header: "Category",       field: "category",        kind: "text" },
   { header: "Sub Category",   field: "sub_category",     kind: "text" },
   { header: "Jenis Product",  field: "jenis_product",    kind: "text" },
@@ -45,10 +47,11 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
 
-  const { data: profile } = await supabase.from("profiles").select("role, client_id").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("role, client_id, scope_owner").eq("id", user.id).single();
   if (!profile || !["superadmin", "client_admin", "branch_manager"].includes(profile.role)) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
+  const isOwnerLogin = profile.role === "branch_manager";
 
   const form = await req.formData();
   const file = form.get("file") as File | null;
@@ -78,6 +81,12 @@ export async function POST(req: NextRequest) {
         const raw = idx === -1 ? "" : r[idx];
         row[h.field] = h.kind === "text" ? String(raw ?? "").trim() : parseNum(raw);
       }
+      // Owner logins are hard-locked to their own scope regardless of what
+      // the uploaded file contains — same rule as every other importer in
+      // this codebase and as addItem()'s client-side lock on this page.
+      if (isOwnerLogin) row.owner = profile.scope_owner;
+      if (!row.owner) row.owner = null;
+      if (!row.store_name) row.store_name = null;
       return row;
     });
 

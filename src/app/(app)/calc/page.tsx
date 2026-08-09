@@ -15,11 +15,13 @@ type Fee = {
 };
 type Item = {
   id: string; item_name: string;
+  owner: string | null; store_name: string | null;
   category: string | null; sub_category: string | null; jenis_product: string | null;
   platform: string | null; jenis_toko: string | null;
   modal_produk_rp: number; harga_jual_rp: number;
   weight_kg: number; volume_cm3: number;
 };
+type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
 // Shipping-weight threshold that flips a product from the "biasa" to the
 // "khusus" Gratis Ongkir tier (either condition triggers it, per the
@@ -71,14 +73,24 @@ async function fetchAll<T>(supabase: ReturnType<typeof createClient>, table: str
 export default function Page() {
   const [supabase] = useState(() => createClient());
   const [clientId, setClientId] = useState("");
+  const [role, setRole] = useState("");
+  const [scopeOwner, setScopeOwner] = useState("");
   const [canEdit, setCanEdit] = useState(false);
   const [fees, setFees] = useState<Fee[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [links, setLinks] = useState<StoreLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // Store filter — an Owner login is hard-scoped by RLS already (this is
+  // just a within-their-own-stores narrowing); staff use it to look at one
+  // store at a time across the whole tenant.
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [storeFilter, setStoreFilter] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
+
+  const isOwnerLogin = role === "branch_manager";
 
   const feeMap = useMemo(() => {
     const m = new Map<string, Fee>();
@@ -89,13 +101,15 @@ export default function Page() {
   const reload = useCallback(async (cid: string) => {
     if (!cid) { setItems([]); setLoading(false); return; }
     setLoading(true);
-    const [feeRows, itemRows] = await Promise.all([
+    const [feeRows, itemRows, linkRows] = await Promise.all([
       fetchAll<Fee>(supabase, "market_fees", cid,
         "category,sub_category,jenis_product,platform,jenis_toko,platform_fee_pct,biaya_proses_pesanan_rp,biaya_layanan_mall_pct,min_gratis_ongkir_biasa_pct,max_gratis_ongkir_biasa_rp,min_gratis_ongkir_khusus_pct,max_gratis_ongkir_khusus_rp"),
       fetchAll<Item>(supabase, "price_calc_items", cid),
+      supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("owner").then((r) => (r.data as StoreLink[]) || []),
     ]);
     setFees(feeRows);
     setItems(itemRows);
+    setLinks(linkRows);
     setLoading(false);
   }, [supabase]);
 
@@ -103,9 +117,12 @@ export default function Page() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase.from("profiles").select("role,client_id").eq("id", user.id).single();
-      const role = profile?.role;
-      setCanEdit(role === "superadmin" || role === "client_admin" || role === "branch_manager");
+      const { data: profile } = await supabase.from("profiles").select("role,client_id,scope_owner").eq("id", user.id).single();
+      const r = profile?.role || "";
+      setRole(r);
+      setScopeOwner(profile?.scope_owner || "");
+      setCanEdit(r === "superadmin" || r === "client_admin" || r === "branch_manager");
+      if (r === "branch_manager") setOwnerFilter(profile?.scope_owner || "");
       const { data: cs } = await supabase.from("clients").select("id").order("created_at").limit(1);
       const cid = profile?.client_id || (cs as { id: string }[])?.[0]?.id || "";
       setClientId(cid);
@@ -120,7 +137,10 @@ export default function Page() {
   }
 
   async function addItem(row: Omit<Item, "id">) {
-    const { error } = await supabase.from("price_calc_items").insert({ client_id: clientId, ...row });
+    // An Owner is hard-locked to their own scope regardless of what the
+    // modal shows, mirroring every other upload/add flow in this app.
+    const owner = isOwnerLogin ? scopeOwner : row.owner;
+    const { error } = await supabase.from("price_calc_items").insert({ client_id: clientId, ...row, owner });
     if (error) { alert(error.message); return; }
     setShowAdd(false);
     reload(clientId);
@@ -153,13 +173,21 @@ export default function Page() {
     }
   }
 
+  const owners = useMemo(() => Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort(), [links]);
+  const storesForOwner = useMemo(() => {
+    const base = ownerFilter ? links.filter((l) => l.owner === ownerFilter) : links;
+    return Array.from(new Set(base.map((l) => l.store_name).filter(Boolean) as string[])).sort();
+  }, [links, ownerFilter]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((it) =>
-      [it.item_name, it.category, it.platform, it.jenis_toko].filter(Boolean).some((v) => (v as string).toLowerCase().includes(q))
-    );
-  }, [items, search]);
+    return items.filter((it) => {
+      if (ownerFilter && it.owner !== ownerFilter) return false;
+      if (storeFilter && it.store_name !== storeFilter) return false;
+      if (!q) return true;
+      return [it.item_name, it.category, it.platform, it.jenis_toko].filter(Boolean).some((v) => (v as string).toLowerCase().includes(q));
+    });
+  }, [items, search, ownerFilter, storeFilter]);
 
   return (
     <>
@@ -178,7 +206,7 @@ export default function Page() {
           <div>
             <h3 style={{ margin: 0 }}>Massive Calculator</h3>
             <div className="hint">
-              {items.length.toLocaleString("id-ID")} product rows · pick Category/Sub Category/Jenis Product/Platform/Jenis Toko to link a fee row, fill in price and weight, Total Biaya / Profit update live.
+              {filtered.length.toLocaleString("id-ID")} product rows · pick Category/Sub Category/Jenis Product/Platform/Jenis Toko to link a fee row, fill in price and weight, Total Biaya / Profit update live.
             </div>
           </div>
           {canEdit && (
@@ -202,6 +230,33 @@ export default function Page() {
             <input type="text" placeholder="Item Product / Category / Platform / Jenis Toko"
               value={search} onChange={(e) => setSearch(e.target.value)} style={inputStyle} />
           </div>
+          {/* An Owner login is already RLS-scoped to their own owner — this
+              renders read-only instead of a dropdown so it can't imply they
+              could pick someone else's data (same convention as
+              Dashboard/Ads/Finance's own read-only Owner field). */}
+          {isOwnerLogin ? (
+            <div className="fld">
+              <label>Owner</label>
+              <div style={{ padding: "9px 12px", borderRadius: 10, border: "1px solid var(--line)", background: "rgba(255,255,255,.03)", color: "#cdd9f0", fontSize: 13.5, minHeight: 38, display: "flex", alignItems: "center" }}>
+                {scopeOwner || "—"}
+              </div>
+            </div>
+          ) : owners.length > 0 && (
+            <div className="fld">
+              <label>Owner</label>
+              <select value={ownerFilter} onChange={(e) => { setOwnerFilter(e.target.value); setStoreFilter(""); }}>
+                <option value="">All Owners</option>
+                {owners.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="fld">
+            <label>Store</label>
+            <select value={storeFilter} onChange={(e) => setStoreFilter(e.target.value)}>
+              <option value="">All Stores</option>
+              {storesForOwner.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="tbl-wrap scroll-x" style={{ marginTop: 14, maxHeight: "min(640px, 66vh)", overflow: "auto" }}>
@@ -210,6 +265,8 @@ export default function Page() {
               <tr>
                 <th style={stickyTh}>No</th>
                 <th style={stickyTh}>Item Product</th>
+                <th style={stickyTh}>Owner</th>
+                <th style={stickyTh}>Store</th>
                 <th style={stickyTh}>Category</th>
                 <th style={stickyTh}>Sub Category</th>
                 <th style={stickyTh}>Jenis Product</th>
@@ -228,22 +285,26 @@ export default function Page() {
             </thead>
             <tbody>
               {filtered.map((item, i) => (
-                <ItemRow key={item.id} no={i + 1} item={item} fees={fees} feeMap={feeMap} canEdit={canEdit}
+                <ItemRow key={item.id} no={i + 1} item={item} fees={fees} feeMap={feeMap} links={links}
+                  canEdit={canEdit} isOwnerLogin={isOwnerLogin} scopeOwner={scopeOwner}
                   onPatch={(patch) => patchItem(item.id, patch)} onDelete={() => delItem(item.id)} />
               ))}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={16} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
-                  {items.length ? "No products match this search" : "No products yet"}
+                <tr><td colSpan={18} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                  {items.length ? "No products match this search/filter" : "No products yet"}
                 </td></tr>
               )}
               {loading && (
-                <tr><td colSpan={16} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>Loading…</td></tr>
+                <tr><td colSpan={18} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>Loading…</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {showAdd && <AddProductModal fees={fees} onAdd={addItem} onClose={() => setShowAdd(false)} />}
+        {showAdd && (
+          <AddProductModal fees={fees} links={links} isOwnerLogin={isOwnerLogin} scopeOwner={scopeOwner}
+            onAdd={addItem} onClose={() => setShowAdd(false)} />
+        )}
       </div>
     </>
   );
@@ -267,8 +328,19 @@ function useFeeCascade(fees: Fee[], sel: { category: string; sub_category: strin
   }, [fees, sel.category, sel.sub_category, sel.jenis_product, sel.platform, sel.jenis_toko]);
 }
 
-function ItemRow({ no, item, fees, feeMap, canEdit, onPatch, onDelete }: {
-  no: number; item: Item; fees: Fee[]; feeMap: Map<string, Fee>; canEdit: boolean;
+// Owner -> Store cascade sourced from store_links, same Core List every
+// other upload/add flow in this app uses.
+function useStoreCascade(links: StoreLink[], owner: string) {
+  return useMemo(() => {
+    const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
+    const stores = Array.from(new Set(links.filter((l) => !owner || l.owner === owner).map((l) => l.store_name).filter(Boolean) as string[])).sort();
+    return { owners, stores };
+  }, [links, owner]);
+}
+
+function ItemRow({ no, item, fees, feeMap, links, canEdit, isOwnerLogin, scopeOwner, onPatch, onDelete }: {
+  no: number; item: Item; fees: Fee[]; feeMap: Map<string, Fee>; links: StoreLink[];
+  canEdit: boolean; isOwnerLogin: boolean; scopeOwner: string;
   onPatch: (patch: Partial<Item>) => void; onDelete: () => void;
 }) {
   const [name, setName] = useState(item.item_name);
@@ -282,6 +354,7 @@ function ItemRow({ no, item, fees, feeMap, canEdit, onPatch, onDelete }: {
     platform: item.platform || "", jenis_toko: item.jenis_toko || "",
   };
   const cascade = useFeeCascade(fees, sel);
+  const storeCascade = useStoreCascade(links, item.owner || "");
 
   // Live preview from local (not-yet-saved) input state — this is what
   // makes Total Biaya/Profit "update live" as you type, independent of
@@ -294,6 +367,12 @@ function ItemRow({ no, item, fees, feeMap, canEdit, onPatch, onDelete }: {
   function selectField(field: "category" | "sub_category" | "jenis_product" | "platform" | "jenis_toko") {
     return (v: string) => onPatch({ [field]: v || null } as Partial<Item>);
   }
+  // An Owner can only ever move a row between their OWN stores — the
+  // dropdown is limited to storeCascade.stores (already owner-filtered),
+  // and owner itself is never editable inline for an Owner login (an
+  // Owner can't reassign a product to another owner, that's exactly the
+  // isolation this filter exists for).
+  const canEditOwnerStore = canEdit;
 
   return (
     <tr>
@@ -304,6 +383,22 @@ function ItemRow({ no, item, fees, feeMap, canEdit, onPatch, onDelete }: {
             onBlur={() => name !== item.item_name && onPatch({ item_name: name })}
             style={{ ...textCellStyle, width: 160 }} />
         ) : item.item_name}
+      </td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {isOwnerLogin ? (item.owner || scopeOwner) : canEditOwnerStore ? (
+          <select value={item.owner || ""} onChange={(e) => onPatch({ owner: e.target.value || null, store_name: null })} style={{ ...textCellStyle, width: 110 }}>
+            <option value="">—</option>
+            {storeCascade.owners.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        ) : (item.owner || "—")}
+      </td>
+      <td style={{ whiteSpace: "nowrap" }}>
+        {canEditOwnerStore ? (
+          <select value={item.store_name || ""} onChange={(e) => onPatch({ store_name: e.target.value || null })} style={{ ...textCellStyle, width: 110 }}>
+            <option value="">—</option>
+            {storeCascade.stores.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        ) : (item.store_name || "—")}
       </td>
       {(["category", "sub_category", "jenis_product", "platform", "jenis_toko"] as const).map((field) => (
         <td key={field} style={{ whiteSpace: "nowrap" }}>
@@ -364,22 +459,38 @@ function ItemRow({ no, item, fees, feeMap, canEdit, onPatch, onDelete }: {
   );
 }
 
-function AddProductModal({ fees, onAdd, onClose }: {
-  fees: Fee[];
+function AddProductModal({ fees, links, isOwnerLogin, scopeOwner, onAdd, onClose }: {
+  fees: Fee[]; links: StoreLink[]; isOwnerLogin: boolean; scopeOwner: string;
   onAdd: (row: Omit<Item, "id">) => void;
   onClose: () => void;
 }) {
   const [f, setF] = useState({
-    item_name: "", category: "", sub_category: "", jenis_product: "", platform: "Shopee", jenis_toko: "",
+    item_name: "", owner: isOwnerLogin ? scopeOwner : "", store_name: "",
+    category: "", sub_category: "", jenis_product: "", platform: "Shopee", jenis_toko: "",
     modal_produk_rp: 0, harga_jual_rp: 0, weight_kg: 0, volume_cm3: 0,
   });
   const cascade = useFeeCascade(fees, f);
+  const storeCascade = useStoreCascade(links, isOwnerLogin ? scopeOwner : f.owner);
   return (
     <div style={overlay} onClick={onClose}>
       <div style={dialog} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ margin: "0 0 14px" }}>Add Product</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <ModalField label="Item Product" full><input style={inputStyle} value={f.item_name} onChange={(e) => setF({ ...f, item_name: e.target.value })} /></ModalField>
+          {isOwnerLogin ? (
+            <ModalField label="Owner"><div style={{ ...inputStyle, display: "flex", alignItems: "center" }}>{scopeOwner || "—"}</div></ModalField>
+          ) : (
+            <ModalField label="Owner">
+              <select style={inputStyle} value={f.owner} onChange={(e) => setF({ ...f, owner: e.target.value, store_name: "" })}>
+                <option value="">—</option>{storeCascade.owners.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </ModalField>
+          )}
+          <ModalField label="Store">
+            <select style={inputStyle} value={f.store_name} onChange={(e) => setF({ ...f, store_name: e.target.value })}>
+              <option value="">—</option>{storeCascade.stores.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </ModalField>
           <ModalField label="Category">
             <select style={inputStyle} value={f.category} onChange={(e) => setF({ ...f, category: e.target.value, sub_category: "", jenis_product: "" })}>
               <option value="">—</option>{cascade.categories.map((o) => <option key={o} value={o}>{o}</option>)}
@@ -420,7 +531,7 @@ function AddProductModal({ fees, onAdd, onClose }: {
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 18 }}>
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-gold" disabled={!f.item_name} onClick={() => onAdd(f)}>Add</button>
+          <button className="btn-gold" disabled={!f.item_name} onClick={() => onAdd({ ...f, owner: isOwnerLogin ? scopeOwner : f.owner || null, store_name: f.store_name || null })}>Add</button>
         </div>
       </div>
     </div>
