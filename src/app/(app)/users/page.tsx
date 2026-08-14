@@ -107,6 +107,14 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");
   const [copied, setCopied] = useState(false);
+  // Which "Copy Link" button (by invite id / token) most recently copied —
+  // shows "Copied!" briefly instead of leaving the click with no feedback.
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  function copyLink(t: string, key: string) {
+    copyText(`${typeof window !== "undefined" ? window.location.origin : ""}/join/${t}`);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1800);
+  }
   const [planUser, setPlanUser] = useState<Profile | null>(null);
   const [planForm, setPlanForm] = useState({ plan_type: "sultan", days: 30 });
   const [nowTs, setNowTs] = useState<number | null>(null);
@@ -194,10 +202,6 @@ export default function UsersPage() {
       setGenBusy(null);
     }
   }
-  function copyPendingOwnerLink(t: string) {
-    if (typeof window !== "undefined") copyText(`${window.location.origin}/join/${t}`);
-  }
-
   async function deleteUser(p: Profile) {
     if (!confirm(`Delete user "${p.display_name || p.email}"? This cannot be undone.`)) return;
     const h = await getAuthHeader();
@@ -371,9 +375,9 @@ export default function UsersPage() {
                     <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)", color: "#f59e0b" }}>
                       Not Signed Up Yet
                     </span>
-                    <button onClick={() => o.token && copyPendingOwnerLink(o.token)}
+                    <button onClick={() => o.token && copyLink(o.token, `u:${o.token}`)}
                       style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(201,162,39,0.3)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 12, cursor: "pointer" }}>
-                      Copy Link
+                      {copiedKey === `u:${o.token}` ? "Copied!" : "Copy Link"}
                     </button>
                   </>
                 ) : (
@@ -396,7 +400,6 @@ export default function UsersPage() {
           </div>
           <div style={{ display: "grid", gap: 8 }}>
             {pending.map((inv) => {
-              const url = typeof window !== "undefined" ? `${window.location.origin}/join/${inv.token}` : "";
               return (
                 <div key={inv.id} style={{ background: "rgba(201,162,39,0.05)", border: "1px solid rgba(201,162,39,0.15)", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ flex: 1, minWidth: 140 }}>
@@ -404,9 +407,9 @@ export default function UsersPage() {
                     <div style={{ fontSize: 12, color: "#7b8db0" }}>{ROLE_LABEL[inv.role] || inv.role}{inv.store_name ? ` · ${inv.store_name}` : ""}</div>
                   </div>
                   <div style={{ fontSize: 11, color: "#7b8db0" }}>{inv.expires_at ? `Expires ${new Date(inv.expires_at).toLocaleDateString()}` : "Never expires"}</div>
-                  <button onClick={() => copyText(url)}
+                  <button onClick={() => copyLink(inv.token, `p:${inv.id}`)}
                     style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(201,162,39,0.3)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 12, cursor: "pointer" }}>
-                    Copy Link
+                    {copiedKey === `p:${inv.id}` ? "Copied!" : "Copy Link"}
                   </button>
                   <button onClick={() => revokeInvite(inv.id)}
                     style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.08)", color: "#f87171", fontSize: 12, cursor: "pointer" }}>
