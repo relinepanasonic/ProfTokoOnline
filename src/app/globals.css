@@ -330,7 +330,7 @@ table.tbl-sticky2{width:max-content;min-width:100%}
 .rpt-btn-ghost{padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;
   color:#cdd9f0;background:rgba(255,255,255,.04);border:1px solid var(--line)}
 
-.rpt{background:#fff;color:#111827;border-radius:14px;padding:38px 42px;max-width:820px;margin:0 auto;
+.rpt{background:#fff;color:#111827;border-radius:14px;padding:38px 48px;max-width:1180px;margin:0 auto;
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
 .rpt *{box-sizing:border-box}
 
@@ -417,9 +417,12 @@ table.tbl-sticky2{width:max-content;min-width:100%}
   .rpt-funnel-row{grid-template-columns:88px 1fr 74px}
 }
 
-/* ── Print: strip the app shell, let the document fill the page ── */
+/* ── Print: strip the app shell, let the document fill the page ──
+   Widescreen 16:9 landscape (PowerPoint's 13.33in x 7.5in), matching the
+   client-side PDF export in report/page.tsx — this @media print block is
+   now only a manual-Ctrl+P fallback, kept in sync for consistency. */
 @media print{
-  @page{size:A4 portrait;margin:12mm}
+  @page{size:338.67mm 190.5mm landscape;margin:10mm}
   .sidebar,.topbar,.mob-header,.bottom-nav,.no-print,
   .mobile-drawer,.mobile-drawer-backdrop{display:none !important}
   html,body{background:#fff !important}

@@ -4,11 +4,13 @@
 // passes the active filters through the URL so the report always matches what
 // the user was looking at.
 //
-// Rendered as a light-themed print document rather than in the app's dark
-// theme: it is meant to be printed / saved as PDF, and dark backgrounds waste
-// ink and read badly on paper. Browser "Save as PDF" is used instead of
-// server-side Chromium — no extra dependency, no serverless cold start, and
-// the SVG charts print at vector quality. See globals.css `.rpt` + @media print.
+// Rendered as a light-themed document rather than in the app's dark theme:
+// it is meant to be saved/shared as a PDF, and dark backgrounds waste ink and
+// read badly on paper. The Download button renders the .rpt document to a
+// canvas (html2canvas) and slices it into widescreen 16:9 landscape PDF pages
+// (jsPDF) — a real file download, not the OS print dialog — cut at section
+// boundaries (never mid-table/mid-card) wherever a section fits on one page.
+// See globals.css `.rpt` + the (now fallback-only) @media print block.
 //
 // It deliberately calls the SAME RPCs the Dashboard uses (dashboard_summary /
 // ads_dashboard_summary), never its own aggregation: the report must reconcile
@@ -29,7 +31,54 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const CHART_W = 700;
+const CHART_W = 980;
+
+// Widescreen 16:9 PDF page, in px (PowerPoint's 13.33in x 7.5in @ 120dpi).
+const PDF_PAGE_W = 1600;
+const PDF_PAGE_H = 900;
+
+async function downloadReportPdf(fileLabel: string) {
+  const el = document.getElementById("rpt-doc");
+  if (!el) return;
+
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"), import("html2canvas"),
+  ]);
+
+  const SCALE = 2; // oversample for crisp text/lines in the raster export
+  const canvas = await html2canvas(el, { scale: SCALE, backgroundColor: "#ffffff", useCORS: true });
+
+  const pageHeightPx = canvas.width * (PDF_PAGE_H / PDF_PAGE_W);
+  const elTop = el.getBoundingClientRect().top;
+  const boundaries = Array.from(el.querySelectorAll<HTMLElement>(".rpt-cover,.rpt-section"))
+    .map((s) => (s.getBoundingClientRect().bottom - elTop) * SCALE)
+    .filter((b) => b > 0 && b < canvas.height);
+
+  const pdf = new jsPDF({ orientation: "landscape", unit: "px", format: [PDF_PAGE_W, PDF_PAGE_H] });
+  let cut = 0;
+  let first = true;
+  while (cut < canvas.height - 1) {
+    const target = Math.min(cut + pageHeightPx, canvas.height);
+    // Snap to the last section boundary that still fits on this page, so a
+    // table or KPI row never gets sliced across two pages; if a single
+    // section is taller than one full page, fall back to a raw cut.
+    const snap = boundaries.filter((b) => b > cut + 4 && b <= target).pop();
+    const sliceEnd = snap ?? target;
+    const sliceH = Math.max(1, Math.round(sliceEnd - cut));
+
+    const slice = document.createElement("canvas");
+    slice.width = canvas.width;
+    slice.height = sliceH;
+    slice.getContext("2d")!.drawImage(canvas, 0, cut, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+
+    if (!first) pdf.addPage([PDF_PAGE_W, PDF_PAGE_H], "landscape");
+    pdf.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, PDF_PAGE_W, (sliceH / canvas.width) * PDF_PAGE_W);
+    first = false;
+    cut += sliceH;
+  }
+
+  pdf.save(`ProfTokoOnline-Report-${fileLabel.replace(/[^\w-]+/g, "-")}.pdf`);
+}
 
 export default function ReportPage() {
   return (
@@ -61,6 +110,7 @@ function ReportInner() {
   const [partialWeeks, setPartialWeeks] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const prevM = priorMonth(sel.month || null);
 
@@ -147,6 +197,15 @@ function ReportInner() {
     : sel.year ? sel.year : t("All Periods");
   const multiStore = (cur?.dealers || []).filter((d) => d.sales > 0).length > 1;
 
+  async function handleDownload() {
+    setPdfBusy(true);
+    try {
+      await downloadReportPdf(periodLabel);
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   // Sales series: weekly buckets when a month is selected, monthly otherwise —
   // perf_trend already switches granularity server-side.
   const trend = (cur?.perf_trend || []).map((x) => ({ label: x.bucket, value: x.sales }));
@@ -158,8 +217,8 @@ function ReportInner() {
         <Link href="/" className="rpt-btn-ghost">← {t("Back to Dashboard")}</Link>
         <div style={{ flex: 1 }} />
         {loading && <Loader />}
-        <button className="rpt-btn-gold" onClick={() => window.print()}>
-          ⬇ {t("Download PDF")}
+        <button className="rpt-btn-gold" onClick={handleDownload} disabled={pdfBusy}>
+          {pdfBusy ? <>⏳ {t("Building PDF")}…</> : <>⬇ {t("Download PDF")}</>}
         </button>
       </div>
 
@@ -169,7 +228,7 @@ function ReportInner() {
         </div>
       )}
 
-      <div className="rpt">
+      <div className="rpt" id="rpt-doc">
         {/* ── 1. Cover / scope ── */}
         <header className="rpt-cover">
           <div className="rpt-cover-top">

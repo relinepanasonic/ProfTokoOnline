@@ -211,6 +211,7 @@ const ID_DICT: Record<string, string> = {
   // ── Client PDF report (/report) ──
   "Report": "Laporan",
   "Building Report": "Menyusun Laporan",
+  "Building PDF": "Membuat PDF",
   "Download PDF": "Unduh PDF",
   "Back to Dashboard": "Kembali ke Dasbor",
   "Marketplace Performance Report": "Laporan Performa Marketplace",
