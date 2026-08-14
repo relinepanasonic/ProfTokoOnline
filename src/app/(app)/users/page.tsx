@@ -19,7 +19,7 @@ type Invite = {
   store_name: string | null; role: string;
   created_at: string; expires_at: string | null; used_at: string | null;
 };
-type StoreLink = { owner: string | null; store_name: string | null };
+type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 // Owners present in the Core List (store_links) with no branch_manager
 // account yet — from get_unclaimed_owners() (migration 0095).
 type UnclaimedOwner = { owner_name: string; client_id: string; invite_status: "No Link" | "Pending Signup"; token: string | null };
@@ -104,6 +104,12 @@ export default function UsersPage() {
   const [token,   setToken]   = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ owner_name: "", role: "branch_manager", username: "" });
+  // Brand/Store checklist for an Owner invite — informational only (stored
+  // on the invite's store_name for reference on the Pending Invites list);
+  // the created login still sees every Brand & Store under this Owner, same
+  // as today. Keyed "brand::store" so duplicate store names across brands
+  // don't collide.
+  const [pickedStores, setPickedStores] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [msg,  setMsg]  = useState("");
   const [copied, setCopied] = useState(false);
@@ -145,7 +151,7 @@ export default function UsersPage() {
         const { data: mp } = await supabase.from("profiles").select("role").eq("id", user.id).single();
         if (mp) setMyRole(mp.role);
       }
-      const { data: sl } = await supabase.from("store_links").select("owner,store_name").order("owner");
+      const { data: sl } = await supabase.from("store_links").select("owner,brand,store_name").order("owner");
       setStores((sl as StoreLink[]) || []);
       reload();
     })();
@@ -156,15 +162,29 @@ export default function UsersPage() {
   // Admin (client_admin) logins can only generate Owner (Client Owner) invite
   // links — never Superadmin, Admin, or Advertiser.
   const inviteRoleOptions = isClientAdmin ? INVITE_ROLES.filter((r) => r.v === "branch_manager") : INVITE_ROLES;
+  const ownerStorePairs = stores.filter((s) => s.owner === form.owner_name && s.store_name);
+  function toggleStore(key: string) {
+    setPickedStores((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
 
   async function createInvite() {
     if (!form.owner_name.trim()) { setMsg(isOwnerRole ? "Select an owner" : "Name is required"); return; }
     setBusy(true); setMsg(""); setToken(null);
     try {
       const h = await getAuthHeader();
+      const storeLabel = isOwnerRole && pickedStores.size
+        ? ownerStorePairs
+            .filter((s) => pickedStores.has(`${s.brand ?? ""}::${s.store_name}`))
+            .map((s) => (s.brand ? `${s.brand} · ${s.store_name}` : s.store_name))
+            .join(", ")
+        : null;
       const res = await fetch("/api/invites", {
         method: "POST", headers: { ...h, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, username: form.username.trim() || null }),
+        body: JSON.stringify({ ...form, store_name: storeLabel, username: form.username.trim() || null }),
       });
       const j = await res.json();
       if (!res.ok) { setMsg(j.error || "Failed"); setBusy(false); return; }
@@ -255,7 +275,7 @@ export default function UsersPage() {
           <h3 style={{ margin: 0 }}>User Management</h3>
           <div className="hint">Invite owners and admins · they set their own credentials</div>
         </div>
-        <button className="btn-gold" onClick={() => { setShowForm(true); setToken(null); setMsg(""); setForm({ owner_name: "", role: "branch_manager", username: "" }); }}>
+        <button className="btn-gold" onClick={() => { setShowForm(true); setToken(null); setMsg(""); setForm({ owner_name: "", role: "branch_manager", username: "" }); setPickedStores(new Set()); }}>
           + Invite User
         </button>
       </div>
@@ -466,24 +486,46 @@ export default function UsersPage() {
                       value={form.role}
                       options={inviteRoleOptions.map((r) => ({ value: r.v, label: r.l }))}
                       placeholder="Select role"
-                      onChange={(v) => setForm({ ...form, role: v, owner_name: "" })}
+                      onChange={(v) => { setForm({ ...form, role: v, owner_name: "" }); setPickedStores(new Set()); }}
                     />
                   )}
                 </Fld>
 
                 {isOwnerRole ? (
-                  <Fld label="Owner (from Core List)">
-                    <Dropdown
-                      value={form.owner_name}
-                      options={distinctOwners}
-                      placeholder="Select owner"
-                      emptyText="No owners in Core List yet"
-                      onChange={(v) => setForm({ ...form, owner_name: v })}
-                    />
-                    <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
-                      This login will see every Brand &amp; Store linked to this Owner in Core List.
-                    </p>
-                  </Fld>
+                  <>
+                    <Fld label="Owner (from Core List)">
+                      <Dropdown
+                        value={form.owner_name}
+                        options={distinctOwners}
+                        placeholder="Select owner"
+                        emptyText="No owners in Core List yet"
+                        onChange={(v) => { setForm({ ...form, owner_name: v }); setPickedStores(new Set()); }}
+                      />
+                      <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
+                        This login will see every Brand &amp; Store linked to this Owner in Core List.
+                      </p>
+                    </Fld>
+
+                    {form.owner_name && ownerStorePairs.length > 0 && (
+                      <Fld label="Brand / Store (optional — for reference on the invite)">
+                        <div style={{ display: "grid", gap: 6, maxHeight: 160, overflowY: "auto",
+                          border: "1px solid rgba(201,162,39,.2)", borderRadius: 10, padding: "8px 11px", background: "rgba(10,22,40,.4)" }}>
+                          {ownerStorePairs.map((s) => {
+                            const key = `${s.brand ?? ""}::${s.store_name}`;
+                            return (
+                              <label key={key} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: "#cdd9f0", cursor: "pointer" }}>
+                                <input type="checkbox" checked={pickedStores.has(key)} onChange={() => toggleStore(key)} />
+                                {s.brand ? <span>{s.brand} <span style={{ color: "#7b8db0" }}>·</span> {s.store_name}</span> : s.store_name}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
+                          Doesn&apos;t restrict access — the login still sees everything above. Just noted on the invite for your own reference.
+                        </p>
+                      </Fld>
+                    )}
+                  </>
                 ) : (
                   <Fld label="Name">
                     <input style={inp} placeholder="e.g. Yunita" value={form.owner_name}
