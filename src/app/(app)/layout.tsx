@@ -17,7 +17,7 @@ type Role = "superadmin" | "client_admin" | "branch_manager" | "store_user" | "a
 //                     Market Place Fee (read-only, scoped to their Owner)
 const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin", "advertiser"] },
-  { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser"] },
+  { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser", "client_admin"] },
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
   { href: "/product",   icon: "💹", label: "Finance Detail",      roles: ["superadmin"] },
   { href: "/store",     icon: "🏬", label: "Operational Performance", roles: ["superadmin"] },
@@ -27,7 +27,7 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager", "client_admin"] },
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
   { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
-  { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin"] },
+  { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin", "client_admin"] },
   { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
 ];
 

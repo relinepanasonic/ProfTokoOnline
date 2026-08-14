@@ -94,6 +94,8 @@ function copyText(t: string) { navigator.clipboard.writeText(t).catch(() => {});
 
 export default function UsersPage() {
   const [supabase] = useState(() => createClient());
+  const [myRole,  setMyRole]  = useState<string>("");
+  const isClientAdmin = myRole === "client_admin";
   const [rows,    setRows]    = useState<Profile[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [unclaimed, setUnclaimed] = useState<UnclaimedOwner[]>([]);
@@ -130,6 +132,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: mp } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+        if (mp) setMyRole(mp.role);
+      }
       const { data: sl } = await supabase.from("store_links").select("owner,store_name").order("owner");
       setStores((sl as StoreLink[]) || []);
       reload();
@@ -138,6 +145,9 @@ export default function UsersPage() {
 
   const distinctOwners = Array.from(new Set(stores.map((s) => s.owner).filter(Boolean) as string[])).sort();
   const isOwnerRole = form.role === "branch_manager";
+  // Admin (client_admin) logins can only generate Owner (Client Owner) invite
+  // links — never Superadmin, Admin, or Advertiser.
+  const inviteRoleOptions = isClientAdmin ? INVITE_ROLES.filter((r) => r.v === "branch_manager") : INVITE_ROLES;
 
   async function createInvite() {
     if (!form.owner_name.trim()) { setMsg(isOwnerRole ? "Select an owner" : "Name is required"); return; }
@@ -444,12 +454,18 @@ export default function UsersPage() {
                 </p>
 
                 <Fld label="Role">
-                  <Dropdown
-                    value={form.role}
-                    options={INVITE_ROLES.map((r) => ({ value: r.v, label: r.l }))}
-                    placeholder="Select role"
-                    onChange={(v) => setForm({ ...form, role: v, owner_name: "" })}
-                  />
+                  {isClientAdmin ? (
+                    <div style={{ ...inp, display: "flex", alignItems: "center", color: "var(--muted)" }}>
+                      Owner (Client Owner)
+                    </div>
+                  ) : (
+                    <Dropdown
+                      value={form.role}
+                      options={inviteRoleOptions.map((r) => ({ value: r.v, label: r.l }))}
+                      placeholder="Select role"
+                      onChange={(v) => setForm({ ...form, role: v, owner_name: "" })}
+                    />
+                  )}
                 </Fld>
 
                 {isOwnerRole ? (
