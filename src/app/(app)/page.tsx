@@ -90,7 +90,7 @@ function RadialGauge({ pct, size = 42, stroke = 5, color = GOLD }: { pct: number
 }
 
 export default function DashboardPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const router = useRouter();
   const [supabase] = useState(() => createClient());
   const [storeLabel, setStoreLabel] = useState("Store");
@@ -215,20 +215,40 @@ export default function DashboardPage() {
   })();
 
   // Carries the active filters into the report so it always matches what the
-  // user is looking at. An Owner's scope_owner is re-forced server-side in
-  // /report, so a hand-edited URL can't widen the result.
-  function openReport() {
-    const q = new URLSearchParams();
-    const vals: Record<string, string> = {
-      year: sel.year,
-      month: sel.month,
-      owner: role === "branch_manager" ? scopeOwner : sel.owner,
-      brand: sel.brand,
-      store: sel.store,
-    };
-    for (const [key, v] of Object.entries(vals)) if (v) q.set(key, v);
+  // user is looking at, then downloads the rendered 16:9 deck straight from
+  // the server — no print dialog, no intermediate page. An Owner's
+  // scope_owner is re-forced server-side, so a tampered body can't widen it.
+  async function openReport() {
     setReportBusy(true);
-    router.push(`/report?${q.toString()}`);
+    try {
+      const res = await fetch("/api/reports/pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          year: sel.year,
+          month: sel.month,
+          owner: role === "branch_manager" ? scopeOwner : sel.owner,
+          brand: sel.brand,
+          store: sel.store,
+          lang,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        alert(j.error || "Failed to build the report");
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const name = /filename="([^"]+)"/.exec(cd)?.[1] || "ProfTokoOnline-Report.pdf";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setReportBusy(false);
+    }
   }
 
   function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, brand: "", store: "" })); }
