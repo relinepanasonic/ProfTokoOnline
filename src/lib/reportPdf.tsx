@@ -10,12 +10,13 @@ import {
 } from "@/lib/reportInsights";
 
 // =====================================================================
-// Profesor Toko Online — client performance report, as a landscape 16:9
-// slide deck rendered server-side with @react-pdf/renderer.
+// Profesor Toko Online — client performance report, as an A4 landscape
+// deck rendered server-side with @react-pdf/renderer (prints cleanly on
+// standard paper).
 //
-// Page is a fixed 960x540pt (exactly 16:9, the PowerPoint widescreen
-// size). Every block has an explicit height out of the BODY_H budget so
-// content can never reflow past the margin onto a phantom second page.
+// Page is a fixed A4-landscape size in points. Every block has an explicit
+// height out of the available body budget so content can never reflow past
+// the margin onto a phantom second page.
 // (wrap={false} would ALSO prevent that, but it makes react-pdf shrink
 // the page down to its content height, silently breaking the ratio.)
 //
@@ -51,11 +52,14 @@ const GREEN = "#1f9254";
 const RED = "#c0392b";
 
 /* ---------------- page geometry ---------------- */
-const PAGE_W = 960;
-const PAGE_H = 540;
+// A4 landscape (react-pdf's own A4 portrait constant is [595.28, 841.89] —
+// swapped here) rather than the 16:9 widescreen slide size, so the deck
+// prints cleanly on standard paper without the printer rescaling it.
+const PAGE_W = 841.89;
+const PAGE_H = 595.28;
 // Object form + an explicit height in the page style: with the array form
 // react-pdf auto-shrinks each page down to its content height, which
-// silently breaks the 16:9 ratio.
+// silently breaks the fixed aspect ratio.
 const PAGE_SIZE = { width: PAGE_W, height: PAGE_H };
 const PAD = 38;
 const CONTENT_W = PAGE_W - PAD * 2;          // 884
@@ -338,7 +342,7 @@ function DonutSvg({ share, label, w, h }: { share: number; label: string; w: num
     <Svg width={w} height={h}>
       {body}
       <Text x={cxp} y={cyp + 2} style={{ fontSize: 17, fill: NAVY, textAnchor: "middle", fontFamily: F_BOLD } as never}>{pctFmt(frac * 100)}</Text>
-      <Text x={cxp} y={cyp + 14} style={{ fontSize: 6.5, fill: MUTED, textAnchor: "middle" } as never}>{clip(label, 18)}</Text>
+      <Text x={cxp} y={cyp + 14} style={{ fontSize: 6.5, fill: MUTED, textAnchor: "middle" } as never}>{clip(label, 16)}</Text>
     </Svg>
   );
 }
@@ -367,7 +371,7 @@ function Legend({ color, text }: { color: string; text: string }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 7 }}>
       <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: color, marginRight: 6 }} />
-      <Text style={{ fontSize: 8, color: INK }}>{clip(text, 26)}</Text>
+      <Text style={{ fontSize: 8, color: INK }}>{clip(text, 23)}</Text>
     </View>
   );
 }
@@ -385,7 +389,7 @@ function KpiCard({ label, value, sub, delta, hero, width, height, lang }: {
       <View style={{ width: 42, height: 3.5, backgroundColor: hero ? GOLD_SOFT : GOLD, borderRadius: 2, marginBottom: 9 }} />
       <Text style={[s.label, { color: hero ? GOLD_SOFT : MUTED }]}>{label}</Text>
       <Text style={{ fontFamily: F_BOLD, fontSize: 19, color: fg, marginTop: 5 }}>{value}</Text>
-      {!!sub && <Text style={{ fontSize: 7.5, color: hero ? "#c3cee3" : MUTED, marginTop: 4 }}>{clip(sub, 42)}</Text>}
+      {!!sub && <Text style={{ fontSize: 7.5, color: hero ? "#c3cee3" : MUTED, marginTop: 4 }}>{clip(sub, 37)}</Text>}
       <View style={{ flexGrow: 1 }} />
       <Text style={{ fontSize: 8, color: dcol, fontFamily: F_BOLD }}>{deltaStr(delta ?? null, lang)}</Text>
     </View>
@@ -396,7 +400,7 @@ function BigStat({ width, x, title, before, after }: { width: number; x: number 
     <View style={[s.card, { width, height: 116, justifyContent: "center" }]}>
       <Text style={{ fontFamily: F_BOLD, fontSize: 27, color: x != null && x >= 1 ? GREEN : NAVY }}>{x != null ? mult(x) : "—"}</Text>
       <Text style={{ fontSize: 9, color: NAVY, fontFamily: F_BOLD, marginTop: 4 }}>{title}</Text>
-      <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>{clip(before, 16)}  {"->"}  {clip(after, 16)}</Text>
+      <Text style={{ fontSize: 8, color: MUTED, marginTop: 4 }}>{clip(before, 14)}  {"->"}  {clip(after, 14)}</Text>
     </View>
   );
 }
@@ -478,7 +482,7 @@ export function ReportDocument(props: {
         <View style={{ paddingHorizontal: 64, marginTop: 100 }}>
           <Text style={{ fontSize: 10, color: GOLD, letterSpacing: 1.5, fontFamily: F_BOLD }}>{t.reportLine}</Text>
           <Text style={{ fontFamily: F_BOLD, fontSize: 38, color: WHITE, marginTop: 14 }}>
-            {clip(clientName || scopeName, 34)}
+            {clip(clientName || scopeName, 30)}
           </Text>
           <Text style={{ fontSize: 13, color: "#c3cee3", marginTop: 12 }}>{periodLabel}</Text>
         </View>
@@ -486,9 +490,9 @@ export function ReportDocument(props: {
         <View style={{ position: "absolute", left: 64, bottom: 58 }}>
           <View style={{ width: 420, height: 1, backgroundColor: GOLD, opacity: 0.65, marginBottom: 13 }} />
           <Text style={{ fontSize: 8, color: GOLD_SOFT, letterSpacing: 1.4, fontFamily: F_BOLD }}>{t.preparedFor.toUpperCase()}</Text>
-          <Text style={{ fontFamily: F_BOLD, fontSize: 13, color: WHITE, marginTop: 6 }}>{clip(ownerName || "—", 40)}</Text>
+          <Text style={{ fontFamily: F_BOLD, fontSize: 13, color: WHITE, marginTop: 6 }}>{clip(ownerName || "—", 35)}</Text>
           <Text style={{ fontSize: 9.5, color: "#c3cee3", marginTop: 5 }}>
-            {t[storeLabel === "Dealer" ? "store" : "store"]}: {clip(storeName || t.allStores, 46)}
+            {t[storeLabel === "Dealer" ? "store" : "store"]}: {clip(storeName || t.allStores, 40)}
           </Text>
           <Text style={{ fontSize: 8, color: MUTED, marginTop: 9 }}>{t.generated} {generatedAt}</Text>
         </View>
@@ -500,7 +504,7 @@ export function ReportDocument(props: {
         <View style={{ height: 82, backgroundColor: NAVY, borderRadius: 8, padding: 13, marginBottom: 13 }}>
           <Text style={{ fontSize: 7.5, color: GOLD_SOFT, fontFamily: F_BOLD, letterSpacing: 1 }}>{t.summary}</Text>
           <Text style={{ fontSize: 9, color: "#e6ebf5", marginTop: 6, lineHeight: 1.5 }}>
-            {clip(narrative(lang, k, periodLabel, scopeName, atcRate), 460)}
+            {clip(narrative(lang, k, periodLabel, scopeName, atcRate), 400)}
           </Text>
         </View>
         <View style={{ flexDirection: "row", gap: 14, marginBottom: 12 }}>
@@ -566,7 +570,7 @@ export function ReportDocument(props: {
             <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
               <DonutSvg share={shareFrac} label={topBrand?.brand || "—"} w={COL2 - 170} h={128} />
               <View style={{ marginLeft: 10 }}>
-                <Legend color={GOLD} text={`${clip(topBrand?.brand || "—", 12)} — ${idrShort(topSales)}`} />
+                <Legend color={GOLD} text={`${clip(topBrand?.brand || "—", 10)} — ${idrShort(topSales)}`} />
                 <Legend color="#d7dce6" text={tf(t.legendOther, { v: idrShort(otherSales) })} />
               </View>
             </View>
@@ -631,8 +635,8 @@ export function ReportDocument(props: {
         {dealers.slice(0, 11).map((d, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", height: 27, backgroundColor: i % 2 ? "#eef1f7" : "transparent", paddingHorizontal: 2 }}>
             <Text style={{ width: 26, fontFamily: F_BOLD, fontSize: 10, color: GOLD }}>{i + 1}</Text>
-            <Text style={[s.td, { flex: 3 }]}>{clip(d.store_name, 34)}</Text>
-            <Text style={[s.td, { flex: 1.7, color: MUTED }]}>{clip(d.city || "—", 20)}</Text>
+            <Text style={[s.td, { flex: 3 }]}>{clip(d.store_name, 30)}</Text>
+            <Text style={[s.td, { flex: 1.7, color: MUTED }]}>{clip(d.city || "—", 17)}</Text>
             <Text style={[s.td, { flex: 1.5, textAlign: "right", fontFamily: F_BOLD, color: NAVY }]}>{idrFull(d.sales)}</Text>
             <Text style={[s.td, { flex: 1.2, textAlign: "right", color: MUTED }]}>{numFmt(d.traffic)}</Text>
             <Text style={[s.td, { flex: 1.2, textAlign: "right", color: MUTED }]}>{numFmt(d.in_cart)}</Text>
@@ -661,7 +665,7 @@ export function ReportDocument(props: {
         {products.map((p, i) => (
           <View key={i} style={{ flexDirection: "row", alignItems: "center", height: 29, backgroundColor: i % 2 ? "#eef1f7" : "transparent", paddingHorizontal: 2 }}>
             <Text style={{ width: 30, fontFamily: F_BOLD, fontSize: 11, color: GOLD }}>{i + 1}</Text>
-            <Text style={[s.td, { flex: 6 }]}>{clip(p.name, 78)}</Text>
+            <Text style={[s.td, { flex: 6 }]}>{clip(p.name, 68)}</Text>
             <Text style={[s.td, { flex: 1.6, textAlign: "right", fontFamily: F_BOLD, color: NAVY }]}>{idrFull(p.sales)}</Text>
             <Text style={[s.td, { flex: 1.2, textAlign: "right", color: MUTED }]}>{pctFmt((p.sales / prodTotal) * 100)}</Text>
           </View>
@@ -690,7 +694,7 @@ export function ReportDocument(props: {
               {insights.filter((x) => x.action).slice(0, 4).map((a, i) => (
                 <View key={i} style={{ flexDirection: "row", marginBottom: 4 }}>
                   <Text style={{ width: 15, fontSize: 8, color: GOLD, fontFamily: F_BOLD }}>{i + 1}.</Text>
-                  <Text style={{ flex: 1, fontSize: 8, color: "#e6ebf5", lineHeight: 1.35 }}>{clip(a.action || "", 150)}</Text>
+                  <Text style={{ flex: 1, fontSize: 8, color: "#e6ebf5", lineHeight: 1.35 }}>{clip(a.action || "", 130)}</Text>
                 </View>
               ))}
             </View>
@@ -708,8 +712,8 @@ function InsightCard({ label, title, body, color }: { label: string; title: stri
   return (
     <View style={{ width: COL2, height: 104, backgroundColor: WHITE, borderRadius: 7, borderWidth: 1, borderColor: BORDER, borderLeftWidth: 4, borderLeftColor: color, padding: 11 }}>
       <Text style={{ fontSize: 7, color, fontFamily: F_BOLD, letterSpacing: 0.8 }}>{label}</Text>
-      <Text style={{ fontFamily: F_BOLD, fontSize: 12.5, color: NAVY, marginTop: 5 }}>{clip(title, 40)}</Text>
-      <Text style={{ fontSize: 8, color: MUTED, marginTop: 5, lineHeight: 1.4 }}>{clip(body, 190)}</Text>
+      <Text style={{ fontFamily: F_BOLD, fontSize: 12.5, color: NAVY, marginTop: 5 }}>{clip(title, 35)}</Text>
+      <Text style={{ fontSize: 8, color: MUTED, marginTop: 5, lineHeight: 1.4 }}>{clip(body, 165)}</Text>
     </View>
   );
 }

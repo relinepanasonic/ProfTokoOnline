@@ -215,7 +215,7 @@ export default function DashboardPage() {
   })();
 
   // Carries the active filters into the report so it always matches what the
-  // user is looking at, then downloads the rendered 16:9 deck straight from
+  // user is looking at, then downloads the rendered A4-landscape deck straight from
   // the server — no print dialog, no intermediate page. An Owner's
   // scope_owner is re-forced server-side, so a tampered body can't widen it.
   async function openReport() {

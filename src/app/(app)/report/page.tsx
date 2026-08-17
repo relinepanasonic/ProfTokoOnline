@@ -5,7 +5,7 @@
 // the user was looking at.
 //
 // This page is the ON-SCREEN preview only. The actual downloadable PDF is a
-// server-rendered 16:9 slide deck (lib/reportPdf.tsx via /api/reports/pdf) —
+// server-rendered A4-landscape deck (lib/reportPdf.tsx via /api/reports/pdf) —
 // real vector text, exact page geometry, no print dialog. Download here and
 // the Dashboard's Report button hit the same endpoint, so there is only one
 // PDF artifact and the two can't drift apart.
@@ -152,7 +152,7 @@ function ReportInner() {
     : sel.year ? sel.year : t("All Periods");
   const multiStore = (cur?.dealers || []).filter((d) => d.sales > 0).length > 1;
 
-  // Downloads the same server-rendered 16:9 deck the Dashboard's Report
+  // Downloads the same server-rendered A4-landscape deck the Dashboard's Report
   // button produces — this page stays the on-screen preview, but there is
   // only ONE PDF artifact so the two can never drift apart.
   async function handleDownload() {
