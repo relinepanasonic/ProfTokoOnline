@@ -120,7 +120,9 @@ export async function POST(req: NextRequest) {
   );
 
   const safe = (v: string) => v.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
-  const filename = `ProfTokoOnline-Report_${safe(client?.name || "Client")}_${safe(periodLabel) || "all"}.pdf`;
+  const yearPart = f.year ? safe(f.year) : "all";
+  const monthPart = f.month ? safe(f.month) : "all";
+  const filename = `${yearPart}.${monthPart}.${safe(client?.name || "Client")}.ProfTokoOnlineReport.pdf`;
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,

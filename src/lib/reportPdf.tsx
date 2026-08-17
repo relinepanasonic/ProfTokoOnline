@@ -447,6 +447,13 @@ export function ReportDocument(props: {
   const atcRate = k.traffic > 0 ? (k.in_cart / k.traffic) * 100 : 0;
   const scopeName = storeName || ownerName || clientName || t.allStores;
 
+  // Cover title: every brand present in this selection, "|"-separated
+  // (e.g. "Loz Indonesia | Pawon Nita") rather than the client/company name —
+  // falls back to the scope name if the selection has no brand data yet.
+  const brandNames = Array.from(new Set((current.brand_share || []).map((b) => b.brand).filter(Boolean))) as string[];
+  const coverTitle = brandNames.length ? brandNames.join(" | ") : (clientName || scopeName);
+  const coverTitleSize = coverTitle.length > 40 ? 26 : 38;
+
   // Brand share: biggest brand vs everything else in the selection.
   const brands = [...(current.brand_share || [])].sort((a, b) => b.sales - a.sales);
   const topBrand = brands[0];
@@ -481,8 +488,8 @@ export function ReportDocument(props: {
 
         <View style={{ paddingHorizontal: 64, marginTop: 100 }}>
           <Text style={{ fontSize: 10, color: GOLD, letterSpacing: 1.5, fontFamily: F_BOLD }}>{t.reportLine}</Text>
-          <Text style={{ fontFamily: F_BOLD, fontSize: 38, color: WHITE, marginTop: 14 }}>
-            {clip(clientName || scopeName, 30)}
+          <Text style={{ fontFamily: F_BOLD, fontSize: coverTitleSize, color: WHITE, marginTop: 14 }}>
+            {clip(coverTitle, 90)}
           </Text>
           <Text style={{ fontSize: 13, color: "#c3cee3", marginTop: 12 }}>{periodLabel}</Text>
         </View>
