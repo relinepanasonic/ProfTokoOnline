@@ -53,13 +53,13 @@ const PLANS = [
   { v: "lapak",  l: "Juragan · Basic (30d)",  days: 30,  color: "#94a3b8" },
   { v: "sultan", l: "Sultan · Premium (30d)", days: 30,  color: "#3b82f6" },
   { v: "king",   l: "King · Premium (395d)",  days: 395, color: "#c9a227" },
-  { v: "prof",   l: "Prof · Lifetime",        days: 0,   color: "#8b5cf6" },
+  { v: "prof",   l: "Client · Lifetime",      days: 0,   color: "#8b5cf6" },
 ];
 const PLAN_META: Record<string, { l: string; color: string }> = {
   lapak:  { l: "Juragan", color: "#94a3b8" },
   sultan: { l: "Sultan",  color: "#3b82f6" },
   king:   { l: "King",    color: "#c9a227" },
-  prof:   { l: "Prof",    color: "#8b5cf6" },
+  prof:   { l: "Client",  color: "#8b5cf6" },
 };
 function daysLeft(expires: string | null): number | null {
   if (!expires) return null;

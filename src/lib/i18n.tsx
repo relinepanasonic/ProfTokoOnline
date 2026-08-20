@@ -57,6 +57,12 @@ const ID_DICT: Record<string, string> = {
   "Funnel trend per month": "Tren funnel per bulan",
   "AVG Store Sales Performa": "Rata-rata Performa Sales Toko",
   "Average monthly sales per store · SPOS": "Rata-rata penjualan bulanan per toko · SPOS",
+  "All Brand Avg Monthly Sales": "Rata-rata Penjualan Bulanan Semua Brand",
+  "Every brand · SPOS · Active = avg / month": "Semua brand · SPOS · Active = rata-rata / bulan",
+  "All Brand Avg Ads Spend & ROAS": "Rata-rata Biaya Iklan & ROAS Semua Brand",
+  "Every brand · Ads · Active = avg / month": "Semua brand · Iklan · Active = rata-rata / bulan",
+  "Baseline": "Baseline",
+  "Active (avg)": "Active (rata-rata)",
   "Detail Data per": "Detail Data per",
   "Sorted by sales · Baseline excluded · line shows SPOS sales trend": "Diurutkan berdasarkan penjualan · Baseline dikecualikan · garis menunjukkan tren penjualan SPOS",
 

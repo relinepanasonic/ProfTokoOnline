@@ -338,6 +338,68 @@ export function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_s
   );
 }
 
+const GREY = "#94a3b8"; // Baseline bar — Active bar stays GOLD, same "before vs after" convention as AvgStoreTrendChart/CostRoasChart.
+
+/* ── Baseline vs Active (avg/month) — Sales. Two bars only: Baseline
+     (grey) and Active avg (gold), matching the report's own "no ratio
+     hidden, no ratio invented" numbers. ── */
+export function BaselineVsActiveSalesChart({ data }: { data: { label: string; value: number }[] }) {
+  if (!data.length) return <Empty />;
+  return (
+    <div style={{ width: "100%", height: 260 }}>
+      <ResponsiveContainer>
+        <ComposedChart data={data} margin={{ left: 4, right: 20, top: 26, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+          <XAxis dataKey="label" tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
+          <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+          <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [idrF(Number(v)), "Sales"]} cursor={{ fill: "rgba(59,130,246,0.08)" }} />
+          <Bar dataKey="value" shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#e8edf8", fontSize: 11, fontWeight: 700, formatter: (v: unknown) => idr(Number(v)) }}>
+            {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
+          </Bar>
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ── Baseline vs Active (avg/month) — Ads Spend & ROAS. Same 2-category
+     shape as the sales chart, plus a ROAS line on a secondary axis
+     (only 2 points, so it reads as a straight before/after connector
+     rather than a real trend line). ── */
+export function BaselineVsActiveAdsChart({ data }: { data: { label: string; cost: number; roas: number | null }[] }) {
+  if (!data.length) return <Empty />;
+  const hasRoas = data.some((d) => d.roas != null);
+  return (
+    <div style={{ width: "100%", height: 260 }}>
+      <ResponsiveContainer>
+        <ComposedChart data={data} margin={{ left: 4, right: hasRoas ? 34 : 20, top: 26, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+          <XAxis dataKey="label" tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
+          <YAxis yAxisId="l" tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
+          {hasRoas && (
+            <YAxis yAxisId="r" orientation="right" tick={axis} tickFormatter={(v) => Number(v).toFixed(1) + "×"} axisLine={false} tickLine={false} width={40} />
+          )}
+          <Tooltip
+            contentStyle={TIP_STYLE}
+            formatter={(v, n) => n === "roas" ? [(Number(v) || 0).toFixed(2) + "×", "ROAS"] : [idrF(Number(v)), "Ads Cost"]}
+          />
+          <Bar yAxisId="l" dataKey="cost" shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]}>
+            {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
+          </Bar>
+          {hasRoas && (
+            <Line
+              yAxisId="r" type="monotone" dataKey="roas" connectNulls
+              stroke={GOLD} strokeWidth={2.5}
+              dot={{ r: 4, fill: GOLD, stroke: "#0a1628", strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: GOLD_L, stroke: "#0a1628", strokeWidth: 2 }}
+            />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 /* ── Traffic vs In-Cart area chart ── */
 export function TrafficChart({ data }: { data: { month:string; traffic:number; in_cart:number }[] }) {
   if (!data.length) return <Empty />;

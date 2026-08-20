@@ -23,6 +23,8 @@ const HBarsChart        = dynamicImport(() => import("./DashboardCharts").then((
 const CostRoasChart     = dynamicImport(() => import("./DashboardCharts").then((m) => m.CostRoasChart), { ssr: false });
 const AvgStoreTrendChart = dynamicImport(() => import("./DashboardCharts").then((m) => m.AvgStoreTrendChart), { ssr: false });
 const TrafficChart      = dynamicImport(() => import("./DashboardCharts").then((m) => m.TrafficChart), { ssr: false });
+const BaselineVsActiveSalesChart = dynamicImport(() => import("./DashboardCharts").then((m) => m.BaselineVsActiveSalesChart), { ssr: false });
+const BaselineVsActiveAdsChart   = dynamicImport(() => import("./DashboardCharts").then((m) => m.BaselineVsActiveAdsChart), { ssr: false });
 const StoreDrillDown    = dynamicImport(() => import("./DashboardCharts").then((m) => m.StoreDrillDown), { ssr: false });
 
 // Shared with globals.css's mobile breakpoint (max-width:760px) so chart
@@ -58,6 +60,10 @@ type Summary = {
 };
 type DealerRow = Summary["dealers"][number] & { cart_rate: number };
 type Filters = { years: number[]; months: string[]; stores: string[] };
+type BaselineVsActive = {
+  baseline: { sales: number; ad_cost: number; roas: number | null };
+  active: { months: number; avg_sales: number; avg_ad_cost: number; avg_roas: number | null };
+};
 type StoreLink = { owner: string | null; brand: string | null; store_name: string | null };
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -66,6 +72,10 @@ const byMonth = <T extends { month: string }>(a: T[]) =>
 
 const idr  = (n: number) => "Rp " + new Intl.NumberFormat("id-ID", { notation: "compact", maximumFractionDigits: 1 }).format(n || 0);
 const num  = (n: number) => new Intl.NumberFormat("id-ID").format(Math.round(n || 0));
+// A near-zero ad_cost denominator produces a meaningless "2456x"-style ROAS
+// rather than a real one — same guard lib/reportPdf.tsx's BaselineBody
+// already uses, so this Dashboard chart can't show that.
+const adsThin = (adCost: number, sales: number) => adCost < sales * 0.001;
 
 const GOLD   = "#c9a227";
 const GOLD_L = "#f0d870";
@@ -100,6 +110,11 @@ export default function DashboardPage() {
   // Owner filter renders read-only and p_owner is always forced server-side.
   const [role, setRole] = useState("");
   const [scopeOwner, setScopeOwner] = useState("");
+  // "Client" plan (plan_type='prof' — see Users page PLAN_META) is the only
+  // Owner tier that gets the Baseline vs Active panel; staff roles see it
+  // regardless of which owner they're viewing.
+  const [planType, setPlanType] = useState("");
+  const [bva, setBva] = useState<BaselineVsActive | null>(null);
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], stores: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
@@ -131,12 +146,13 @@ export default function DashboardPage() {
       } catch { /* ignore */ }
 
       let label = "Store";
-      const { data: p } = await supabase.from("profiles").select("client_id,role,scope_owner").eq("id", user.id).single();
-      const prof = p as { client_id: string | null; role: string; scope_owner: string | null } | null;
+      const { data: p } = await supabase.from("profiles").select("client_id,role,scope_owner,plan_type").eq("id", user.id).single();
+      const prof = p as { client_id: string | null; role: string; scope_owner: string | null; plan_type: string | null } | null;
       const isOwner = prof?.role === "branch_manager";
       const owner = isOwner ? (prof?.scope_owner || "") : "";
       setRole(prof?.role || "");
       setScopeOwner(owner);
+      setPlanType(prof?.plan_type || "");
       // Owners are locked to their own tenant; staff (superadmin/client_admin/
       // advertiser) fall back to the first-created client — same convention
       // used on StoreDashboard/AdsOverview/Upload.
@@ -202,6 +218,29 @@ export default function DashboardPage() {
   }, [supabase, sel, clientId, userId, role, scopeOwner]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
+
+  // "Client" plan (plan_type='prof') owners only — this comparison isn't
+  // meaningful for self-serve Lapak/Sultan/King trial signups, who never
+  // had an agency-managed "before" baseline to begin with. Staff logins
+  // (superadmin/client_admin/advertiser) always see it, same as every
+  // other staff-visible panel on this page.
+  const showBva = role !== "branch_manager" || planType === "prof";
+
+  useEffect(() => {
+    if (!clientId || !showBva) { setBva(null); return; }
+    const effectiveOwner = role === "branch_manager" ? (scopeOwner || null) : (sel.owner || null);
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc("dashboard_baseline_vs_active", {
+        p_client_id: clientId,
+        p_owner: effectiveOwner,
+        p_brand: sel.brand || null,
+        p_store: sel.store || null,
+      });
+      if (!cancelled) setBva((data as BaselineVsActive) || null);
+    })();
+    return () => { cancelled = true; };
+  }, [supabase, clientId, showBva, role, scopeOwner, sel.owner, sel.brand, sel.store]);
 
   const owners = Array.from(new Set(links.map((l) => l.owner).filter(Boolean) as string[])).sort();
   const brandsForOwner = sel.owner
@@ -346,6 +385,24 @@ export default function DashboardPage() {
 
       {/* first-load spinner (no cached data yet) */}
       {loading && !d && <Loader center />}
+
+      {/* ── Baseline vs Active (avg/month) — Client-tier owners only ── */}
+      {showBva && bva && (bva.baseline.sales > 0 || bva.baseline.ad_cost > 0) && (
+        <div className="row c2">
+          <Panel title={t("All Brand Avg Monthly Sales")} hint={t("Every brand · SPOS · Active = avg / month")}>
+            <BaselineVsActiveSalesChart data={[
+              { label: t("Baseline"), value: bva.baseline.sales },
+              { label: t("Active (avg)"), value: bva.active.avg_sales },
+            ]} />
+          </Panel>
+          <Panel title={t("All Brand Avg Ads Spend & ROAS")} hint={t("Every brand · Ads · Active = avg / month")}>
+            <BaselineVsActiveAdsChart data={[
+              { label: t("Baseline"), cost: bva.baseline.ad_cost, roas: adsThin(bva.baseline.ad_cost, bva.baseline.sales) ? null : bva.baseline.roas },
+              { label: t("Active (avg)"), cost: bva.active.avg_ad_cost, roas: adsThin(bva.active.avg_ad_cost, bva.active.avg_sales) ? null : bva.active.avg_roas },
+            ]} />
+          </Panel>
+        </div>
+      )}
 
       {/* ── Monthly/Weekly performance: Traffic vs In-Cart vs Sales ── */}
       <div className="row">

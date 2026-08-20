@@ -47,12 +47,15 @@ const ROLE_LABEL: Record<Role, string> = {
 // tool only — no owner plan sees it; Upload is first in both lists so it's
 // the landing page owners hit first.
 // "prof" — agency-managed real clients (our team uploads the 5 core Shopee
-// files for them; see UploadHere.tsx's isProf lock). Its label ("Prof")
-// doubles as the Owner-role display name for these logins, since the topbar
-// shows PLAN_LABEL[plan] in place of ROLE_LABEL[role] for any Owner login
-// (see the user-badge JSX below) — no separate role/label wiring needed.
+// files for them; see UploadHere.tsx's isProf lock). Displayed as "Client"
+// (the plan_type DB value stays "prof" — this is a display label only) since
+// "Prof" reads as short for "Profesor/Prof Toko Online" itself, not a tier
+// name. The label doubles as the Owner-role display name for these logins,
+// since the topbar shows PLAN_LABEL[plan] in place of ROLE_LABEL[role] for
+// any Owner login (see the user-badge JSX below) — no separate role/label
+// wiring needed.
 type Plan = "lapak" | "sultan" | "king" | "prof";
-const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Prof" };
+const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Client" };
 const PREMIUM_PLANS: Plan[] = ["sultan", "king", "prof"];
 // Which pages each owner plan may see. Market Place Fee moved from its own
 // "/marketfee" route to a tab under Price Calculator (/calc/marketplace-fee)
