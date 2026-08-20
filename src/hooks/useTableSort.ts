@@ -7,12 +7,10 @@ export type SortConfig<T> = { key: keyof T | null; direction: SortDirection };
 
 // Numbers compare numerically; everything else (including currency-like
 // strings such as "Rp 1.234.000") falls back to a numeric-aware compare
-// when both sides look numeric, otherwise plain alphabetical. Nulls/
-// undefined always sort to the end regardless of direction.
+// when both sides look numeric, otherwise plain alphabetical. Null/
+// undefined handling lives in the caller (useTableSort below), not here —
+// see that comment for why.
 function compareValues(a: unknown, b: unknown): number {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
   if (typeof a === "number" && typeof b === "number") return a - b;
 
   const as = String(a).trim();
@@ -38,7 +36,18 @@ export function useTableSort<T>(data: T[], initialKey?: keyof T) {
     const { key, direction } = sortConfig;
     if (!key || !direction) return data;
     const dir = direction === "asc" ? 1 : -1;
-    return [...data].sort((a, b) => compareValues(a[key], b[key]) * dir);
+    return [...data].sort((a, b) => {
+      const av = a[key], bv = b[key];
+      // Null/undefined always sorts to the end, regardless of direction —
+      // checked BEFORE the `* dir` flip below. Multiplying a null sentinel
+      // by dir (the previous bug) inverted this on every descending sort
+      // (the default first click), pulling rows with a missing value on
+      // the active column to the top instead of the bottom.
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return compareValues(av, bv) * dir;
+    });
   }, [data, sortConfig]);
 
   function requestSort(key: keyof T) {
