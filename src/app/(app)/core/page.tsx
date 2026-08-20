@@ -91,6 +91,27 @@ export default function CoreListPage() {
     reload(clientId);
   }
 
+  // Fix a typo'd Owner/Brand/Store name in place — cascades across every
+  // table that stores it as plain text (store_links, sales_rows, ad_groups,
+  // price_calc_items, profiles.scope_owner/scope_store, pending invites)
+  // and rebuilds the derived rollups, all in one transaction server-side.
+  // Deliberately not a client-side multi-table update: a partial failure
+  // there could silently orphan historical data or lock an Owner login out
+  // of their own renamed data.
+  async function renameItem(kind: "owner" | "brand" | "store", oldValue: string, newValue: string): Promise<boolean> {
+    if (!clientId || newValue.trim() === oldValue) return true;
+    setMsg("");
+    const { error } = await supabase.rpc("rename_core_entity", {
+      p_client_id: clientId, p_kind: kind, p_old_value: oldValue, p_new_value: newValue.trim(),
+    });
+    if (error) {
+      setMsg(error.code === "23505" ? `"${newValue.trim()}" already exists` : "✗ " + error.message);
+      return false;
+    }
+    reload(clientId);
+    return true;
+  }
+
   async function syncFromUploads() {
     setSyncing(true); setMsg("");
     try {
@@ -140,13 +161,13 @@ export default function CoreListPage() {
 
         {/* Owner */}
         <Card icon="👤" title="Owner" count={owners.length}>
-          <NameList items={owners} onDel={(id, val) => delItem(id, "owner", val)} />
+          <NameList items={owners} onDel={(id, val) => delItem(id, "owner", val)} onRename={(val, next) => renameItem("owner", val, next)} />
           <SimpleAdd placeholder="Owner name" onAdd={addOwner} />
         </Card>
 
         {/* Brand */}
         <Card icon="🏷️" title="Brand" count={brands.length}>
-          <NameList items={brands} onDel={(id, val) => delItem(id, "brand", val)} />
+          <NameList items={brands} onDel={(id, val) => delItem(id, "brand", val)} onRename={(val, next) => renameItem("brand", val, next)} />
           <BrandAdd ownersList={owners.map((o) => o.value)} onAdd={addBrand} />
         </Card>
 
@@ -157,6 +178,7 @@ export default function CoreListPage() {
             brandOfStore={brandOfStore}
             ownerOfStore={(s) => links.find((l) => l.store_name === s)?.owner || null}
             onDel={(id, val) => delItem(id, "store", val)}
+            onRename={(val, next) => renameItem("store", val, next)}
           />
           <StoreAdd brandsList={brands.map((b) => b.value)} onAdd={addStore} />
         </Card>
@@ -186,27 +208,32 @@ function Card({ icon, title, count, children }: { icon: string; title: string; c
   );
 }
 
-/* ── plain name list (City, Owner, Brand, Platform) ── */
-function NameList({ items, onDel }: { items: { id: string; value: string }[]; onDel: (id: string, val: string) => void }) {
+/* ── plain name list (City, Owner, Brand, Platform) — onRename opts a
+     card into inline editing (pencil icon → text field, Enter/blur to
+     save, Esc to cancel). Only wired for Owner/Brand from the page above. ── */
+function NameList({ items, onDel, onRename }: {
+  items: { id: string; value: string }[]; onDel: (id: string, val: string) => void;
+  onRename?: (oldVal: string, newVal: string) => Promise<boolean>;
+}) {
   if (!items.length) return <Empty />;
   return (
     <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 5 }}>
       {items.map((i) => (
-        <div key={i.id} style={rowStyle}>
-          <span style={{ flex: 1, fontSize: 13 }}>{i.value}</span>
-          <DelBtn onClick={() => onDel(i.id, i.value)} />
-        </div>
+        <EditableRow key={i.id} value={i.value} onRename={onRename ? (next) => onRename(i.value, next) : undefined} onDel={() => onDel(i.id, i.value)}>
+          <span style={{ flex: 1, fontSize: 13, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.value}</span>
+        </EditableRow>
       ))}
     </div>
   );
 }
 
 /* ── store list — store name big, owner · brand small + low opacity ── */
-function StoreNameList({ stores, brandOfStore, ownerOfStore, onDel }: {
+function StoreNameList({ stores, brandOfStore, ownerOfStore, onDel, onRename }: {
   stores: { id: string; value: string }[];
   brandOfStore: (s: string) => string | null;
   ownerOfStore: (s: string) => string | null;
   onDel: (id: string, val: string) => void;
+  onRename?: (oldVal: string, newVal: string) => Promise<boolean>;
 }) {
   if (!stores.length) return <Empty />;
   return (
@@ -216,15 +243,60 @@ function StoreNameList({ stores, brandOfStore, ownerOfStore, onDel }: {
         const owner = ownerOfStore(s.value);
         const meta = [owner, brand].filter(Boolean).join(" · ");
         return (
-          <div key={s.id} style={rowStyle}>
+          <EditableRow key={s.id} value={s.value} onRename={onRename ? (next) => onRename(s.value, next) : undefined} onDel={() => onDel(s.id, s.value)}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{s.value}</div>
+              <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.value}</div>
               {meta && <div style={{ fontSize: 10.5, opacity: 0.45, marginTop: 2 }}>{meta}</div>}
             </div>
-            <DelBtn onClick={() => onDel(s.id, s.value)} />
-          </div>
+          </EditableRow>
         );
       })}
+    </div>
+  );
+}
+
+/* ── Shared row: renders `children` in view mode, or a text input +
+     Save/Cancel in edit mode. Edit mode is triggered by the pencil icon
+     (only shown when onRename is provided). ── */
+function EditableRow({ value, onRename, onDel, children }: {
+  value: string; onRename?: (newVal: string) => Promise<boolean>; onDel: () => void; children: React.ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+
+  if (editing) {
+    const save = async () => {
+      const next = draft.trim();
+      if (!next || next === value) { setEditing(false); setDraft(value); return; }
+      setBusy(true);
+      const ok = await onRename!(next);
+      setBusy(false);
+      if (ok) setEditing(false);
+    };
+    return (
+      <div style={rowStyle}>
+        <input
+          autoFocus style={{ ...fieldStyle, flex: 1, padding: "5px 8px" }} value={draft}
+          disabled={busy}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setEditing(false); setDraft(value); } }}
+          onBlur={save}
+        />
+        {busy && <span style={{ fontSize: 11, color: "var(--muted)", flexShrink: 0 }}>…</span>}
+      </div>
+    );
+  }
+  return (
+    <div style={rowStyle}>
+      {children}
+      {onRename && (
+        <button onClick={() => { setDraft(value); setEditing(true); }} title="Rename"
+          style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 13, lineHeight: 1, padding: "0 2px", flexShrink: 0 }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "var(--gold)")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--muted)")}>✎</button>
+      )}
+      <DelBtn onClick={onDel} />
     </div>
   );
 }
