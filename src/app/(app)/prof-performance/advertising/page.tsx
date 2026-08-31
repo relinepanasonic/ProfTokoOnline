@@ -111,6 +111,24 @@ export default function AdvertisingPage() {
     }
   }
 
+  // Ctrl+V a screenshot straight in — same as pasting an image into chat.
+  // Listens on the whole window (not just the upload input) so it works
+  // no matter what's focused; only acts when the clipboard actually holds
+  // an image, so normal text pasting elsewhere on the page is unaffected.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const item = Array.from(e.clipboardData?.items || []).find((it) => it.type.startsWith("image/"));
+      if (!item) return;
+      const blob = item.getAsFile();
+      if (!blob) return;
+      e.preventDefault();
+      pickFile(new File([blob], `pasted.${blob.type.split("/")[1] || "png"}`, { type: blob.type }));
+    }
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function updateDraftRow(i: number, patch: Partial<OcrRow>) {
     setDraftRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
@@ -186,8 +204,9 @@ export default function AdvertisingPage() {
         <input
           ref={fileInputRef} type="file" accept="image/*"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) pickFile(f); }}
-          style={{ marginBottom: 14, fontSize: 13 }}
+          style={{ marginBottom: 6, fontSize: 13 }}
         />
+        <div className="hint" style={{ marginBottom: 14 }}>…or take a screenshot and press <b>Ctrl+V</b> (⌘V on Mac) anywhere on this page to paste it in directly.</div>
 
         {preview && (
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginBottom: 16 }}>
