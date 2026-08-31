@@ -76,7 +76,42 @@ function parseNumericToken(raw: string): number | null {
   return n * mult;
 }
 
+// Screenshots forwarded through WhatsApp/social apps get heavily
+// recompressed and shrunk — small blurry text is the single biggest OCR
+// accuracy killer there is. Upscale (Tesseract does noticeably better on
+// larger glyphs) and boost contrast/grayscale before recognizing, which
+// costs nothing and only ever helps, unlike anything content-specific.
+async function preprocessImage(file: File): Promise<HTMLCanvasElement> {
+  const bitmap = await createImageBitmap(file);
+  const MAX_W = 2400;
+  const scale = Math.min(3, Math.max(1, MAX_W / bitmap.width));
+  const w = Math.round(bitmap.width * scale);
+  const h = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, w, h);
+
+  // Grayscale + a simple contrast stretch — pulls compression-blurred
+  // mid-tones apart so glyph edges are sharper for the OCR engine.
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  const CONTRAST = 1.35;
+  for (let i = 0; i < d.length; i += 4) {
+    const gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+    const v = Math.min(255, Math.max(0, (gray - 128) * CONTRAST + 128));
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
 export async function runAdsPhotoOcr(file: File, onProgress?: (pct: number) => void): Promise<OcrRow[]> {
+  const canvas = await preprocessImage(file);
+
   // The top-level Tesseract.recognize() convenience function doesn't expose
   // the output-format flags, and word-level bounding boxes ("blocks") are
   // OFF by default (text-only) — so this needs the lower-level worker API
@@ -88,7 +123,7 @@ export async function runAdsPhotoOcr(file: File, onProgress?: (pct: number) => v
   });
   let page: Tesseract.Page;
   try {
-    const { data } = await worker.recognize(file, {}, { blocks: true });
+    const { data } = await worker.recognize(canvas, {}, { blocks: true });
     page = data;
   } finally {
     await worker.terminate();
