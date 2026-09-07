@@ -45,10 +45,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as {
     owner_name: string; store_name?: string; role: string; username?: string | null;
-    // Unclaimed-owner invites only (users/page.tsx "Unclaimed Owners" section):
-    // client_id targets the owner's actual tenant (the manual "Invite User"
-    // button never sends these — superadmin's own client_id is null, which
-    // is the existing/legacy behavior for that flow and is left untouched).
+    // Unclaimed-owner invites only (users/page.tsx "Unclaimed Owners" section)
+    // send this explicitly, targeting the owner's actual tenant.
     client_id?: string | null; plan_type?: string | null; duration_days?: number | null; lifetime?: boolean;
   };
   if (!body.owner_name?.trim()) return NextResponse.json({ error: "Owner name is required" }, { status: 400 });
@@ -59,6 +57,19 @@ export async function POST(req: NextRequest) {
   }
 
   const db = admin();
+
+  // Superadmin's own client_id is NULL by design — the manual "Invite User"
+  // form never sends one either, so without this fallback every invite a
+  // superadmin creates through it (any role) silently got client_id=NULL,
+  // and the resulting login could see NO data anywhere (every RLS policy
+  // checks client_id = my_client_id(), and NULL never equals NULL in SQL).
+  // Same "staff -> first-created client" convention used everywhere else
+  // in this app for a superadmin login with no client of their own.
+  let resolvedClientId = isClientAdmin ? caller.client_id : (body.client_id ?? caller.client_id);
+  if (!resolvedClientId) {
+    resolvedClientId = ((await db.from("clients").select("id").order("created_at").limit(1)).data as { id: string }[] | null)?.[0]?.id ?? null;
+  }
+
   const { data: inv, error } = await db
     .from("invites")
     .insert({
@@ -66,7 +77,7 @@ export async function POST(req: NextRequest) {
       store_name: body.store_name?.trim() || null,
       role:       isClientAdmin ? "branch_manager" : (body.role || "branch_manager"),
       username:   body.username?.trim() || null,
-      client_id:  isClientAdmin ? caller.client_id : (body.client_id ?? caller.client_id),
+      client_id:  resolvedClientId,
       created_by: caller.user.id,
       plan_type:      body.plan_type ?? null,
       duration_days:  body.duration_days ?? null,
