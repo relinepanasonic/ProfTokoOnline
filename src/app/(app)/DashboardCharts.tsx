@@ -258,7 +258,12 @@ export function HBarsChart({ data }: { data: { name:string; sales:number }[] }) 
             formatter={(v) => [idrF(Number(v)), "Sales"]}
             cursor={{ fill:"rgba(59,130,246,0.05)" }}
           />
-          <Bar dataKey="sales" shape={<HBar3D fill="url(#gNavy)" />} radius={[0,4,4,0]}>
+          {/* fill="#9ab0cc" is a plain-color fallback Recharts reads for the
+              tooltip's default text color — the actual bars still render via
+              the gradient shape/Cells below. Without a real (non-url()) fill
+              here, Recharts can't resolve a text color and the tooltip label
+              renders black instead of this grey. */}
+          <Bar dataKey="sales" fill="#9ab0cc" shape={<HBar3D fill="url(#gNavy)" />} radius={[0,4,4,0]}>
             {rows.map((_, i) => (
               <Cell key={i} fill="url(#gNavy)" />
             ))}
@@ -289,7 +294,11 @@ export function CostRoasChart({ data }: { data: { month:string; cost:number; roa
             }
             labelFormatter={(l) => l}
           />
-          <Bar yAxisId="l" dataKey="cost" shape={<Bar3D fill="url(#gNavy)" />} radius={[4,4,0,0]}>
+          {/* fill="#9ab0cc" is a plain-color fallback for the tooltip's
+              default text color (Recharts can't resolve one from a
+              url(#gNavy) gradient reference, and falls back to black) — the
+              bars themselves still render via the gradient shape/Cells. */}
+          <Bar yAxisId="l" dataKey="cost" fill="#9ab0cc" shape={<Bar3D fill="url(#gNavy)" />} radius={[4,4,0,0]}>
             {data.map((_, i) => <Cell key={i} fill="url(#gNavy)" />)}
           </Bar>
           <Line
@@ -331,7 +340,7 @@ export function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_s
             cursor={{ fill: "rgba(59,130,246,0.08)" }}
             formatter={(v) => [idrF(Number(v)), "AVG Sales / Bulan"]}
           />
-          <Bar dataKey="avg_sales" shape={<Bar3D fill="url(#gNavy)" />} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="avg_sales" fill="#9ab0cc" shape={<Bar3D fill="url(#gNavy)" />} radius={[4, 4, 0, 0]} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -353,7 +362,7 @@ export function BaselineVsActiveSalesChart({ data }: { data: { label: string; va
           <XAxis dataKey="label" tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [idrF(Number(v)), "Sales"]} cursor={{ fill: "rgba(59,130,246,0.08)" }} />
-          <Bar dataKey="value" shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#e8edf8", fontSize: 11, fontWeight: 700, formatter: (v: unknown) => idr(Number(v)) }}>
+          <Bar dataKey="value" fill={GREY} shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#e8edf8", fontSize: 11, fontWeight: 700, formatter: (v: unknown) => idr(Number(v)) }}>
             {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
           </Bar>
         </ComposedChart>
@@ -383,7 +392,7 @@ export function BaselineVsActiveAdsChart({ data }: { data: { label: string; cost
             contentStyle={TIP_STYLE}
             formatter={(v, n) => n === "roas" ? [(Number(v) || 0).toFixed(2) + "×", "ROAS"] : [idrF(Number(v)), "Ads Cost"]}
           />
-          <Bar yAxisId="l" dataKey="cost" shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]}>
+          <Bar yAxisId="l" dataKey="cost" fill={GREY} shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]}>
             {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
           </Bar>
           {hasRoas && (
@@ -476,7 +485,7 @@ export function StoreDrillDown({ store, storeLabel, t, onClose }: {
                   domain={[(min: number) => Math.max(0, min * 0.8), (max: number) => max * 1.15]} />
                 <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "sales" ? [idrF(Number(v)), "Sales"] : [Number(v).toFixed(2)+"×", "ROAS"]} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, color: "#9ab0cc" }} />
-                <Bar yAxisId="l" dataKey="sales" fill="url(#gNavy)" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="l" dataKey="sales" fill="#9ab0cc" shape={<Bar3D fill="url(#gNavy)" />} radius={[4, 4, 0, 0]} />
                 <Line yAxisId="r" type="monotone" dataKey="roas" stroke={GOLD} strokeWidth={2.5}
                   dot={{ r: 4, fill: GOLD, stroke: "#0a1628", strokeWidth: 2 }}
                   activeDot={{ r: 6, fill: GOLD_L, stroke: "#0a1628", strokeWidth: 2 }} connectNulls />
