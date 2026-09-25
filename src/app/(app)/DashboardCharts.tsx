@@ -347,10 +347,21 @@ export function AvgStoreTrendChart({ data }: { data: { store_name: string; avg_s
   );
 }
 
-const GREY = "#94a3b8"; // Baseline bar — Active bar stays GOLD, same "before vs after" convention as AvgStoreTrendChart/CostRoasChart.
+const GREY = "#94a3b8"; // Baseline bar — Active bar is BLUE (matching the other bar charts on this dashboard, e.g. AVG Store Sales Performa).
+
+// A JSX-element `shape` prop is cloned by Recharts with per-bar props merged
+// in (index/x/y/width/height/fill from any <Cell>) — that clone SHOULD pick
+// up each Cell's fill, but empirically it wasn't rendering the last bar's
+// distinct color here. A `shape` FUNCTION sidesteps that entirely: Recharts
+// calls it per-bar with that bar's own resolved props already in hand, so
+// picking the fill by index here is unambiguous.
+function baselineVsActiveShape(lastIndex: number) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (props: any) => <Bar3D {...props} fill={props.index === lastIndex ? "url(#gNavy)" : GREY} />;
+}
 
 /* ── Baseline vs Active (avg/month) — Sales. Two bars only: Baseline
-     (grey) and Active avg (gold), matching the report's own "no ratio
+     (grey) and Active avg (blue), matching the report's own "no ratio
      hidden, no ratio invented" numbers. ── */
 export function BaselineVsActiveSalesChart({ data }: { data: { label: string; value: number }[] }) {
   if (!data.length) return <Empty />;
@@ -362,9 +373,7 @@ export function BaselineVsActiveSalesChart({ data }: { data: { label: string; va
           <XAxis dataKey="label" tick={axis} interval={0} axisLine={false} tickLine={false} height={28} />
           <YAxis tick={axis} tickFormatter={(v) => idr(Number(v))} axisLine={false} tickLine={false} width={58} />
           <Tooltip contentStyle={TIP_STYLE} formatter={(v) => [idrF(Number(v)), "Sales"]} cursor={{ fill: "rgba(59,130,246,0.08)" }} />
-          <Bar dataKey="value" fill={GREY} shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#e8edf8", fontSize: 11, fontWeight: 700, formatter: (v: unknown) => idr(Number(v)) }}>
-            {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
-          </Bar>
+          <Bar dataKey="value" fill={BLUE} shape={baselineVsActiveShape(data.length - 1)} radius={[4, 4, 0, 0]} label={{ position: "top", fill: "#e8edf8", fontSize: 11, fontWeight: 700, formatter: (v: unknown) => idr(Number(v)) }} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -392,9 +401,7 @@ export function BaselineVsActiveAdsChart({ data }: { data: { label: string; cost
             contentStyle={TIP_STYLE}
             formatter={(v, n) => n === "roas" ? [(Number(v) || 0).toFixed(2) + "×", "ROAS"] : [idrF(Number(v)), "Ads Cost"]}
           />
-          <Bar yAxisId="l" dataKey="cost" fill={GREY} shape={<Bar3D fill={GREY} />} radius={[4, 4, 0, 0]}>
-            {data.map((_, i) => <Cell key={i} fill={i === data.length - 1 ? "url(#gGold)" : GREY} />)}
-          </Bar>
+          <Bar yAxisId="l" dataKey="cost" fill={BLUE} shape={baselineVsActiveShape(data.length - 1)} radius={[4, 4, 0, 0]} />
           {hasRoas && (
             <Line
               yAxisId="r" type="monotone" dataKey="roas" connectNulls
