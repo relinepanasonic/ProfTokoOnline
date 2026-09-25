@@ -115,6 +115,7 @@ export default function DashboardPage() {
   // regardless of which owner they're viewing.
   const [planType, setPlanType] = useState("");
   const [bva, setBva] = useState<BaselineVsActive | null>(null);
+  const [bvaBrand, setBvaBrand] = useState<BaselineVsActive | null>(null);
   const [filters, setFilters] = useState<Filters>({ years: [], months: [], stores: [] });
   const [links, setLinks] = useState<StoreLink[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", city: "", store: "", owner: "", brand: "" });
@@ -225,19 +226,27 @@ export default function DashboardPage() {
   // (superadmin/client_admin/advertiser) always see it, same as every
   // other staff-visible panel on this page.
   const showBva = role !== "branch_manager" || planType === "prof";
+  const bvaScopeLabel = sel.store || (role === "branch_manager" ? scopeOwner : sel.owner) || "";
 
   useEffect(() => {
-    if (!clientId || !showBva) { setBva(null); return; }
+    if (!clientId || !showBva) { setBva(null); setBvaBrand(null); return; }
     const effectiveOwner = role === "branch_manager" ? (scopeOwner || null) : (sel.owner || null);
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc("dashboard_baseline_vs_active", {
-        p_client_id: clientId,
-        p_owner: effectiveOwner,
-        p_brand: sel.brand || null,
-        p_store: sel.store || null,
-      });
-      if (!cancelled) setBva((data as BaselineVsActive) || null);
+      const base = { p_client_id: clientId, p_owner: effectiveOwner, p_store: sel.store || null };
+      // Two independent fetches: the "All Brand" total is NEVER brand-
+      // filtered (even when a Brand is selected in the filter bar — the
+      // whole point is to contrast one brand against the store's total);
+      // the brand-specific pair only fires when a Brand is actually picked.
+      const [allRes, brandRes] = await Promise.all([
+        supabase.rpc("dashboard_baseline_vs_active", { ...base, p_brand: null }),
+        sel.brand
+          ? supabase.rpc("dashboard_baseline_vs_active", { ...base, p_brand: sel.brand })
+          : Promise.resolve({ data: null }),
+      ]);
+      if (cancelled) return;
+      setBva((allRes.data as BaselineVsActive) || null);
+      setBvaBrand((brandRes.data as BaselineVsActive) || null);
     })();
     return () => { cancelled = true; };
   }, [supabase, clientId, showBva, role, scopeOwner, sel.owner, sel.brand, sel.store]);
@@ -386,24 +395,6 @@ export default function DashboardPage() {
       {/* first-load spinner (no cached data yet) */}
       {loading && !d && <Loader center />}
 
-      {/* ── Baseline vs Active (avg/month) — Client-tier owners only ── */}
-      {showBva && bva && (bva.baseline.sales > 0 || bva.baseline.ad_cost > 0) && (
-        <div className="row c2">
-          <Panel title={t("All Brand Avg Monthly Sales")} hint={t("Every brand · SPOS · Active = avg / month")}>
-            <BaselineVsActiveSalesChart data={[
-              { label: t("Baseline"), value: bva.baseline.sales },
-              { label: t("Active (avg)"), value: bva.active.avg_sales },
-            ]} />
-          </Panel>
-          <Panel title={t("All Brand Avg Ads Spend & ROAS")} hint={t("Every brand · Ads · Active = avg / month")}>
-            <BaselineVsActiveAdsChart data={[
-              { label: t("Baseline"), cost: bva.baseline.ad_cost, roas: adsThin(bva.baseline.ad_cost, bva.baseline.sales) ? null : bva.baseline.roas },
-              { label: t("Active (avg)"), cost: bva.active.avg_ad_cost, roas: adsThin(bva.active.avg_ad_cost, bva.active.avg_sales) ? null : bva.active.avg_roas },
-            ]} />
-          </Panel>
-        </div>
-      )}
-
       {/* ── Monthly/Weekly performance: Traffic vs In-Cart vs Sales ── */}
       <div className="row">
         <Panel title={sel.month ? t("Weekly Performance") : t("Monthly Performance")} hint={t("Traffic vs In-Cart vs Sales · SPOS")}>
@@ -440,6 +431,57 @@ export default function DashboardPage() {
           <CampaignChart data={d?.top_campaigns||[]} t={t} />
         </Panel>
       </div>
+
+      {/* ── Baseline vs Active (avg/month) — Client-tier owners only.
+          Brand-specific pair only when a Brand is picked in the filter bar
+          (the "All Brand" pair below is never brand-filtered, even then —
+          the point is to contrast one brand against the store's whole
+          total, same shape as the reference dashboard's own layout). ── */}
+      {showBva && (bva || bvaBrand) && (
+        <div style={{ margin: "22px 0 -6px" }}>
+          <h3 style={{ margin: "0 0 2px" }}>
+            {t("Baseline vs Active Performance")}
+            {bvaScopeLabel ? <> — <span style={{ color: "var(--gold)" }}>{bvaScopeLabel}</span></> : null}
+          </h3>
+          <div className="hint">
+            {t('Pre-project snapshot ("Month Awal") vs the average across active months — totals for the selected scope, not per store. Pick a specific Month in the filter above to see that month\'s exact numbers.')}
+          </div>
+        </div>
+      )}
+
+      {showBva && sel.brand && bvaBrand && (bvaBrand.baseline.sales > 0 || bvaBrand.baseline.ad_cost > 0) && (
+        <div className="row c2">
+          <Panel title={`${t("Avg Monthly Sales")} ${sel.brand}`} hint={`${sel.brand} · SPOS · ${t("Active = avg / month")}`}>
+            <BaselineVsActiveSalesChart data={[
+              { label: t("Baseline"), value: bvaBrand.baseline.sales },
+              { label: t("Active (avg)"), value: bvaBrand.active.avg_sales },
+            ]} />
+          </Panel>
+          <Panel title={`${t("Avg Ads Spend & ROAS")} ${sel.brand}`} hint={`${sel.brand} · Ads · ${t("Active = avg / month")}`}>
+            <BaselineVsActiveAdsChart data={[
+              { label: t("Baseline"), cost: bvaBrand.baseline.ad_cost, roas: adsThin(bvaBrand.baseline.ad_cost, bvaBrand.baseline.sales) ? null : bvaBrand.baseline.roas },
+              { label: t("Active (avg)"), cost: bvaBrand.active.avg_ad_cost, roas: adsThin(bvaBrand.active.avg_ad_cost, bvaBrand.active.avg_sales) ? null : bvaBrand.active.avg_roas },
+            ]} />
+          </Panel>
+        </div>
+      )}
+
+      {showBva && bva && (bva.baseline.sales > 0 || bva.baseline.ad_cost > 0) && (
+        <div className="row c2">
+          <Panel title={t("All Brand Avg Monthly Sales")} hint={t("Every brand · SPOS · Active = avg / month")}>
+            <BaselineVsActiveSalesChart data={[
+              { label: t("Baseline"), value: bva.baseline.sales },
+              { label: t("Active (avg)"), value: bva.active.avg_sales },
+            ]} />
+          </Panel>
+          <Panel title={t("All Brand Avg Ads Spend & ROAS")} hint={t("Every brand · Ads · Active = avg / month")}>
+            <BaselineVsActiveAdsChart data={[
+              { label: t("Baseline"), cost: bva.baseline.ad_cost, roas: adsThin(bva.baseline.ad_cost, bva.baseline.sales) ? null : bva.baseline.roas },
+              { label: t("Active (avg)"), cost: bva.active.avg_ad_cost, roas: adsThin(bva.active.avg_ad_cost, bva.active.avg_sales) ? null : bva.active.avg_roas },
+            ]} />
+          </Panel>
+        </div>
+      )}
 
       {/* ── Dealer table ── */}
       <div className="panel">

@@ -63,6 +63,12 @@ const ID_DICT: Record<string, string> = {
   "Every brand · Ads · Active = avg / month": "Semua brand · Iklan · Active = rata-rata / bulan",
   "Baseline": "Baseline",
   "Active (avg)": "Active (rata-rata)",
+  "Baseline vs Active Performance": "Performa Baseline vs Aktif",
+  "Pre-project snapshot (\"Month Awal\") vs the average across active months — totals for the selected scope, not per store. Pick a specific Month in the filter above to see that month's exact numbers.":
+    "Snapshot pra-proyek (\"Month Awal\") vs rata-rata dari bulan-bulan aktif — total untuk cakupan yang dipilih, bukan per toko. Pilih Bulan tertentu di filter atas untuk melihat angka spesifik bulan itu.",
+  "Avg Monthly Sales": "Rata-rata Penjualan Bulanan",
+  "Avg Ads Spend & ROAS": "Rata-rata Biaya Iklan & ROAS",
+  "Active = avg / month": "Active = rata-rata / bulan",
   "Detail Data per": "Detail Data per",
   "Sorted by sales · Baseline excluded · line shows SPOS sales trend": "Diurutkan berdasarkan penjualan · Baseline dikecualikan · garis menunjukkan tren penjualan SPOS",
 
