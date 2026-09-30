@@ -41,8 +41,13 @@ export async function proxy(request: NextRequest) {
   // A redirect response here breaks service-worker registration outright
   // (rejected by spec) and makes the manifest fetch return HTML instead of
   // JSON, silently failing installability.
+  // /api/erp/* is a server-to-server feed (accounting.profesoronline.id) —
+  // it never carries a Supabase session cookie, only its own
+  // Authorization: Bearer ERP_API_KEY, checked inside the route itself.
+  // Redirecting it here would 307 every call before that check ever runs.
   const isPublic = isAuthPage || path.startsWith("/join/") || path === "/api/join"
     || path === "/api/register"
+    || path.startsWith("/api/erp/")
     || path === "/manifest.webmanifest" || path === "/sw.js";
 
   if (!user && !isPublic) {
