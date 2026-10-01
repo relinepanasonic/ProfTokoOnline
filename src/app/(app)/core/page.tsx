@@ -32,12 +32,20 @@ export default function CoreListPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const [{ data: cs }, { data: p }] = await Promise.all([
-        supabase.from("clients").select("id").order("created_at").limit(1),
-        supabase.from("profiles").select("role").eq("id", user.id).single(),
-      ]);
-      setIsSuperadmin((p as { role?: string } | null)?.role === "superadmin");
-      const initial = (cs as { id: string }[])?.[0]?.id || "";
+      const { data: p } = await supabase.from("profiles").select("role,client_id").eq("id", user.id).single();
+      const prof = p as { role?: string; client_id?: string | null } | null;
+      setIsSuperadmin(prof?.role === "superadmin");
+      // client_admin is tied to one real tenant — use THEIR OWN client_id,
+      // not "whichever client was created first" (which only happened to be
+      // correct here because Prof Toko Online is the first-created client;
+      // any client_admin at a different tenant would silently edit the
+      // wrong client's Core List otherwise). superadmin has no client_id of
+      // its own, so it still falls back to the first-created client.
+      let initial = prof?.client_id || "";
+      if (!initial) {
+        const { data: cs } = await supabase.from("clients").select("id").order("created_at").limit(1);
+        initial = (cs as { id: string }[] | null)?.[0]?.id || "";
+      }
       setClientId(initial);
       reload(initial);
     })();
@@ -264,26 +272,46 @@ function EditableRow({ value, onRename, onDel, children }: {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
   if (editing) {
+    const cancel = () => { setEditing(false); setDraft(value); setErr(""); };
     const save = async () => {
       const next = draft.trim();
-      if (!next || next === value) { setEditing(false); setDraft(value); return; }
-      setBusy(true);
+      if (!next) { setErr("Name can't be empty"); return; }
+      if (next === value) { cancel(); return; }
+      setBusy(true); setErr("");
       const ok = await onRename!(next);
       setBusy(false);
       if (ok) setEditing(false);
+      else setErr("Save failed — see the message at the top of the page");
     };
+    // Explicit Save/Cancel buttons rather than relying on blur/Enter alone —
+    // on some mobile keyboards tapping away doesn't fire blur reliably, so a
+    // rename could silently never trigger at all with no feedback. The
+    // buttons use onMouseDown+preventDefault so clicking them can't blur the
+    // input first and race with (or skip) the button's own onClick.
     return (
-      <div style={rowStyle}>
-        <input
-          autoFocus style={{ ...fieldStyle, flex: 1, padding: "5px 8px" }} value={draft}
-          disabled={busy}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setEditing(false); setDraft(value); } }}
-          onBlur={save}
-        />
-        {busy && <span style={{ fontSize: 11, color: "var(--muted)", flexShrink: 0 }}>…</span>}
+      <div style={{ ...rowStyle, flexDirection: "column", alignItems: "stretch", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            autoFocus style={{ ...fieldStyle, flex: 1, padding: "5px 8px" }} value={draft}
+            disabled={busy}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+          />
+          <button
+            onMouseDown={(e) => e.preventDefault()} onClick={save} disabled={busy} title="Save"
+            style={{ background: "rgba(34,197,94,.15)", border: "1px solid rgba(34,197,94,.4)", color: "#4ade80", borderRadius: 7, padding: "5px 10px", cursor: busy ? "default" : "pointer", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+            {busy ? "…" : "Save"}
+          </button>
+          <button
+            onMouseDown={(e) => e.preventDefault()} onClick={cancel} disabled={busy} title="Cancel"
+            style={{ background: "none", border: "1px solid var(--line)", color: "var(--muted)", borderRadius: 7, padding: "5px 10px", cursor: busy ? "default" : "pointer", fontSize: 12, flexShrink: 0 }}>
+            Cancel
+          </button>
+        </div>
+        {err && <div style={{ fontSize: 11, color: "#ff9a9a" }}>{err}</div>}
       </div>
     );
   }
