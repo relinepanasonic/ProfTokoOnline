@@ -153,6 +153,8 @@ const ID_DICT: Record<string, string> = {
   "Order No.": "No. Pesanan", "Buyer": "Pembeli", "Affiliate": "Afiliasi",
   "No transactions": "Tidak ada transaksi",
   "Nett Profit ÷ Sales × 100%": "Laba Bersih ÷ Penjualan × 100%",
+  "Modal and Ads Cost are real per-product numbers. Promotional, Refund, Delivery, Affiliate and Market Place Fee are not in the CSV per product, so each is the store total spread across products by their share of Sales (estimates per product, exact in total).":
+    "Modal dan Biaya Iklan adalah angka asli per produk. Biaya Promosi, Refund, Ongkir, Affiliate dan Market Place Fee tidak ada di CSV per produk, jadi masing-masing adalah total toko yang dibagi ke produk sesuai porsi Penjualannya (estimasi per produk, tepat secara total).",
   "orders": "pesanan",
   "Finance Dashboard": "Dashboard Keuangan",
 

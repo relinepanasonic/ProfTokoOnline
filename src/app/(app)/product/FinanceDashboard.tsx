@@ -312,6 +312,9 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
   return (
     <div className="panel">
       <h3>Detail Product Profit</h3>
+      <div className="hint">
+        {t("Modal and Ads Cost are real per-product numbers. Promotional, Refund, Delivery, Affiliate and Market Place Fee are not in the CSV per product, so each is the store total spread across products by their share of Sales (estimates per product, exact in total).")}
+      </div>
 
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
         <div className="fld" style={{ minWidth: 260 }}>
