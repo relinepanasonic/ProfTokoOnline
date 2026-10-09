@@ -34,6 +34,11 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin", "client_admin"] },
   { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
+  // Self-serve plan payments (manual bank transfer, no gateway). Owners
+  // see /billing (page access for Owners comes from ownerPages() below,
+  // not this roles list); superadmin approves from /payments.
+  { href: "/billing",   icon: "💳", label: "Billing",             roles: ["branch_manager"] },
+  { href: "/payments",  icon: "✅", label: "Payments",            roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -59,16 +64,25 @@ const ROLE_LABEL: Record<Role, string> = {
 // since the topbar shows PLAN_LABEL[plan] in place of ROLE_LABEL[role] for
 // any Owner login (see the user-badge JSX below) — no separate role/label
 // wiring needed.
-type Plan = "lapak" | "sultan" | "king" | "prof";
-const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Client" };
+type Plan = "lapak" | "sultan" | "king" | "prof" | "calc";
+const PLAN_LABEL: Record<Plan, string> = { lapak: "Juragan", sultan: "Sultan", king: "King", prof: "Client", calc: "Calculator" };
 const PREMIUM_PLANS: Plan[] = ["sultan", "king", "prof"];
 // Which pages each owner plan may see. Market Place Fee moved from its own
 // "/marketfee" route to a tab under Price Calculator (/calc/marketplace-fee)
 // — both lists updated to the new path so Owner access is unchanged.
-const LAPAK_PAGES  = ["/upload", "/", "/calc/marketplace-fee"];
-const FULL_PAGES    = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/calc/marketplace-fee"];
+// /billing is reachable on every self-serve plan (and stays reachable once
+// expired — the expired banner links straight to it). "prof" (Client,
+// agency-managed) is billed through consultation instead, so no /billing.
+// "calc" is the Price Calculator-only plan: the calculator + its Marketplace
+// Fee tab (the calculator reads fees from it) + billing, nothing else.
+const LAPAK_PAGES  = ["/upload", "/", "/calc/marketplace-fee", "/billing"];
+const FULL_PAGES    = ["/upload", "/", "/ads", "/product", "/store", "/calc", "/calc/marketplace-fee", "/billing"];
+const CALC_PAGES   = ["/calc", "/calc/marketplace-fee", "/billing"];
+const CLIENT_PAGES = FULL_PAGES.filter((p) => p !== "/billing");
 
 function ownerPages(plan: Plan): string[] {
+  if (plan === "calc") return CALC_PAGES;
+  if (plan === "prof") return CLIENT_PAGES;
   return PREMIUM_PLANS.includes(plan) ? FULL_PAGES : LAPAK_PAGES;
 }
 
@@ -225,7 +239,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {isExpired && (
           <div className="sub-expired-banner">
-            ⏳ {t("Your subscription has ended — read-only mode. Contact us to renew.")}
+            ⏳ {t("Your subscription has ended — read-only mode.")}{" "}
+            {plan !== "prof" && (
+              <Link href="/billing" style={{ color: "inherit", textDecoration: "underline", fontWeight: 800 }}>{t("Renew now")}</Link>
+            )}
+          </div>
+        )}
+        {/* Near the end: 7 days or less. Not "prof" — Client accounts are billed through consultation. */}
+        {isOwner && plan !== "prof" && !isExpired && daysLeft != null && daysLeft <= 7 && (
+          <div className="sub-expired-banner" style={{ background: "rgba(251,191,36,.12)", borderColor: "rgba(251,191,36,.4)", color: "#fcd34d" }}>
+            ⏰ {daysLeft <= 0 ? t("Your subscription ends today.") : `${t("Your subscription ends in")} ${daysLeft} ${t("days")}.`}{" "}
+            <Link href="/billing" style={{ color: "inherit", textDecoration: "underline", fontWeight: 800 }}>{t("Renew now")}</Link>
           </div>
         )}
         {children}

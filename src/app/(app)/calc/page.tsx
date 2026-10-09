@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { FEE_SOURCE_CLIENT_ID } from "@/lib/feeSource";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,10 @@ async function fetchAll<T>(supabase: ReturnType<typeof createClient>, table: str
 export default function Page() {
   const [supabase] = useState(() => createClient());
   const [clientId, setClientId] = useState("");
+  // Which tenant's market_fees to read — Owners read the master fee table
+  // (see lib/feeSource.ts), staff read their own tenant. A ref, not state,
+  // so every reload(clientId) call site keeps using the right source.
+  const feeCidRef = useRef("");
   const [role, setRole] = useState("");
   const [scopeOwner, setScopeOwner] = useState("");
   const [canEdit, setCanEdit] = useState(false);
@@ -102,7 +107,7 @@ export default function Page() {
     if (!cid) { setItems([]); setLoading(false); return; }
     setLoading(true);
     const [feeRows, itemRows, linkRows] = await Promise.all([
-      fetchAll<Fee>(supabase, "market_fees", cid,
+      fetchAll<Fee>(supabase, "market_fees", feeCidRef.current || cid,
         "category,sub_category,jenis_product,platform,jenis_toko,platform_fee_pct,biaya_proses_pesanan_rp,biaya_layanan_mall_pct,min_gratis_ongkir_biasa_pct,max_gratis_ongkir_biasa_rp,min_gratis_ongkir_khusus_pct,max_gratis_ongkir_khusus_rp"),
       fetchAll<Item>(supabase, "price_calc_items", cid),
       supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("owner").then((r) => (r.data as StoreLink[]) || []),
@@ -126,6 +131,7 @@ export default function Page() {
       const { data: cs } = await supabase.from("clients").select("id").order("created_at").limit(1);
       const cid = profile?.client_id || (cs as { id: string }[])?.[0]?.id || "";
       setClientId(cid);
+      feeCidRef.current = r === "branch_manager" ? FEE_SOURCE_CLIENT_ID : cid;
       reload(cid);
     })();
   }, [supabase, reload]);

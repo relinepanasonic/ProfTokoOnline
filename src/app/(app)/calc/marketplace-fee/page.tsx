@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { FEE_SOURCE_CLIENT_ID } from "@/lib/feeSource";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +100,11 @@ export default function MarketFeePage() {
       setCanEdit(role === "superadmin" || role === "client_admin");
       setMyName(profile?.display_name || profile?.email?.split("@")[0] || "Admin");
       const { data: cs } = await supabase.from("clients").select("id").order("created_at").limit(1);
-      const cid = profile?.client_id || (cs as { id: string }[])?.[0]?.id || "";
+      // Owners read the master fee table (read-only, see lib/feeSource.ts);
+      // staff read/edit their own tenant's.
+      const cid = role === "branch_manager"
+        ? FEE_SOURCE_CLIENT_ID
+        : (profile?.client_id || (cs as { id: string }[])?.[0]?.id || "");
       setClientId(cid);
       reload(cid);
     })();
