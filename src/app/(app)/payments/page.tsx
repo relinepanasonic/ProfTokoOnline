@@ -38,10 +38,12 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [msg, setMsg] = useState("");
+  const [bank, setBank] = useState({ bank_name: "", bank_account: "", bank_holder: "", whatsapp: "" });
+  const [bankMsg, setBankMsg] = useState("");
 
   const load = useCallback(async () => {
     const soon = new Date(Date.now() + 7 * 86_400_000).toISOString();
-    const [{ data: rq }, { data: ex }] = await Promise.all([
+    const [{ data: rq }, { data: ex }, { data: bs }] = await Promise.all([
       supabase.from("payment_requests")
         .select("id,plan_type,months,amount,unique_code,status,proof_path,note,created_at,expires_at,reviewed_at,profile:profiles!payment_requests_profile_id_fkey(display_name,scope_owner,username,phone)")
         .order("created_at", { ascending: false }).limit(60),
@@ -49,7 +51,9 @@ export default function PaymentsPage() {
         .select("id,display_name,scope_owner,phone,plan_type,subscription_end")
         .eq("role", "branch_manager").neq("plan_type", "prof").not("subscription_end", "is", null)
         .lte("subscription_end", soon).order("subscription_end"),
+      supabase.from("billing_settings").select("bank_name,bank_account,bank_holder,whatsapp").eq("id", 1).maybeSingle(),
     ]);
+    if (bs) setBank(bs as typeof bank);
     const rows = (rq as unknown as Req[]) || [];
     setReqs(rows);
     setExpiring((ex as Expiring[]) || []);
@@ -64,6 +68,13 @@ export default function PaymentsPage() {
   }, [supabase]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load(); }, [load]);
+
+  async function saveBank() {
+    setBankMsg("");
+    const { error } = await supabase.from("billing_settings")
+      .update({ ...bank, updated_at: new Date().toISOString() }).eq("id", 1);
+    setBankMsg(error ? "✗ " + error.message : "✓ Saved — customers see this on their Billing page now.");
+  }
 
   async function approve(r: Req) {
     if (!confirm(`Approve ${rp(r.amount)} from ${who(r.profile)}? This sets their plan and extends it by ${r.months} month(s).`)) return;
@@ -90,6 +101,30 @@ export default function PaymentsPage() {
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {msg && <div style={{ padding: "10px 14px", borderRadius: 10, fontSize: 13, color: "#ff9a9a", background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.25)" }}>{msg}</div>}
+
+      <div className="panel">
+        <h3 style={{ margin: "0 0 4px" }}>Payment details</h3>
+        <div className="hint" style={{ marginBottom: 10 }}>Shown to customers on their Billing page. Saved straight to the database — no redeploy needed.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 10 }}>
+          {([
+            ["bank_name", "Bank", "e.g. BCA"],
+            ["bank_account", "Account number", "digits only"],
+            ["bank_holder", "Account name", "name on the account"],
+            ["whatsapp", "WhatsApp (optional)", "628123456789"],
+          ] as const).map(([k, label, ph]) => (
+            <div className="fld" key={k}>
+              <label>{label}</label>
+              <input type="text" value={bank[k]} placeholder={ph}
+                onChange={(e) => setBank((b) => ({ ...b, [k]: e.target.value }))}
+                style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12 }}>
+          <button className="btn-gold" onClick={saveBank}>Save</button>
+          {bankMsg && <span style={{ fontSize: 13, color: bankMsg.startsWith("✓") ? "#86efac" : "#ff9a9a" }}>{bankMsg}</span>}
+        </div>
+      </div>
 
       <div className="panel">
         <h3 style={{ margin: "0 0 4px" }}>Waiting for approval <span className="hint">({pending.length})</span></h3>

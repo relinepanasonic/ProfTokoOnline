@@ -13,12 +13,10 @@ import { useLang } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-const BANK = {
-  name: process.env.NEXT_PUBLIC_BILLING_BANK_NAME || "",
-  account: process.env.NEXT_PUBLIC_BILLING_BANK_ACCOUNT || "",
-  holder: process.env.NEXT_PUBLIC_BILLING_BANK_HOLDER || "",
-  whatsapp: (process.env.NEXT_PUBLIC_BILLING_WHATSAPP || "").replace(/\D/g, ""),
-};
+// Bank details come from the billing_settings table (editable on /payments),
+// not from Vercel env vars — see migration 0126.
+type Bank = { name: string; account: string; holder: string; whatsapp: string };
+const NO_BANK: Bank = { name: "", account: "", holder: "", whatsapp: "" };
 const MONTH_OPTIONS = [1, 3, 6, 12];
 
 type PlanRow = { plan_type: string; label: string; price_per_month: number };
@@ -38,6 +36,7 @@ export default function BillingPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [plans, setPlans] = useState<PlanRow[]>([]);
   const [reqs, setReqs] = useState<Req[]>([]);
+  const [BANK, setBank] = useState<Bank>(NO_BANK);
   const [now, setNow] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState(1);
@@ -48,13 +47,16 @@ export default function BillingPage() {
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const [{ data: p }, { data: pl }, { data: rq }] = await Promise.all([
+    const [{ data: p }, { data: pl }, { data: rq }, { data: bs }] = await Promise.all([
       supabase.from("profiles").select("id,role,plan_type,subscription_end").eq("id", user.id).single(),
       supabase.from("billing_plans").select("plan_type,label,price_per_month").eq("active", true).order("price_per_month"),
       supabase.from("payment_requests")
         .select("id,plan_type,months,base_amount,unique_code,amount,status,proof_path,note,created_at,expires_at")
         .eq("profile_id", user.id).order("created_at", { ascending: false }).limit(20),
+      supabase.from("billing_settings").select("bank_name,bank_account,bank_holder,whatsapp").eq("id", 1).maybeSingle(),
     ]);
+    const b = bs as { bank_name: string; bank_account: string; bank_holder: string; whatsapp: string } | null;
+    setBank(b ? { name: b.bank_name, account: b.bank_account, holder: b.bank_holder, whatsapp: b.whatsapp.replace(/\D/g, "") } : NO_BANK);
     setMe(p as Me | null);
     setPlans((pl as PlanRow[]) || []);
     setReqs((rq as Req[]) || []);
