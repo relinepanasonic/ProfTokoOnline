@@ -26,21 +26,12 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   // item — client_admin needs this entry visible to reach it.
   { href: "/calc",      icon: "🧮", label: "Price Calculator",    roles: ["superadmin", "branch_manager", "client_admin"] },
   { href: "/core",      icon: "🗂️", label: "Core List",          roles: ["superadmin", "client_admin"] },
-  // Staff-only (internal, agency-wide view across Client-tier accounts).
-  // Its 2 sub-pages (/advertising, /admin) are nested routes the generic
-  // guard below doesn't match — each re-checks role itself, see
-  // prof-performance/shared.tsx's useStaffOnly().
-  { href: "/prof-performance", icon: "🏆", label: "Prof Performance", roles: ["superadmin", "client_admin", "advertiser"] },
-  { href: "/accounting", icon: "📒", label: "Accounting",         roles: ["superadmin"] },
   { href: "/users",     icon: "👥", label: "Users",               roles: ["superadmin", "client_admin"] },
-  { href: "/invoice",   icon: "🧾", label: "Invoice",             roles: ["superadmin"] },
   // Self-serve plan payments (manual bank transfer, no gateway). Owners
   // see /billing (page access for Owners comes from ownerPages() below,
   // not this roles list); superadmin approves from /payments.
   { href: "/billing",   icon: "💳", label: "Billing",             roles: ["branch_manager"] },
   { href: "/payments",  icon: "✅", label: "Payments",            roles: ["superadmin"] },
-  // Kampus Online workshop schedule — feeds the public marketing site.
-  { href: "/workshops", icon: "🎓", label: "Workshops",           roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
