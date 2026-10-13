@@ -39,6 +39,8 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   // not this roles list); superadmin approves from /payments.
   { href: "/billing",   icon: "💳", label: "Billing",             roles: ["branch_manager"] },
   { href: "/payments",  icon: "✅", label: "Payments",            roles: ["superadmin"] },
+  // Kampus Online workshop schedule — feeds the public marketing site.
+  { href: "/workshops", icon: "🎓", label: "Workshops",           roles: ["superadmin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
