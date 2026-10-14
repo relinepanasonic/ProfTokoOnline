@@ -61,7 +61,10 @@ type FinanceProductRow = {
   kode_produk: string; nama_produk: string | null; orders: number; sales: number;
   promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number;
   marketplace_fee: number; pajak: number; other: number; net_income: number;
+  // from the Order Completed upload (migration 0131); units null = none of this product's orders found there
+  units: number | null; units_orders: number; sales_with_units: number;
 };
+type FinanceProductView = FinanceProductRow & { units_per_order: number | null };
 type FinanceProducts = { rows: FinanceProductRow[]; orders_total: number; orders_with_detail: number };
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
@@ -311,16 +314,24 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
   const [search, setSearch] = useState("");
   const rows = data?.rows;
 
+  const withUnitsPerOrder = useMemo<FinanceProductView[]>(
+    () => (rows || []).map((r) => ({ ...r, units_per_order: r.units != null && r.units_orders > 0 ? r.units / r.units_orders : null })),
+    [rows],
+  );
+  const salesTotal = (rows || []).reduce((a, r) => a + r.sales, 0);
+  const salesWithUnits = (rows || []).reduce((a, r) => a + r.sales_with_units, 0);
+  const unitsCoverage = salesTotal > 0 ? salesWithUnits / salesTotal : 1;
+
   const filtered = useMemo(() => {
-    const all = rows || [];
+    const all = withUnitsPerOrder;
     const q = search.trim().toLowerCase();
     if (!q) return all;
     return all.filter((r) =>
       (r.kode_produk || "").toLowerCase().includes(q) ||
       (r.nama_produk || "").toLowerCase().includes(q));
-  }, [rows, search]);
+  }, [withUnitsPerOrder, search]);
 
-  const { sortedData, sortConfig, requestSort } = useTableSort<FinanceProductRow>(filtered, "sales");
+  const { sortedData, sortConfig, requestSort } = useTableSort<FinanceProductView>(filtered, "sales");
 
   const total = data?.orders_total ?? 0;
   const withDetail = data?.orders_with_detail ?? 0;
@@ -330,8 +341,13 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
     <div className="panel">
       <h3>Detail Product Profit</h3>
       <div className="hint">
-        {t("Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Modal, Ads and units are not in this report.")}
+        {t("Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Units come from your Order Completed upload (matched on order number + product name, net of returns). Modal and Ads are in neither report.")}
       </div>
+      {salesTotal > 0 && unitsCoverage < 0.995 && (
+        <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
+          {t("Units known for")} {(unitsCoverage * 100).toFixed(1)}% {t("of Sales — orders whose Order Completed file is not uploaded (e.g. orders created in an earlier month) show no units.")}
+        </div>
+      )}
       {total > 0 && withDetail < total && (
         <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
           {t("Product detail covers")} {withDetail.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")} {t("orders")} — {t("older uploads have no per-product lines; upload the newer Penghasilan report for those months.")}
@@ -352,6 +368,8 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
             <th className="sticky-col sticky-col-1"><span className="sticky-inner">{t("Product Name")}</span></th>
             <th>{t("Product Code")}</th>
             <SortableHeader label={t("Orders")} sortKey="orders" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Units Sold")} sortKey="units" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Units / Order")} sortKey="units_per_order" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Sales")} sortKey="sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Promotional Cost")} sortKey="promotion_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Refund")} sortKey="refund" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
@@ -369,6 +387,12 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
                 <td className="sticky-col sticky-col-1" title={r.nama_produk || undefined}><span className="sticky-inner">{r.nama_produk || "—"}</span></td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
                 <td className="num" style={cell}>{r.orders.toLocaleString("id-ID")}</td>
+                <td className="num" style={cell}
+                  title={r.units != null && r.sales_with_units < r.sales * 0.995 ? `${t("Units known for")} ${(r.sales_with_units / (r.sales || 1) * 100).toFixed(0)}% ${t("of this product's Sales")}` : undefined}>
+                  {r.units == null ? "—" : Math.round(r.units).toLocaleString("id-ID")}
+                  {r.units != null && r.sales_with_units < r.sales * 0.995 ? <span style={{ color: "#fbbf24" }}>*</span> : null}
+                </td>
+                <td className="num" style={cell}>{r.units_per_order == null ? "—" : r.units_per_order.toLocaleString("id-ID", { maximumFractionDigits: 1 })}</td>
                 <td className="num" style={cell}>{rpFull(r.sales)}</td>
                 <td className="num" style={cell}>{rpFull(r.promotion_cost)}</td>
                 <td className="num" style={cell}>{rpFull(r.refund)}</td>
@@ -382,7 +406,7 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
               </tr>
             ))}
             {sortedData.length === 0 && (
-              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+              <tr><td colSpan={15} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
                 {total > 0 && withDetail === 0
                   ? t("No per-product data for this period. Upload the newer Shopee Penghasilan income report to see products here.")
                   : t("No data for these filters")}
