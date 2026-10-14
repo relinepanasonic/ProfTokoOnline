@@ -121,6 +121,34 @@ describe("parseIncomeSkuMatrix", () => {
   });
 });
 
+describe("fees Shopee only reports on the Order row", () => {
+  // XTRA fee (col 18) and Layanan Promo XTRA (col 20) are blanked on ORDER-A's Sku rows but stay on
+  // its Order row — like Shopee's January 2026 export. Each line's own Total Penghasilan still
+  // includes its share, so the parser must recover exactly the numbers the full export has.
+  const sparse = MATRIX.map((r) => r.slice());
+  for (const ri of [4, 5]) { sparse[ri][18] = 0; sparse[ri][20] = 0; }
+  const full = parseIncomeSkuMatrix(MATRIX);
+  const p = parseIncomeSkuMatrix(sparse);
+
+  it("recovers each product's exact fees (not a guess by sales share)", () => {
+    expect(p.skuRows).toEqual(full.skuRows);
+  });
+
+  it("every bucket of every order's lines adds up to the Order row again", () => {
+    for (const o of p.rows) {
+      const lines = p.skuRows.filter((s) => s.order_no === o.order_no);
+      expect(lines.reduce((a, l) => a + l.marketplace_fee + l.pajak, 0)).toBe(o.marketplace_fee);
+    }
+  });
+
+  it("every line adds up to its own net", () => {
+    for (const s of p.skuRows) {
+      const t = s.sales + s.refund + s.promotion_cost + s.delivery_cost + s.affiliate_cost + s.marketplace_fee + s.misc + s.pajak;
+      expect(t).toBe(s.net_income);
+    }
+  });
+});
+
 describe("parseIncomeSummary", () => {
   it("reads username and period from the Summary sheet", () => {
     expect(parseIncomeSummary([["Laporan Penghasilan"], ["Username (Penjual)", "japarutomo"], ["Dari", "2026-10-10"], ["ke", "2026-10-11"]]))

@@ -57,6 +57,12 @@ type ProductRow = {
   marketplace_fee: number; pajak: number; ads_cost: number; nett_profit: number;
   costing: "real" | "mixed" | "estimated";
 };
+type FinanceProductRow = {
+  kode_produk: string; nama_produk: string | null; orders: number; sales: number;
+  promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number;
+  marketplace_fee: number; pajak: number; other: number; net_income: number;
+};
+type FinanceProducts = { rows: FinanceProductRow[]; orders_total: number; orders_with_detail: number };
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
 };
@@ -72,6 +78,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
   const [pd, setPd] = useState<ProductDetail | null>(null);
+  const [fp, setFp] = useState<FinanceProducts | null>(null);
   const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<string | null>(null);
   const [activeTable, setActiveTable] = useState<"transaksi" | "profit">("transaksi");
@@ -93,7 +100,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   useEffect(() => { checkData(); }, [checkData, refreshKey]);
 
   const load = useCallback(async () => {
-    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); return; }
+    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); setFp(null); return; }
     setLoading(true);
     const params = {
       p_year: sel.year ? Number(sel.year) : null,
@@ -103,12 +110,14 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       p_brand: null,
       p_store: sel.store,
     };
-    const [{ data }, { data: pdata }] = await Promise.all([
+    const [{ data }, { data: pdata }, { data: fpdata }] = await Promise.all([
       supabase.rpc("finance_summary", params),
-      supabase.rpc("product_profit_detail", params),
+      supabase.rpc("product_profit_detail", params), // still feeds the Modal KPI and charts
+      supabase.rpc("finance_product_profit", params), // the Detail Product Profit table (migration 0130)
     ]);
     setD(data as Summary);
     setPd(pdata as ProductDetail);
+    setFp((fpdata as FinanceProducts) || null);
     setLoading(false);
   }, [supabase, clientId, hasAnyData, sel]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -243,7 +252,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       {activeTable === "transaksi" ? (
         <DailyTransactionTable rows={d?.daily || []} onRowClick={setDrill} t={t} />
       ) : (
-        <ProductProfitTable rows={pd?.rows || []} t={t} />
+        <ProductProfitTable data={fp} t={t} />
       )}
 
       {drill && (
@@ -295,32 +304,44 @@ function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyRow[]; onRo
   );
 }
 
-/* ── Detail Product Profit: 13-column variant-level P&L, search + sortable ── */
-function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) => string }) {
+/* ── Detail Product Profit: strictly from the finance upload (Shopee "Penghasilan" report) ──
+   One row per Shopee product ID — Sales is Harga Produk, every cost is Shopee's own number
+   for that product (migration 0130). No Product Performance (SPOS), Modal or Ads data. */
+function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: string) => string }) {
   const [search, setSearch] = useState("");
+  const rows = data?.rows;
 
   const filtered = useMemo(() => {
+    const all = rows || [];
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
+    if (!q) return all;
+    return all.filter((r) =>
       (r.kode_produk || "").toLowerCase().includes(q) ||
-      (r.nama_produk || "").toLowerCase().includes(q) ||
-      (r.nama_variasi || "").toLowerCase().includes(q));
+      (r.nama_produk || "").toLowerCase().includes(q));
   }, [rows, search]);
 
-  const { sortedData, sortConfig, requestSort } = useTableSort<ProductRow>(filtered, "total_sales");
+  const { sortedData, sortConfig, requestSort } = useTableSort<FinanceProductRow>(filtered, "sales");
+
+  const total = data?.orders_total ?? 0;
+  const withDetail = data?.orders_with_detail ?? 0;
+  const cell = { whiteSpace: "nowrap" } as const;
 
   return (
     <div className="panel">
       <h3>Detail Product Profit</h3>
       <div className="hint">
-        {t("Modal and Ads Cost are real per-product numbers. Rows marked Real take Promotional, Refund, Delivery, Affiliate, Market Place Fee and Pajak straight from Shopee's per-product income report. Rows marked Estimate come from older uploads without per-product detail: the store total is spread across products by their share of Sales (exact in total, estimated per product), and Pajak is 0 because older reports have none.")}
+        {t("Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Modal, Ads and units are not in this report.")}
       </div>
+      {total > 0 && withDetail < total && (
+        <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
+          {t("Product detail covers")} {withDetail.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")} {t("orders")} — {t("older uploads have no per-product lines; upload the newer Penghasilan report for those months.")}
+        </div>
+      )}
 
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
         <div className="fld" style={{ minWidth: 260 }}>
           <label>{t("Search")}</label>
-          <input type="text" placeholder={t("Product Code / Product Name / Variant Name")}
+          <input type="text" placeholder={t("Product Code / Product Name")}
             value={search} onChange={(e) => setSearch(e.target.value)}
             style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
         </div>
@@ -329,49 +350,43 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
         <table className="tbl tbl-sticky2">
           <thead><tr>
             <th className="sticky-col sticky-col-1"><span className="sticky-inner">{t("Product Name")}</span></th>
-            <th className="sticky-col sticky-col-2"><span className="sticky-inner">{t("Variant Name")}</span></th>
-            <th>{t("Product Code")}</th><th>{t("Variant Code")}</th>
-            <SortableHeader label={t("Product Sold")} sortKey="units_sold" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <SortableHeader label={t("Sales")} sortKey="total_sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <SortableHeader label="Total Modal Product" sortKey="total_modal" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <th>{t("Product Code")}</th>
+            <SortableHeader label={t("Orders")} sortKey="orders" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Sales")} sortKey="sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Promotional Cost")} sortKey="promotion_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Refund")} sortKey="refund" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Delivery Cost")} sortKey="delivery_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Affiliate Cost")} sortKey="affiliate_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Market Place Fee")} sortKey="marketplace_fee" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Pajak")} sortKey="pajak" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <SortableHeader label={t("Ads Cost")} sortKey="ads_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <SortableHeader label={t("Nett Profit")} sortKey="nett_profit" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <th className="num" style={{ whiteSpace: "nowrap" }} title={t("Nett Profit ÷ Sales × 100%")}>%</th>
-            <th style={{ whiteSpace: "nowrap" }}>{t("Costing")}</th>
+            <SortableHeader label={t("Other")} sortKey="other" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Nett Income")} sortKey="net_income" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <th className="num" style={cell} title={t("Nett Income ÷ Sales × 100%")}>%</th>
           </tr></thead>
           <tbody>
             {sortedData.map((r) => (
-              <tr key={`${r.kode_produk}::${r.kode_variasi}`}>
+              <tr key={r.kode_produk}>
                 <td className="sticky-col sticky-col-1" title={r.nama_produk || undefined}><span className="sticky-inner">{r.nama_produk || "—"}</span></td>
-                <td className="sticky-col sticky-col-2" title={r.nama_variasi || undefined}><span className="sticky-inner">{r.nama_variasi || "—"}</span></td>
                 <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_produk}</td>
-                <td style={{ fontFamily: "monospace", fontSize: 12, whiteSpace: "nowrap" }}>{r.kode_variasi}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{r.units_sold.toLocaleString("id-ID")}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_sales)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.total_modal)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.promotion_cost)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.refund)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.delivery_cost)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.affiliate_cost)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.marketplace_fee)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.pajak ?? 0)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.ads_cost)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.nett_profit)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{r.total_sales > 0 ? `${(r.nett_profit / r.total_sales * 100).toFixed(1)}%` : "—"}</td>
-                <td style={{ whiteSpace: "nowrap", fontSize: 11.5, fontWeight: 700, color: r.costing === "estimated" ? "#fbbf24" : r.costing === "mixed" ? "#93c5fd" : "#86efac" }}
-                  title={r.costing === "real" ? t("Real") : r.costing === "mixed" ? t("Mixed") : t("Estimate")}>
-                  {!r.costing ? "—" : r.costing === "estimated" ? t("Estimate") : r.costing === "mixed" ? t("Mixed") : t("Real")}
-                </td>
+                <td className="num" style={cell}>{r.orders.toLocaleString("id-ID")}</td>
+                <td className="num" style={cell}>{rpFull(r.sales)}</td>
+                <td className="num" style={cell}>{rpFull(r.promotion_cost)}</td>
+                <td className="num" style={cell}>{rpFull(r.refund)}</td>
+                <td className="num" style={cell}>{rpFull(r.delivery_cost)}</td>
+                <td className="num" style={cell}>{rpFull(r.affiliate_cost)}</td>
+                <td className="num" style={cell}>{rpFull(r.marketplace_fee)}</td>
+                <td className="num" style={cell}>{rpFull(r.pajak)}</td>
+                <td className="num" style={cell}>{rpFull(r.other)}</td>
+                <td className="num" style={{ ...cell, color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income)}</td>
+                <td className="num" style={{ ...cell, color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{r.sales > 0 ? `${(r.net_income / r.sales * 100).toFixed(1)}%` : "—"}</td>
               </tr>
             ))}
             {sortedData.length === 0 && (
-              <tr><td colSpan={17} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
+              <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                {total > 0 && withDetail === 0
+                  ? t("No per-product data for this period. Upload the newer Shopee Penghasilan income report to see products here.")
+                  : t("No data for these filters")}
+              </td></tr>
             )}
           </tbody>
         </table>

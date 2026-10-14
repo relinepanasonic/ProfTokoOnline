@@ -19,6 +19,12 @@
 // because Shopee adds/removes fee columns (e.g. "Biaya Gratis Ongkir XTRA -
 // Ukuran Biasa (Kategori D/F/G)") from one export to the next.
 //
+// Some months Shopee fills a fee (e.g. "Biaya Layanan Promo XTRA") ONLY on the Order
+// row and leaves it 0 on the Sku rows — yet each Sku row's own Total Penghasilan
+// already includes its share. So for every Sku row, (its Total Penghasilan minus the
+// parts we can see) IS that unsplit fee, exactly as Shopee charged it; it is booked to
+// the bucket(s) the Order row says were left unsplit. No estimation, purely finance data.
+//
 // Buckets match the older parser so finance_summary keeps reconciling:
 //   net_income == sales + refund + promotion + delivery + affiliate + marketplace_fee + misc
 // where marketplace_fee INCLUDES pajak (as the old "Bea Masuk, PPN & PPh" did);
@@ -153,6 +159,7 @@ export function parseIncomeSkuMatrix(
 
   const rows: FinanceRow[] = [];
   const skuRows: SkuRow[] = [];
+  const orderTotals = new Map<string, Record<Bucket, number>>();
   let unreconciled = 0;
 
   for (let i = headerIdx + 1; i < matrix.length; i++) {
@@ -165,6 +172,7 @@ export function parseIncomeSkuMatrix(
     const sum = t.sales + t.refund + t.promotion + t.delivery + t.affiliate + t.marketplace + t.misc + t.pajak;
 
     if (view === "order") {
+      orderTotals.set(orderNo, t);
       if (Math.abs(sum - net) > 1) unreconciled++;
       const raw: Record<string, unknown> = {};
       headers.forEach((h, hi) => { if (h && hi < end) raw[h] = r[hi] ?? null; });
@@ -209,5 +217,52 @@ export function parseIncomeSkuMatrix(
     }
   }
 
+  allocateOrderRemainders(skuRows, orderTotals);
+
   return { ...parseIncomeSummary(summary), rows, skuRows, unreconciled };
+}
+
+// which SkuRow field each bucket lands in (sales is never reallocated; it is always on the Sku rows)
+const SKU_FIELD = {
+  refund: "refund", promotion: "promotion_cost", delivery: "delivery_cost", affiliate: "affiliate_cost",
+  misc: "misc", marketplace: "marketplace_fee", pajak: "pajak",
+} as const;
+
+/**
+ * Make every order's Sku lines add up to its Order row, bucket by bucket. A line's own
+ * Total Penghasilan minus its visible parts is the fee Shopee charged it but did not
+ * itemise; it goes to the bucket(s) the Order row shows as left unsplit.
+ */
+function allocateOrderRemainders(skuRows: SkuRow[], orderTotals: Map<string, Record<Bucket, number>>): void {
+  const byOrder = new Map<string, SkuRow[]>();
+  for (const s of skuRows) (byOrder.get(s.order_no) ?? byOrder.set(s.order_no, []).get(s.order_no)!).push(s);
+
+  const buckets = Object.keys(SKU_FIELD) as (keyof typeof SKU_FIELD)[];
+  for (const [orderNo, lines] of byOrder) {
+    const t = orderTotals.get(orderNo);
+    if (!t) continue;
+
+    // what the Order row has in each bucket that its Sku lines do not show
+    const remainder = {} as Record<keyof typeof SKU_FIELD, number>;
+    let remainderTotal = 0;
+    for (const b of buckets) {
+      remainder[b] = t[b] - lines.reduce((a, l) => a + l[SKU_FIELD[b]], 0);
+      if (Math.abs(remainder[b]) < 0.5) remainder[b] = 0;
+      remainderTotal += remainder[b];
+    }
+    if (remainderTotal === 0) continue;
+    const open = buckets.filter((b) => remainder[b] !== 0);
+
+    for (const l of lines) {
+      const visible = l.sales + l.refund + l.promotion_cost + l.delivery_cost + l.affiliate_cost + l.marketplace_fee + l.misc + l.pajak;
+      const unsplit = l.net_income - visible; // this line's own share of the unitemised fee(s)
+      if (Math.abs(unsplit) < 0.5) continue;
+      let given = 0;
+      open.forEach((b, i) => {
+        const part = i === open.length - 1 ? unsplit - given : Math.round(unsplit * (remainder[b] / remainderTotal));
+        l[SKU_FIELD[b]] += part;
+        given += part;
+      });
+    }
+  }
 }

@@ -190,9 +190,15 @@ const ID_DICT: Record<string, string> = {
   "Order No.": "No. Pesanan", "Buyer": "Pembeli", "Affiliate": "Afiliasi",
   "No transactions": "Tidak ada transaksi",
   "Nett Profit ÷ Sales × 100%": "Laba Bersih ÷ Penjualan × 100%",
-  "Modal and Ads Cost are real per-product numbers. Rows marked Real take Promotional, Refund, Delivery, Affiliate, Market Place Fee and Pajak straight from Shopee's per-product income report. Rows marked Estimate come from older uploads without per-product detail: the store total is spread across products by their share of Sales (exact in total, estimated per product), and Pajak is 0 because older reports have none.":
-    "Modal dan Biaya Iklan adalah angka asli per produk. Baris berlabel Asli mengambil Biaya Promosi, Refund, Ongkir, Affiliate, Market Place Fee, dan Pajak langsung dari laporan penghasilan Shopee per produk. Baris berlabel Estimasi berasal dari upload lama tanpa rincian per produk: total toko dibagi ke produk sesuai porsi Penjualannya (tepat secara total, estimasi per produk), dan Pajak 0 karena laporan lama tidak memilikinya.",
-  "Pajak": "Pajak", "Costing": "Sumber Biaya", "Real": "Asli", "Mixed": "Campuran", "Estimate": "Estimasi",
+  "Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Modal, Ads and units are not in this report.": "Langsung dari upload laporan penghasilan Shopee (Penghasilan), satu baris per ID Produk: Penjualan adalah Harga Produk dan setiap biaya adalah angka Shopee untuk produk itu. Nett Income adalah dana yang dilepas Shopee untuknya. Modal, Iklan, dan jumlah unit tidak ada di laporan ini.",
+  "Product detail covers": "Rincian produk mencakup",
+  "older uploads have no per-product lines; upload the newer Penghasilan report for those months.": "upload lama tidak punya baris per produk; upload laporan Penghasilan yang lebih baru untuk bulan tersebut.",
+  "No per-product data for this period. Upload the newer Shopee Penghasilan income report to see products here.": "Belum ada data per produk untuk periode ini. Upload laporan penghasilan Shopee (Penghasilan) yang lebih baru untuk melihat produk di sini.",
+  "Product Code / Product Name": "Kode Produk / Nama Produk",
+  "Nett Income": "Penghasilan Bersih",
+  "Nett Income ÷ Sales × 100%": "Penghasilan Bersih ÷ Penjualan × 100%",
+  "Other": "Lainnya",
+  "Pajak": "Pajak",
   "orders": "pesanan",
   "Finance Dashboard": "Dashboard Keuangan",
 
