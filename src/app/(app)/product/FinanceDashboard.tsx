@@ -65,7 +65,9 @@ type FinanceProductRow = {
   units: number | null; units_orders: number; sales_with_units: number;
 };
 type FinanceProductView = FinanceProductRow & { units_per_order: number | null };
-type FinanceProducts = { rows: FinanceProductRow[]; orders_total: number; orders_with_detail: number };
+// finance lines with no Order Completed match, grouped by the month the order was created (YYMM from the order number)
+type MissingUnits = { ym: string; orders: number; sales: number };
+type FinanceProducts = { rows: FinanceProductRow[]; missing?: MissingUnits[]; orders_total: number; orders_with_detail: number };
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
 };
@@ -321,6 +323,14 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
   const salesTotal = (rows || []).reduce((a, r) => a + r.sales, 0);
   const salesWithUnits = (rows || []).reduce((a, r) => a + r.sales_with_units, 0);
   const unitsCoverage = salesTotal > 0 ? salesWithUnits / salesTotal : 1;
+  // "2601" -> "Januari 2026": which month's Order Completed upload would fill these units in
+  const missingMonths = (data?.missing || [])
+    .map((m) => {
+      const mi = /^\d{4}$/.test(m.ym) ? Number(m.ym.slice(2)) - 1 : -1;
+      const label = mi >= 0 && mi < 12 ? `${MONTH_ORDER[mi + 1]} 20${m.ym.slice(0, 2)}` /* MONTH_ORDER[0] is "Baseline" */ : t("other");
+      return `${label} (${m.orders.toLocaleString("id-ID")} ${t("orders")})`;
+    })
+    .join(", ");
 
   const filtered = useMemo(() => {
     const all = withUnitsPerOrder;
@@ -345,7 +355,8 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
       </div>
       {salesTotal > 0 && unitsCoverage < 0.995 && (
         <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
-          {t("Units known for")} {(unitsCoverage * 100).toFixed(1)}% {t("of Sales — orders whose Order Completed file is not uploaded (e.g. orders created in an earlier month) show no units.")}
+          {t("Units known for")} {(unitsCoverage * 100).toFixed(1)}% {t("of Sales.")}
+          {missingMonths && <> {t("Missing for orders created in")}: {missingMonths}. {t("Upload the Order Completed file for those months — units fill in automatically, matched by order number.")}</>}
         </div>
       )}
       {total > 0 && withDetail < total && (

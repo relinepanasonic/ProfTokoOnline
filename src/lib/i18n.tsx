@@ -193,7 +193,10 @@ const ID_DICT: Record<string, string> = {
   "Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Units come from your Order Completed upload (matched on order number + product name, net of returns). Modal and Ads are in neither report.":
     "Langsung dari upload laporan penghasilan Shopee (Penghasilan), satu baris per ID Produk: Penjualan adalah Harga Produk dan setiap biaya adalah angka Shopee untuk produk itu. Nett Income adalah dana yang dilepas Shopee untuknya. Unit berasal dari upload Order Completed (dicocokkan lewat nomor pesanan + nama produk, sudah dikurangi retur). Modal dan Iklan tidak ada di kedua laporan.",
   "Units known for": "Unit diketahui untuk",
-  "of Sales — orders whose Order Completed file is not uploaded (e.g. orders created in an earlier month) show no units.": "dari Penjualan — pesanan yang file Order Completed-nya belum diupload (mis. dibuat di bulan sebelumnya) tidak punya unit.",
+  "of Sales.": "dari Penjualan.",
+  "Missing for orders created in": "Belum ada untuk pesanan yang dibuat di",
+  "Upload the Order Completed file for those months — units fill in automatically, matched by order number.": "Upload file Order Completed untuk bulan tersebut — unit terisi otomatis, dicocokkan lewat nomor pesanan.",
+  "other": "lainnya",
   "of this product's Sales": "dari Penjualan produk ini",
   "Units Sold": "Unit Terjual",
   "Units / Order": "Unit / Pesanan",
