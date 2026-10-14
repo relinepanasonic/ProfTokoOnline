@@ -190,8 +190,9 @@ const ID_DICT: Record<string, string> = {
   "Order No.": "No. Pesanan", "Buyer": "Pembeli", "Affiliate": "Afiliasi",
   "No transactions": "Tidak ada transaksi",
   "Nett Profit ÷ Sales × 100%": "Laba Bersih ÷ Penjualan × 100%",
-  "Modal and Ads Cost are real per-product numbers. Promotional, Refund, Delivery, Affiliate and Market Place Fee are not in the CSV per product, so each is the store total spread across products by their share of Sales (estimates per product, exact in total).":
-    "Modal dan Biaya Iklan adalah angka asli per produk. Biaya Promosi, Refund, Ongkir, Affiliate dan Market Place Fee tidak ada di CSV per produk, jadi masing-masing adalah total toko yang dibagi ke produk sesuai porsi Penjualannya (estimasi per produk, tepat secara total).",
+  "Modal and Ads Cost are real per-product numbers. Rows marked Real take Promotional, Refund, Delivery, Affiliate, Market Place Fee and Pajak straight from Shopee's per-product income report. Rows marked Estimate come from older uploads without per-product detail: the store total is spread across products by their share of Sales (exact in total, estimated per product), and Pajak is 0 because older reports have none.":
+    "Modal dan Biaya Iklan adalah angka asli per produk. Baris berlabel Asli mengambil Biaya Promosi, Refund, Ongkir, Affiliate, Market Place Fee, dan Pajak langsung dari laporan penghasilan Shopee per produk. Baris berlabel Estimasi berasal dari upload lama tanpa rincian per produk: total toko dibagi ke produk sesuai porsi Penjualannya (tepat secara total, estimasi per produk), dan Pajak 0 karena laporan lama tidak memilikinya.",
+  "Pajak": "Pajak", "Costing": "Sumber Biaya", "Real": "Asli", "Mixed": "Campuran", "Estimate": "Estimasi",
   "orders": "pesanan",
   "Finance Dashboard": "Dashboard Keuangan",
 

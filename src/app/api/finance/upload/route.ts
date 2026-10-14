@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { parseFinanceMatrix, weekOfMonth } from "@/lib/parseFinance";
+import { parseFinanceMatrix, weekOfMonth, type FinanceRow } from "@/lib/parseFinance";
+import { isIncomeSkuMatrix, parseIncomeSkuMatrix, type SkuRow } from "@/lib/parseIncomeSku";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,6 +14,9 @@ interface FinanceManual {
 }
 
 // Upload a Shopee "Laporan Penghasilan" (Income) export -> finance_rows.
+// Two layouts are accepted: the older one-row-per-order "Income" sheet, and the
+// newer "Penghasilan" sheet whose per-product lines also go to finance_sku_rows
+// (real per-product costs, see migration 0129 and lib/parseIncomeSku.ts).
 // Finance Detail is a Sultan/King feature: superadmin/client_admin/advertiser
 // may upload for any client; an Owner (branch_manager) may upload only while
 // on an active Sultan or King plan, and only into their own client/store scope.
@@ -61,12 +65,30 @@ export async function POST(req: NextRequest) {
 
   const buf = Buffer.from(await file.arrayBuffer());
   const wb = XLSX.read(buf, { type: "buffer" });
-  const sheetName = wb.SheetNames.find((n) => n.toLowerCase() === "income") || wb.SheetNames[0];
+  const sheetName =
+    wb.SheetNames.find((n) => n.toLowerCase() === "income") ||
+    wb.SheetNames.find((n) => n.toLowerCase() === "penghasilan") ||
+    wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false });
-  if (!matrix.length) return NextResponse.json({ error: "EMPTY_FILE" }, { status: 400 });
 
-  const parsed = parseFinanceMatrix(matrix);
+  // Newer layout? Detect on the untouched cell values (numbers stay numbers,
+  // so a "-3,510" style number format can never be mis-read).
+  const rawMatrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "" });
+  if (!rawMatrix.length) return NextResponse.json({ error: "EMPTY_FILE" }, { status: 400 });
+
+  let parsed: { username: string | null; periodeStart: string | null; periodeEnd: string | null; rows: FinanceRow[] };
+  let skuRows: SkuRow[] = [];
+  let unreconciled = 0;
+  const newLayout = isIncomeSkuMatrix(rawMatrix);
+  if (newLayout) {
+    const summaryWs = wb.Sheets[wb.SheetNames.find((n) => n.toLowerCase() === "summary") || ""];
+    const summary = summaryWs ? XLSX.utils.sheet_to_json<unknown[]>(summaryWs, { header: 1, defval: "" }) : undefined;
+    const r = parseIncomeSkuMatrix(rawMatrix, summary);
+    parsed = r; skuRows = r.skuRows; unreconciled = r.unreconciled;
+  } else {
+    const matrix = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: false });
+    parsed = parseFinanceMatrix(matrix);
+  }
   if (!parsed.rows.length) {
     return NextResponse.json({ error: "No order rows found in the Income sheet." }, { status: 400 });
   }
@@ -76,6 +98,26 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
+
+  // New layout only: its per-product lines are summed, so loading the same
+  // orders twice would double every cost. Refuse and say how to fix it.
+  if (newLayout) {
+    const orderNos = parsed.rows.map((r) => r.order_no).filter(Boolean) as string[];
+    let dup = 0;
+    for (let i = 0; i < orderNos.length; i += 300) {
+      let q = admin.from("finance_rows").select("id", { count: "exact", head: true })
+        .eq("client_id", clientId).in("order_no", orderNos.slice(i, i + 300));
+      if (manual.store_name) q = q.eq("store_name", manual.store_name);
+      const { count } = await q;
+      dup += count || 0;
+    }
+    if (dup > 0) {
+      return NextResponse.json({
+        error: `${dup} of these ${orderNos.length} orders are already uploaded for this store. Delete the earlier upload first (Upload history), then upload this file again.`,
+        code: "DUPLICATE_ORDERS", duplicate_orders: dup,
+      }, { status: 409 });
+    }
+  }
 
   const { data: upload, error: upErr } = await admin
     .from("uploads")
@@ -120,6 +162,9 @@ export async function POST(req: NextRequest) {
     jasa_kirim: r.jasa_kirim,
     nama_kurir: r.nama_kurir,
     raw: r.raw,
+    // only the new layout carries Pajak; omitted otherwise so old-format
+    // uploads keep working even before migration 0129 has been applied
+    ...(r.pajak !== undefined ? { pajak: r.pajak } : {}),
   }));
 
   const CHUNK = 500;
@@ -134,7 +179,35 @@ export async function POST(req: NextRequest) {
     inserted += slice.length;
   }
 
+  // Per-product lines (new layout) -> finance_sku_rows, same dimensions as the orders.
+  let skuInserted = 0;
+  if (skuRows.length) {
+    const skuRecords = skuRows.map((s) => ({
+      client_id: clientId,
+      upload_id: upload.id,
+      year: manual.year ?? null,
+      month: manual.bulan ?? null,
+      week: manual.year && manual.bulan ? weekOfMonth(s.release_date, manual.year, manual.bulan) : null,
+      store_name: manual.store_name ?? null,
+      pic_client: manual.pic_client ?? null,
+      brand: manual.brand ?? null,
+      ...s,
+    }));
+    for (let i = 0; i < skuRecords.length; i += CHUNK) {
+      const slice = skuRecords.slice(i, i + CHUNK);
+      const { error } = await admin.from("finance_sku_rows").insert(slice);
+      if (error) {
+        await admin.from("uploads").delete().eq("id", upload.id); // cascades finance_rows + finance_sku_rows
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      skuInserted += slice.length;
+    }
+  }
+
   await admin.from("uploads").update({ row_count: inserted }).eq("id", upload.id);
 
-  return NextResponse.json({ ok: true, upload_id: upload.id, rows: inserted });
+  return NextResponse.json({
+    ok: true, upload_id: upload.id, rows: inserted,
+    ...(newLayout ? { layout: "penghasilan", product_lines: skuInserted, unreconciled_orders: unreconciled } : {}),
+  });
 }

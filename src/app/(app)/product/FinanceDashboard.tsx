@@ -54,7 +54,8 @@ type ProductRow = {
   kode_produk: string; nama_produk: string | null; kode_variasi: string; nama_variasi: string | null;
   units_sold: number; total_sales: number; total_modal: number;
   promotion_cost: number; refund: number; delivery_cost: number; affiliate_cost: number;
-  marketplace_fee: number; ads_cost: number; nett_profit: number;
+  marketplace_fee: number; pajak: number; ads_cost: number; nett_profit: number;
+  costing: "real" | "mixed" | "estimated";
 };
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
@@ -313,7 +314,7 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
     <div className="panel">
       <h3>Detail Product Profit</h3>
       <div className="hint">
-        {t("Modal and Ads Cost are real per-product numbers. Promotional, Refund, Delivery, Affiliate and Market Place Fee are not in the CSV per product, so each is the store total spread across products by their share of Sales (estimates per product, exact in total).")}
+        {t("Modal and Ads Cost are real per-product numbers. Rows marked Real take Promotional, Refund, Delivery, Affiliate, Market Place Fee and Pajak straight from Shopee's per-product income report. Rows marked Estimate come from older uploads without per-product detail: the store total is spread across products by their share of Sales (exact in total, estimated per product), and Pajak is 0 because older reports have none.")}
       </div>
 
       <div className="filterbar" style={{ marginTop: 4, marginBottom: 10 }}>
@@ -338,9 +339,11 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
             <SortableHeader label={t("Delivery Cost")} sortKey="delivery_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Affiliate Cost")} sortKey="affiliate_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Market Place Fee")} sortKey="marketplace_fee" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Pajak")} sortKey="pajak" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Ads Cost")} sortKey="ads_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Nett Profit")} sortKey="nett_profit" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <th className="num" style={{ whiteSpace: "nowrap" }} title={t("Nett Profit ÷ Sales × 100%")}>%</th>
+            <th style={{ whiteSpace: "nowrap" }}>{t("Costing")}</th>
           </tr></thead>
           <tbody>
             {sortedData.map((r) => (
@@ -357,13 +360,18 @@ function ProductProfitTable({ rows, t }: { rows: ProductRow[]; t: (k: string) =>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.delivery_cost)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.affiliate_cost)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.marketplace_fee)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.pajak ?? 0)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.ads_cost)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.nett_profit)}</td>
                 <td className="num" style={{ whiteSpace: "nowrap", color: r.nett_profit >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{r.total_sales > 0 ? `${(r.nett_profit / r.total_sales * 100).toFixed(1)}%` : "—"}</td>
+                <td style={{ whiteSpace: "nowrap", fontSize: 11.5, fontWeight: 700, color: r.costing === "estimated" ? "#fbbf24" : r.costing === "mixed" ? "#93c5fd" : "#86efac" }}
+                  title={r.costing === "real" ? t("Real") : r.costing === "mixed" ? t("Mixed") : t("Estimate")}>
+                  {!r.costing ? "—" : r.costing === "estimated" ? t("Estimate") : r.costing === "mixed" ? t("Mixed") : t("Real")}
+                </td>
               </tr>
             ))}
             {sortedData.length === 0 && (
-              <tr><td colSpan={15} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
+              <tr><td colSpan={17} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
             )}
           </tbody>
         </table>

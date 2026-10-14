@@ -44,7 +44,9 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
     try {
       const res = await fetch("/api/finance/upload", { method: "POST", body: fd });
       const j = await safeJson(res);
-      setLog(res.ok ? `✓ ${j.rows} transactions imported` : `✗ ${j.error}`);
+      setLog(res.ok
+        ? `✓ ${j.rows} transactions imported${j.product_lines ? ` · ${j.product_lines} product lines (real per-product costs)` : ""}${j.unreconciled_orders ? ` · ⚠ ${j.unreconciled_orders} orders don't add up to Total Penghasilan` : ""}`
+        : `✗ ${j.error}`);
       if (res.ok) { setFile(null); onUploaded(); }
     } catch (e) { setLog("✗ " + String(e)); }
     setBusy(false);
@@ -63,7 +65,8 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
         </a>
       </div>
       <div className="hint" style={{ marginBottom: 16 }}>
-        Upload the Shopee &quot;Laporan Penghasilan&quot; (Income) export — the &quot;Income&quot; sheet is read automatically.
+        Upload the Shopee &quot;Laporan Penghasilan&quot; (Income) export — the &quot;Income&quot; or &quot;Penghasilan&quot; sheet is read automatically.
+        The newer &quot;Penghasilan&quot; layout also gives real per-product costs (and Pajak) for Detail Product Profit.
         Week is auto-detected per transaction from its release date (Week 1 = days 1–7 of the month you pick, Week 5 may spill a few days into the next month).
       </div>
 

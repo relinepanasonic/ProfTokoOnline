@@ -243,7 +243,9 @@ export default function UploadHere() {
     try {
       const res = await fetch("/api/finance/upload", { method: "POST", body: fd });
       const j = await safeJson(res);
-      setFinanceLog(res.ok ? `✓ ${j.rows} rows` : `✗ ${j.error}`);
+      setFinanceLog(res.ok
+        ? `✓ ${j.rows} rows${j.product_lines ? ` · ${j.product_lines} product lines (real per-product costs)` : ""}${j.unreconciled_orders ? ` · ⚠ ${j.unreconciled_orders} orders don't add up to Total Penghasilan` : ""}`
+        : `✗ ${j.error}`);
       if (res.ok) setFinanceFile(null);
     } catch (e) { setFinanceLog("✗ " + String(e)); }
     setFinanceBusy(false);
