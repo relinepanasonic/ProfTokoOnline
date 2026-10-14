@@ -21,6 +21,7 @@ type Fee = {
   min_gratis_ongkir_khusus_pct: number; max_gratis_ongkir_khusus_rp: number;
   min_promo_xtra_pct: number; max_promo_xtra_rp: number;
   spaylater_xtra_3mo_pct: number; spaylater_xtra_6mo_pct: number;
+  pajak_pct: number;
   updated_by: string | null; updated_month: string | null;
 };
 type NumericField = Exclude<keyof Fee,
@@ -42,6 +43,7 @@ const NUMERIC_FIELDS: { key: NumericField; label: string; unit: "%" | "Rp" }[] =
   { key: "max_promo_xtra_rp", label: "Max Promo Xtra | XBP", unit: "Rp" },
   { key: "spaylater_xtra_3mo_pct", label: "Spay Later Xtra 3 mo", unit: "%" },
   { key: "spaylater_xtra_6mo_pct", label: "Spay Later Xtra 6 mo", unit: "%" },
+  { key: "pajak_pct", label: "Pajak", unit: "%" },
 ];
 
 function formatRp(n: number): string {
@@ -63,7 +65,8 @@ async function fetchAllFees(supabase: ReturnType<typeof createClient>, clientId:
     const { data, error } = await supabase.from("market_fees").select("*").eq("client_id", clientId)
       .order("category").order("sub_category").range(from, from + PAGE - 1);
     if (error || !data || !data.length) break;
-    all = all.concat(data as Fee[]);
+    // pajak_pct is absent until migration 0128 has run — read it as 0
+    all = all.concat((data as Fee[]).map((d) => ({ ...d, pajak_pct: d.pajak_pct ?? 0 })));
     if (data.length < PAGE) break;
     from += PAGE;
   }
@@ -183,7 +186,7 @@ export default function MarketFeePage() {
       "Min Gratis Ongkir Uk Biasa", "Max Gratis Ongkir Uk Biasa",
       "Min Gratis Ongkir Uk Khusus", "Max Gratis Ongkir Uk Khusus",
       "Min Promo Xtra", "Max Promo Xtra",
-      "Spay Later Xtra 3 mo", "Spay Later Xtra 6 mo",
+      "Spay Later Xtra 3 mo", "Spay Later Xtra 6 mo", "Pajak",
     ];
     const cell = (v: string | number | null) => {
       const s = String(v ?? "");
@@ -197,7 +200,7 @@ export default function MarketFeePage() {
         `${r.min_gratis_ongkir_biasa_pct}%`, r.max_gratis_ongkir_biasa_rp,
         `${r.min_gratis_ongkir_khusus_pct}%`, r.max_gratis_ongkir_khusus_rp,
         `${r.min_promo_xtra_pct}%`, r.max_promo_xtra_rp,
-        `${r.spaylater_xtra_3mo_pct}%`, `${r.spaylater_xtra_6mo_pct}%`,
+        `${r.spaylater_xtra_3mo_pct}%`, `${r.spaylater_xtra_6mo_pct}%`, `${r.pajak_pct}%`,
       ].map(cell).join(","));
     }
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
@@ -379,7 +382,7 @@ function AddFeeModal({ onAdd, onClose }: {
     min_gratis_ongkir_biasa_pct: 0, max_gratis_ongkir_biasa_rp: 0,
     min_gratis_ongkir_khusus_pct: 0, max_gratis_ongkir_khusus_rp: 0,
     min_promo_xtra_pct: 0, max_promo_xtra_rp: 0,
-    spaylater_xtra_3mo_pct: 0, spaylater_xtra_6mo_pct: 0,
+    spaylater_xtra_3mo_pct: 0, spaylater_xtra_6mo_pct: 0, pajak_pct: 0,
   });
   return (
     <div style={overlay} onClick={onClose}>

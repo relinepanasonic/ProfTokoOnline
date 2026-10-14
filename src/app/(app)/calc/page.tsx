@@ -13,6 +13,7 @@ type Fee = {
   platform_fee_pct: number; biaya_proses_pesanan_rp: number; biaya_layanan_mall_pct: number;
   min_gratis_ongkir_biasa_pct: number; max_gratis_ongkir_biasa_rp: number;
   min_gratis_ongkir_khusus_pct: number; max_gratis_ongkir_khusus_rp: number;
+  pajak_pct?: number; // 0128 — absent until that migration has run
 };
 type Item = {
   id: string; item_name: string;
@@ -36,12 +37,13 @@ function feeKey(x: { category: string | null; sub_category: string | null; jenis
 
 // Total Biaya = Platform Fee % + Biaya Proses Pesanan (flat) + Biaya
 // Layanan Mall % (0 for non-mall rows already, no extra branching needed)
-// + Gratis Ongkir subsidy, capped: MIN(ongkir_pct% x Harga Jual, ongkir_max_rp).
+// + Gratis Ongkir subsidy, capped: MIN(ongkir_pct% x Harga Jual, ongkir_max_rp)
+// + Pajak % x Harga Jual.
 // Ongkir tier (biasa vs khusus) is picked from the product's own
 // weight/volume, not from the matched fee row.
-function computeBiaya(item: Item, fee: Fee | null): { totalBiaya: number; profit: number; ongkirTier: "biasa" | "khusus" | null } {
+function computeBiaya(item: Item, fee: Fee | null): { totalBiaya: number; pajak: number; profit: number; ongkirTier: "biasa" | "khusus" | null } {
   const hj = item.harga_jual_rp || 0;
-  if (!fee) return { totalBiaya: 0, profit: hj - (item.modal_produk_rp || 0), ongkirTier: null };
+  if (!fee) return { totalBiaya: 0, pajak: 0, profit: hj - (item.modal_produk_rp || 0), ongkirTier: null };
 
   const isKhusus = (item.weight_kg || 0) > KHUSUS_WEIGHT_KG || (item.volume_cm3 || 0) > KHUSUS_VOLUME_CM3;
   const ongkirPct = isKhusus ? fee.min_gratis_ongkir_khusus_pct : fee.min_gratis_ongkir_biasa_pct;
@@ -50,8 +52,9 @@ function computeBiaya(item: Item, fee: Fee | null): { totalBiaya: number; profit
 
   const platformFee = (fee.platform_fee_pct / 100) * hj;
   const mallFee = (fee.biaya_layanan_mall_pct / 100) * hj;
-  const totalBiaya = platformFee + fee.biaya_proses_pesanan_rp + mallFee + Math.max(ongkirCost, 0);
-  return { totalBiaya, profit: hj - (item.modal_produk_rp || 0) - totalBiaya, ongkirTier: isKhusus ? "khusus" : "biasa" };
+  const pajak = ((fee.pajak_pct || 0) / 100) * hj;
+  const totalBiaya = platformFee + fee.biaya_proses_pesanan_rp + mallFee + Math.max(ongkirCost, 0) + pajak;
+  return { totalBiaya, pajak, profit: hj - (item.modal_produk_rp || 0) - totalBiaya, ongkirTier: isKhusus ? "khusus" : "biasa" };
 }
 
 function formatRp(n: number): string { return Math.round(n || 0).toLocaleString("id-ID"); }
@@ -107,8 +110,9 @@ export default function Page() {
     if (!cid) { setItems([]); setLoading(false); return; }
     setLoading(true);
     const [feeRows, itemRows, linkRows] = await Promise.all([
-      fetchAll<Fee>(supabase, "market_fees", feeCidRef.current || cid,
-        "category,sub_category,jenis_product,platform,jenis_toko,platform_fee_pct,biaya_proses_pesanan_rp,biaya_layanan_mall_pct,min_gratis_ongkir_biasa_pct,max_gratis_ongkir_biasa_rp,min_gratis_ongkir_khusus_pct,max_gratis_ongkir_khusus_rp"),
+      // "*" (not a column list) so the page keeps working before migration
+      // 0128 adds pajak_pct — a missing column just reads as undefined (0).
+      fetchAll<Fee>(supabase, "market_fees", feeCidRef.current || cid),
       fetchAll<Item>(supabase, "price_calc_items", cid),
       supabase.from("store_links").select("owner,brand,store_name").eq("client_id", cid).order("owner").then((r) => (r.data as StoreLink[]) || []),
     ]);
@@ -283,6 +287,7 @@ export default function Page() {
                 <th className="num" style={stickyTh}>Modal Produk</th>
                 <th className="num" style={stickyTh}>Harga Jual (Rp)</th>
                 <th className="num" style={stickyTh}>Harga Jual (%)</th>
+                <th className="num" style={stickyTh}>Pajak</th>
                 <th className="num" style={stickyTh}>Total Biaya</th>
                 <th className="num" style={stickyTh}>Profit</th>
                 <th style={stickyTh}>Category (Fee)</th>
@@ -296,12 +301,12 @@ export default function Page() {
                   onPatch={(patch) => patchItem(item.id, patch)} onDelete={() => delItem(item.id)} />
               ))}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={18} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                <tr><td colSpan={19} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
                   {items.length ? "No products match this search/filter" : "No products yet"}
                 </td></tr>
               )}
               {loading && (
-                <tr><td colSpan={18} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>Loading…</td></tr>
+                <tr><td colSpan={19} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>Loading…</td></tr>
               )}
             </tbody>
           </table>
@@ -367,7 +372,7 @@ function ItemRow({ no, item, fees, feeMap, links, canEdit, isOwnerLogin, scopeOw
   // whether the blur-triggered save to the DB has landed yet.
   const liveItem: Item = { ...item, modal_produk_rp: parseRp(modal), harga_jual_rp: parseRp(harga), weight_kg: Number(berat) || 0, volume_cm3: Number(volume) || 0 };
   const fee = feeMap.get(feeKey(item)) || null;
-  const { totalBiaya, profit } = computeBiaya(liveItem, fee);
+  const { totalBiaya, pajak, profit } = computeBiaya(liveItem, fee);
   const marginPct = liveItem.harga_jual_rp > 0 ? (profit / liveItem.harga_jual_rp) * 100 : 0;
 
   function selectField(field: "category" | "sub_category" | "jenis_product" | "platform" | "jenis_toko") {
@@ -455,6 +460,7 @@ function ItemRow({ no, item, fees, feeMap, links, canEdit, isOwnerLogin, scopeOw
         ) : "Rp " + formatRp(item.harga_jual_rp)}
       </td>
       <td className="num" style={{ color: "var(--muted)" }}>{marginPct.toFixed(1)}%</td>
+      <td className="num">Rp {formatRp(pajak)}</td>
       <td className="num">Rp {formatRp(totalBiaya)}</td>
       <td className="num" style={{ fontWeight: 700, color: profit >= 0 ? "var(--gold)" : "#f87171" }}>Rp {formatRp(profit)}</td>
       <td style={{ fontSize: 11.5, color: fee ? "var(--muted)" : "#f87171", whiteSpace: "nowrap" }}>

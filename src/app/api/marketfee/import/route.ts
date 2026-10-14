@@ -32,6 +32,10 @@ const HEADER_MAP: { header: string; field: string; kind: "text" | "pct" | "rp" }
   { header: "Max Promo Xtra", field: "max_promo_xtra_rp", kind: "rp" }, // Rp cap, not a percent
   { header: "Spay Later Xtra 3 mo", field: "spaylater_xtra_3mo_pct", kind: "pct" },
   { header: "Spay Later Xtra 6 mo", field: "spaylater_xtra_6mo_pct", kind: "pct" },
+  // Optional: older files have no Pajak column. When the header is absent
+  // the field is left out entirely so re-uploading such a file never wipes
+  // Pajak values that were already saved (needs migration 0128 once present).
+  { header: "Pajak", field: "pajak_pct", kind: "pct" },
 ];
 
 // CSV cells that LOOK like a percent/currency get auto-parsed by SheetJS
@@ -106,6 +110,7 @@ export async function POST(req: NextRequest) {
       const row: Record<string, unknown> = { client_id: clientId, updated_by: editedBy, updated_month: editedMonth };
       for (const h of HEADER_MAP) {
         const idx = colIdx(h.header);
+        if (idx === -1 && h.field === "pajak_pct") continue; // optional column, see HEADER_MAP
         const raw = idx === -1 ? "" : r[idx];
         if (h.kind === "text") row[h.field] = String(raw ?? "").trim();
         else if (h.kind === "pct") row[h.field] = parsePct(raw);
@@ -117,7 +122,9 @@ export async function POST(req: NextRequest) {
 
   if (!mapped.length) return NextResponse.json({ error: "No data rows found under the header" }, { status: 400 });
 
-  const numericFields = HEADER_MAP.filter((h) => h.kind !== "text").map((h) => h.field);
+  const numericFields = HEADER_MAP
+    .filter((h) => h.kind !== "text" && !(h.field === "pajak_pct" && colIdx("Pajak") === -1))
+    .map((h) => h.field);
   const CHUNK = 500;
   let imported = 0;
   for (let i = 0; i < mapped.length; i += CHUNK) {
