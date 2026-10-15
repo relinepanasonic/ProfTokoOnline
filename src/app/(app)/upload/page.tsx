@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
-import StoreSalesTable from "../StoreSalesTable";
-import BaselineDealerTable from "../BaselineDealerTable";
 import UploadHere from "./UploadHere";
 import UploadLogTable from "./UploadLogTable";
 import FinanceUpload from "../product/FinanceUpload";
@@ -405,12 +403,6 @@ export default function UploadPage() {
           </div>
         </div>
       )}
-
-      <div style={{ marginTop: 18 }}>
-        <StoreSalesTable />
-      </div>
-
-      <BaselineDealerTable />
 
       <UploadLogTable clientId={clientId} refreshKey={logRefreshKey} />
       </>}
