@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { safeJson } from "@/lib/safeJson";
+import ImageGuideModal from "@/components/ImageGuideModal";
+import { GUIDE } from "@/lib/uploadGuides";
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -52,10 +54,9 @@ export default function StoreUpload({ clientId, onUploaded }: { clientId: string
 
   return (
     <div className="panel">
-      <h3>Upload Demographic</h3>
-      <div className="hint" style={{ marginBottom: 16 }}>
-        Upload the Shopee &quot;Order.completed&quot; (order-level) export — the sheet is read automatically.
-        Week is auto-detected per order from its completion date (Week 1 = days 1–7 of the month you pick).
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
+        <h3 style={{ margin: 0 }}>Upload Demographic</h3>
+        <ImageGuideModal image={GUIDE.order} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 14 }}>

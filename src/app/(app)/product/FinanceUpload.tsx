@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { safeJson } from "@/lib/safeJson";
+import ImageGuideModal from "@/components/ImageGuideModal";
+import { GUIDE } from "@/lib/uploadGuides";
 
 const MONTHS = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
@@ -56,18 +58,7 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
     <div className="panel">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
         <h3 style={{ margin: 0 }}>Upload Keuangan</h3>
-        <a
-          href="/Manual%20Book%20Ambil%20Report%20Keuangan%20Shopee.pdf"
-          download="Manual Book Ambil Report Keuangan Shopee.pdf"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--navy-deep)", background: "linear-gradient(135deg,var(--gold),var(--gold-soft))", borderRadius: 999, padding: "7px 16px", textDecoration: "none" }}
-        >
-          ⬇ Download Cara Ambil Report Keuangan dari Shopee
-        </a>
-      </div>
-      <div className="hint" style={{ marginBottom: 16 }}>
-        Upload the Shopee &quot;Laporan Penghasilan&quot; (Income) export — the &quot;Income&quot; or &quot;Penghasilan&quot; sheet is read automatically.
-        The newer &quot;Penghasilan&quot; layout also gives real per-product costs (and Pajak) for Detail Product Profit.
-        Week is auto-detected per transaction from its release date (Week 1 = days 1–7 of the month you pick, Week 5 may spill a few days into the next month).
+        <ImageGuideModal image={GUIDE.finance} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 14 }}>
