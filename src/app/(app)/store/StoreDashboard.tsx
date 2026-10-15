@@ -11,6 +11,7 @@ import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
+import MiniSparkline from "@/components/MiniSparkline";
 import type { CityDetailRow } from "./IndonesiaMap";
 
 // d3-geo + topojson-client only matter to this one map — loaded client-side
@@ -45,6 +46,8 @@ type Summary = {
   shipping_option: { option: string; cnt: number }[];
   daily: { tx_date: string; orders: number; gmv: number }[];
 };
+type TopBuyers = { rows: { username: string; orders: number; gmv: number; units: number }[]; total_orders: number; total_gmv: number };
+type MonthlyPoint = { year: number; month: string; orders: number };
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Filters = { years: number[]; months: string[] };
 const SLA_ORDER = ["0-3 hari", "4-7 hari", "7-14 hari", ">14 hari"];
@@ -57,6 +60,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   const [links, setLinks] = useState<Link[]>([]);
   const [sel, setSel] = useState({ year: "", month: "", week: "", owner: "", store: "" });
   const [d, setD] = useState<Summary | null>(null);
+  const [tb, setTb] = useState<TopBuyers | null>(null);   // top usernames + exact totals (migration 0136)
+  const [mo, setMo] = useState<MonthlyPoint[]>([]);        // orders per month, for the Total Transaction chart
   const [loading, setLoading] = useState(false);
   const [loadErr, setLoadErr] = useState("");
   const [drill, setDrill] = useState<string | null>(null);
@@ -75,20 +80,28 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   useEffect(() => { checkData(); }, [checkData, refreshKey]);
 
   const load = useCallback(async () => {
-    if (!clientId || !hasAnyData || !sel.store) { setD(null); return; }
+    if (!clientId || !hasAnyData || !sel.store) { setD(null); setTb(null); setMo([]); return; }
     setLoading(true);
     setLoadErr("");
     try {
-      const { data, error } = await supabase.rpc("store_perf_summary", {
+      const params = {
         p_client_id: clientId,
         p_year: sel.year ? Number(sel.year) : null,
         p_month: sel.month || null,
         p_week: sel.week || null,
         p_owner: sel.owner || null,
         p_store: sel.store,
-      });
+      };
+      const [{ data, error }, { data: tbData }, { data: moData }] = await Promise.all([
+        supabase.rpc("store_perf_summary", params),
+        supabase.rpc("store_perf_top_buyers", params),
+        // the chart ignores the Month / Week filter on purpose: it shows every month
+        supabase.rpc("store_perf_monthly", { p_client_id: clientId, p_year: params.p_year, p_owner: params.p_owner, p_store: params.p_store }),
+      ]);
       if (error) throw error;
       setD(data as Summary);
+      setTb((tbData as TopBuyers) || null);
+      setMo((moData as MonthlyPoint[]) || []);
     } catch (e) {
       const err = e as { message?: string; code?: string };
       setLoadErr(err?.message ? `${err.message} (code: ${err.code || "?"})` : String(e));
@@ -113,6 +126,11 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   // initialKey: the daily table's default order is the backend's own
   // date-ascending order, unchanged until the user clicks a header.
   const dailySort = useTableSort<Summary["daily"][number]>(d?.daily ?? []);
+  // orders per month in calendar order (year, then month) for the Total Transaction mini chart
+  const ordersSeries = useMemo(
+    () => [...mo].sort((a, b) => a.year - b.year || MONTH_ORDER.indexOf(a.month) - MONTH_ORDER.indexOf(b.month)).map((x) => x.orders),
+    [mo],
+  );
 
   if (hasAnyData === null) return <Loader center />;
 
@@ -129,6 +147,15 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   }
 
   const k = d?.kpis;
+  // AOV (Average Order Value) = sales / transactions;  UPT (Units Per Transaction) = products / transactions
+  const gmvTotal = tb ? tb.total_gmv : (d?.province_gmv || []).reduce((a, x) => a + x.gmv, 0);
+  const ordersForAvg = tb ? tb.total_orders : (k?.total_transaksi ?? 0);
+  const avgSales = ordersForAvg > 0 ? gmvTotal / ordersForAvg : null;
+  const avgUnits = k && k.total_transaksi > 0 ? k.total_produk / k.total_transaksi : null;
+  const topProvinces = (d?.province_gmv || []).slice(0, 5).map((x) => ({ name: x.province, sub: "", orders: x.transactions, sales: x.gmv }));
+  const topCities = [...(d?.city_detail || [])].sort((a, b) => b.gmv - a.gmv).slice(0, 5)
+    .map((x) => ({ name: x.city, sub: x.province, orders: x.transactions, sales: x.gmv }));
+  const topUsers = (tb?.rows || []).map((x) => ({ name: x.username, sub: "", orders: x.orders, sales: x.gmv }));
   const slaBuckets = SLA_ORDER.map((b) => ({ bucket: b, cnt: d?.sla_buckets.find((x) => x.bucket === b)?.cnt ?? 0 }));
 
   return (
@@ -164,8 +191,13 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       ) : (
       <>
       <div className="kpi-grid kpi-grid-5">
-        <div className="kpi kpi-hero"><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{k ? numFull(k.total_transaksi) : "—"}</div><div className="kpi-sub">{t("Unique orders")}</div></div>
-        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">{t("Total Product Ordered")}</div><div className="val">{k ? numFull(k.total_produk) : "—"}</div><div className="kpi-sub">{t("Ready to ship")}</div></div>
+        <div className="kpi kpi-hero"><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{k ? numFull(k.total_transaksi) : "—"}</div><div className="kpi-sub">{t("Unique orders")}</div><MiniSparkline data={ordersSeries} color={GOLD} /></div>
+        <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">{t("Total Product Ordered")}</div><div className="val">{k ? numFull(k.total_produk) : "—"}</div><div className="kpi-sub">{t("Ready to ship")}</div>
+          <div style={{ display: "grid", gap: 3, marginTop: 8 }}>
+            <SubStat label={t("Avg Product per Transaction")} value={avgUnits == null ? "—" : avgUnits.toLocaleString("id-ID", { maximumFractionDigits: 2 })} title="UPT — Units Per Transaction" />
+            <SubStat label={t("Avg Sales per Transaction")} value={avgSales == null ? "—" : rpFull(avgSales)} title="AOV — Average Order Value" />
+          </div>
+        </div>
         <div className="kpi kpi-roas" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <div className="lbl">SLA</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, marginTop: 6 }}>
@@ -176,6 +208,13 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         </div>
         <div className="kpi kpi-cost"><div className="kpi-icon">✕</div><div className="lbl">{t("Total Cancellations")}</div><div className="val">{k ? numFull(k.total_pembatalan) : "—"}</div><div className="kpi-sub">{t("Orders cancelled")}</div></div>
         <div className="kpi kpi-cost"><div className="kpi-icon">↩️</div><div className="lbl">{t("Total Product Return")}</div><div className="val">{k ? numFull(k.total_return) : "—"}</div><div className="kpi-sub">{t("Units returned")}</div></div>
+      </div>
+
+      {/* Top 5 by sales: province, city / regency, buyer username */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(330px,1fr))", gap: 18, marginBottom: 18 }}>
+        <Top5Table title={t("Top 5 Province by Sales")} nameLabel={t("Province")} rows={topProvinces} t={t} />
+        <Top5Table title={t("Top 5 City / Regency by Sales")} nameLabel={t("City / Regency")} rows={topCities} t={t} />
+        <Top5Table title={t("Top 5 Username by Sales")} nameLabel={t("Username")} rows={topUsers} t={t} />
       </div>
 
       {/* Map + SLA bucket, side by side */}
@@ -231,6 +270,51 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       </>
       )}
     </>
+  );
+}
+
+/** small stat under a KPI number — deliberately smaller than the main value */
+function SubStat({ label, value, title }: { label: string; value: string; title?: string }) {
+  return (
+    <div title={title} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+      <span style={{ fontSize: 10.5, color: "var(--muted)" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: "#e8edf8", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{value}</span>
+    </div>
+  );
+}
+
+type Top5Row = { name: string; sub: string; orders: number; sales: number };
+function Top5Table({ title, nameLabel, rows, t }: { title: string; nameLabel: string; rows: Top5Row[]; t: (k: string) => string }) {
+  return (
+    <div className="panel" style={{ marginBottom: 0 }}>
+      <h3 style={{ margin: "0 0 10px" }}>{title}</h3>
+      <div className="tbl-wrap">
+        <table className="tbl">
+          <thead><tr>
+            <th style={{ width: 28 }}>#</th>
+            <th>{nameLabel}</th>
+            <th className="num">{t("Orders")}</th>
+            <th className="num">{t("Sales")}</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.name + i}>
+                <td style={{ color: "var(--muted)" }}>{i + 1}</td>
+                <td style={{ fontWeight: 600 }}>
+                  {r.name}
+                  {r.sub && <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 400 }}>{r.sub}</div>}
+                </td>
+                <td className="num">{numFull(r.orders)}</td>
+                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.sales)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 16 }}>{t("No data yet")}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
