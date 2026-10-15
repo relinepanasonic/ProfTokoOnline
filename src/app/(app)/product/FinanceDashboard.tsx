@@ -28,6 +28,17 @@ const rpC = (n: number) => {
   return "Rp " + Math.round(v);
 };
 const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
+// "Rp 518.301  19.2%": the % (of that day's Sales) sits right of the number, one size smaller
+function RpPct({ value, sales }: { value: number; sales: number }) {
+  return (
+    <>
+      {rpFull(value)}
+      <span style={{ display: "inline-block", minWidth: "3.9em", textAlign: "right", marginLeft: 6, fontSize: "calc(1em - 1px)", opacity: 0.75 }}>
+        {sales > 0 ? `${(value / sales * 100).toFixed(1)}%` : "—"}
+      </span>
+    </>
+  );
+}
 const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
 type Kpis = {
@@ -35,6 +46,7 @@ type Kpis = {
   affiliate_cost: number; marketplace_fee: number; misc: number; gross_profit: number; ads_cost: number;
 };
 type DailyRow = { tx_date: string; orders: number; sales: number; promotion_cost: number; marketplace_fee: number; net_income: number; refund: number };
+type DailyView = DailyRow & { pajak: number };
 type Summary = {
   kpis: Kpis;
   monthly: { month: string; sales: number; profit: number }[];
@@ -68,6 +80,15 @@ type FinanceProductView = FinanceProductRow & { units_per_order: number | null }
 // finance lines with no Order Completed match, grouped by the month the order was created (YYMM from the order number)
 type MissingUnits = { ym: string; orders: number; sales: number };
 type FinanceProducts = { rows: FinanceProductRow[]; missing?: MissingUnits[]; orders_total: number; orders_with_detail: number };
+type UnconnectedRow = {
+  order_no: string; order_date: string | null; release_date: string | null; products: string | null;
+  sales: number; net_income: number; reason: "month_missing" | "not_in_file" | "unknown";
+};
+type UnconnectedData = {
+  rows: UnconnectedRow[]; orders_total: number; orders_connected: number;
+  unconnected_orders: number; unconnected_net: number;
+  by_reason: Partial<Record<UnconnectedRow["reason"], { orders: number; net: number }>>;
+};
 type ProductDetail = {
   rows: ProductRow[]; total_modal: number; monthly_modal: { month: string; modal: number }[];
 };
@@ -86,7 +107,9 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [fp, setFp] = useState<FinanceProducts | null>(null);
   const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<string | null>(null);
-  const [activeTable, setActiveTable] = useState<"transaksi" | "profit">("transaksi");
+  const [activeTable, setActiveTable] = useState<"transaksi" | "profit" | "unconnected">("transaksi");
+  const [uc, setUc] = useState<UnconnectedData | null>(null);
+  const [dailyPajak, setDailyPajak] = useState<Record<string, number>>({});
 
   const checkData = useCallback(async () => {
     if (!clientId) return;
@@ -105,7 +128,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   useEffect(() => { checkData(); }, [checkData, refreshKey]);
 
   const load = useCallback(async () => {
-    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); setFp(null); return; }
+    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); setFp(null); setUc(null); setDailyPajak({}); return; }
     setLoading(true);
     const params = {
       p_year: sel.year ? Number(sel.year) : null,
@@ -115,14 +138,18 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       p_brand: null,
       p_store: sel.store,
     };
-    const [{ data }, { data: pdata }, { data: fpdata }] = await Promise.all([
+    const [{ data }, { data: pdata }, { data: fpdata }, { data: ucdata }, { data: dpdata }] = await Promise.all([
       supabase.rpc("finance_summary", params),
       supabase.rpc("product_profit_detail", params), // still feeds the Modal KPI and charts
       supabase.rpc("finance_product_profit", params), // the Detail Product Profit table (migration 0130)
+      supabase.rpc("finance_unconnected_orders", params), // earnings with no Order Selesai row (migration 0133)
+      supabase.rpc("finance_daily_pajak", params), // Pajak per release date (migration 0134)
     ]);
     setD(data as Summary);
     setPd(pdata as ProductDetail);
     setFp((fpdata as FinanceProducts) || null);
+    setUc((ucdata as UnconnectedData) || null);
+    setDailyPajak(Object.fromEntries(((dpdata as { tx_date: string; pajak: number }[]) || []).map((x) => [x.tx_date, Number(x.pajak)])));
     setLoading(false);
   }, [supabase, clientId, hasAnyData, sel]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -134,6 +161,15 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const storesForOwner = useMemo(() => sel.owner
     ? Array.from(new Set(links.filter((l) => l.owner === sel.owner).map((l) => l.store_name).filter(Boolean) as string[]))
     : Array.from(new Set(links.map((l) => l.store_name).filter(Boolean) as string[])), [links, sel.owner]);
+
+  // Pajak is its own column; the finance summary's marketplace fee still contains it, so take it out here
+  const dailyRows = useMemo<DailyView[]>(
+    () => (d?.daily || []).map((r) => {
+      const pajak = dailyPajak[r.tx_date] ?? 0;
+      return { ...r, pajak, marketplace_fee: Math.max(r.marketplace_fee - pajak, 0) };
+    }),
+    [d, dailyPajak],
+  );
 
   function pickOwner(owner: string) { setSel((s) => ({ ...s, owner, store: "" })); }
 
@@ -252,12 +288,23 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       <div className="tbl-tabs">
         <button onClick={() => setActiveTable("transaksi")} style={tableTabBtn(activeTable === "transaksi")}>{t("Daily Transaction Detail")}</button>
         <button onClick={() => setActiveTable("profit")} style={tableTabBtn(activeTable === "profit")}>Detail Product Profit</button>
+        <button onClick={() => setActiveTable("unconnected")} style={tableTabBtn(activeTable === "unconnected")}>
+          {t("Not Connected")}{uc && uc.unconnected_orders > 0 ? ` (${uc.unconnected_orders.toLocaleString("id-ID")})` : ""}
+        </button>
       </div>
+      {uc && uc.orders_total > 0 && (
+        <div className="hint" style={{ margin: "-4px 0 10px", color: uc.unconnected_orders ? "#fbbf24" : "#86efac" }}>
+          {t("Connected to Order Selesai")}: {uc.orders_connected.toLocaleString("id-ID")} / {uc.orders_total.toLocaleString("id-ID")} {t("orders")} ({(uc.orders_connected / uc.orders_total * 100).toFixed(1)}%)
+          {uc.unconnected_orders > 0 && <> — <button onClick={() => setActiveTable("unconnected")} style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}>{uc.unconnected_orders.toLocaleString("id-ID")} {t("not connected")}</button></>}
+        </div>
+      )}
 
       {activeTable === "transaksi" ? (
-        <DailyTransactionTable rows={d?.daily || []} onRowClick={setDrill} t={t} />
-      ) : (
+        <DailyTransactionTable rows={dailyRows} onRowClick={setDrill} t={t} />
+      ) : activeTable === "profit" ? (
         <ProductProfitTable data={fp} t={t} />
+      ) : (
+        <NotConnectedTable data={uc} t={t} />
       )}
 
       {drill && (
@@ -270,8 +317,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
 }
 
 /* ── Daily Transaction Detail: universal sortable header ── */
-function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyRow[]; onRowClick: (day: string) => void; t: (k: string) => string }) {
-  const { sortedData, sortConfig, requestSort } = useTableSort<DailyRow>(rows);
+function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyView[]; onRowClick: (day: string) => void; t: (k: string) => string }) {
+  const { sortedData, sortConfig, requestSort } = useTableSort<DailyView>(rows);
   return (
     <div className="panel">
       <h3>{t("Daily Transaction Detail")}</h3>
@@ -284,8 +331,9 @@ function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyRow[]; onRo
             <SortableHeader label={t("Sales")} sortKey="sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Promotion Cost")} sortKey="promotion_cost" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Marketplace Fee")} sortKey="marketplace_fee" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
-            <SortableHeader label={t("Net Income")} sortKey="net_income" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
             <SortableHeader label={t("Refund")} sortKey="refund" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Pajak")} sortKey="pajak" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Net Income")} sortKey="net_income" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
           </tr></thead>
           <tbody>
             {sortedData.map((r) => (
@@ -293,14 +341,15 @@ function DailyTransactionTable({ rows, onRowClick, t }: { rows: DailyRow[]; onRo
                 <td style={{ fontWeight: 600 }}>{fmtDate(r.tx_date)}</td>
                 <td className="num">{r.orders}</td>
                 <td className="num">{rpFull(r.sales)}</td>
-                <td className="num">{rpFull(r.promotion_cost)}</td>
-                <td className="num">{rpFull(r.marketplace_fee)}</td>
-                <td className="num" style={{ color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}>{rpFull(r.net_income)}</td>
-                <td className="num">{rpFull(r.refund)}</td>
+                <td className="num"><RpPct value={r.promotion_cost} sales={r.sales} /></td>
+                <td className="num"><RpPct value={r.marketplace_fee} sales={r.sales} /></td>
+                <td className="num"><RpPct value={r.refund} sales={r.sales} /></td>
+                <td className="num"><RpPct value={r.pajak} sales={r.sales} /></td>
+                <td className="num" style={{ color: r.net_income >= 0 ? "#86efac" : "#f87171", fontWeight: 700 }}><RpPct value={r.net_income} sales={r.sales} /></td>
               </tr>
             ))}
             {sortedData.length === 0 && (
-              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
+              <tr><td colSpan={8} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No data for these filters")}</td></tr>
             )}
           </tbody>
         </table>
@@ -320,17 +369,6 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
     () => (rows || []).map((r) => ({ ...r, units_per_order: r.units != null && r.units_orders > 0 ? r.units / r.units_orders : null })),
     [rows],
   );
-  const salesTotal = (rows || []).reduce((a, r) => a + r.sales, 0);
-  const salesWithUnits = (rows || []).reduce((a, r) => a + r.sales_with_units, 0);
-  const unitsCoverage = salesTotal > 0 ? salesWithUnits / salesTotal : 1;
-  // "2601" -> "Januari 2026": which month's Order Completed upload would fill these units in
-  const missingMonths = (data?.missing || [])
-    .map((m) => {
-      const mi = /^\d{4}$/.test(m.ym) ? Number(m.ym.slice(2)) - 1 : -1;
-      const label = mi >= 0 && mi < 12 ? `${MONTH_ORDER[mi + 1]} 20${m.ym.slice(0, 2)}` /* MONTH_ORDER[0] is "Baseline" */ : t("other");
-      return `${label} (${m.orders.toLocaleString("id-ID")} ${t("orders")})`;
-    })
-    .join(", ");
 
   const filtered = useMemo(() => {
     const all = withUnitsPerOrder;
@@ -350,15 +388,6 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
   return (
     <div className="panel">
       <h3>Detail Product Profit</h3>
-      <div className="hint">
-        {t("Straight from your Shopee income (Penghasilan) upload, one row per Product ID: Sales is Harga Produk and every cost is Shopee's own number for that product. Nett Income is what Shopee releases to you for it. Units come from your Order Completed upload (matched on order number + product name, net of returns). Modal and Ads are in neither report.")}
-      </div>
-      {salesTotal > 0 && unitsCoverage < 0.995 && (
-        <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
-          {t("Units known for")} {(unitsCoverage * 100).toFixed(1)}% {t("of Sales.")}
-          {missingMonths && <> {t("Missing for orders created in")}: {missingMonths}. {t("Upload the Order Completed file for those months — units fill in automatically, matched by order number.")}</>}
-        </div>
-      )}
       {total > 0 && withDetail < total && (
         <div className="hint" style={{ marginTop: 6, color: "#fbbf24" }}>
           {t("Product detail covers")} {withDetail.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")} {t("orders")} — {t("older uploads have no per-product lines; upload the newer Penghasilan report for those months.")}
@@ -421,6 +450,117 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
                 {total > 0 && withDetail === 0
                   ? t("No per-product data for this period. Upload the newer Shopee Penghasilan income report to see products here.")
                   : t("No data for these filters")}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Not Connected: earnings (finance orders) with no Order Selesai row ──
+   Finance is the base; an earning is connected when its order number exists in an
+   Order Completed upload of any month (migration 0133). Nothing here is dropped from
+   Earning — these orders are fully counted, they just have no units / order details. */
+function NotConnectedTable({ data, t }: { data: UnconnectedData | null; t: (k: string) => string }) {
+  const [search, setSearch] = useState("");
+  const [reason, setReason] = useState<"" | UnconnectedRow["reason"]>("");
+  const rows = data?.rows;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (rows || []).filter((r) =>
+      (!reason || r.reason === reason) &&
+      (!q || r.order_no.toLowerCase().includes(q) || (r.products || "").toLowerCase().includes(q)));
+  }, [rows, search, reason]);
+  const { sortedData, sortConfig, requestSort } = useTableSort<UnconnectedRow>(filtered, "order_date");
+
+  const reasonLabel = (r: UnconnectedRow["reason"]) =>
+    r === "month_missing" ? t("Order Completed month not uploaded")
+    : r === "not_in_file" ? t("Not in the uploaded Order Completed")
+    : t("No created date");
+  const reasonColor = (r: UnconnectedRow["reason"]) => (r === "month_missing" ? "#fbbf24" : r === "not_in_file" ? "#f87171" : "var(--muted)");
+
+  function downloadCsv() {
+    const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ["No. Pesanan", "Order Created", "Funds Released", "Products", "Sales", "Nett Income", "Reason"];
+    const lines = [head.join(",")].concat(sortedData.map((r) => [r.order_no, r.order_date, r.release_date, r.products, r.sales, r.net_income, reasonLabel(r.reason)].map(esc).join(",")));
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `earning-not-connected_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const total = data?.orders_total ?? 0;
+  const connected = data?.orders_connected ?? 0;
+  const open = data?.unconnected_orders ?? 0;
+  const cell = { whiteSpace: "nowrap" } as const;
+  const br = data?.by_reason || {};
+
+  return (
+    <div className="panel">
+      <h3>{t("Earning not connected to Order Selesai")}</h3>
+      <div className="hint">
+        {t("Finance is the base. An earning is connected when its order number (No. Pesanan) is in an Order Completed upload — any month. These earnings are still fully counted in Earning; they only lack units and order details.")}
+      </div>
+      {total > 0 && open === 0 && (
+        <div className="hint" style={{ marginTop: 8, color: "#86efac" }}>✓ {t("All earnings are connected to Order Selesai.")} ({connected.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")})</div>
+      )}
+      {open > 0 && (
+        <div className="hint" style={{ marginTop: 8 }}>
+          {connected.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")} {t("orders connected")} · <b>{open.toLocaleString("id-ID")}</b> {t("not connected")} · {t("Nett Income")} {rpFull(data?.unconnected_net ?? 0)}
+          {br.month_missing && <div style={{ color: "#fbbf24" }}>• {br.month_missing.orders.toLocaleString("id-ID")} {t("orders: Order Completed for the month they were created is not uploaded yet — upload it and they connect automatically.")}</div>}
+          {br.not_in_file && <div style={{ color: "#f87171" }}>• {br.not_in_file.orders.toLocaleString("id-ID")} {t("orders: that month is uploaded but these orders are not in it (cancelled, returned or never reached Selesai).")}</div>}
+          {br.unknown && <div>• {br.unknown.orders.toLocaleString("id-ID")} {t("orders: the income report has no created date for them.")}</div>}
+        </div>
+      )}
+
+      <div className="filterbar" style={{ marginTop: 6, marginBottom: 10, alignItems: "flex-end" }}>
+        <div className="fld" style={{ minWidth: 240 }}>
+          <label>{t("Search")}</label>
+          <input type="text" placeholder={t("Order No. / Product")} value={search} onChange={(e) => setSearch(e.target.value)}
+            style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+        </div>
+        <div className="fld">
+          <label>{t("Reason")}</label>
+          <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)}>
+            <option value="">{t("All")}</option>
+            <option value="month_missing">{t("Order Completed month not uploaded")}</option>
+            <option value="not_in_file">{t("Not in the uploaded Order Completed")}</option>
+            <option value="unknown">{t("No created date")}</option>
+          </select>
+        </div>
+        <button className="btn-ghost" onClick={downloadCsv} disabled={!sortedData.length}>⬇ {t("Download CSV")}</button>
+      </div>
+
+      <div className="tbl-wrap" style={{ maxHeight: 450 }}>
+        <table className="tbl">
+          <thead><tr>
+            <SortableHeader label={t("Order No.")} sortKey="order_no" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Order Created")} sortKey="order_date" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Funds Released")} sortKey="release_date" currentSort={sortConfig} onRequestSort={requestSort} />
+            <th>{t("Products")}</th>
+            <SortableHeader label={t("Sales")} sortKey="sales" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Nett Income")} sortKey="net_income" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <th>{t("Reason")}</th>
+          </tr></thead>
+          <tbody>
+            {sortedData.map((r) => (
+              <tr key={r.order_no}>
+                <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.order_no}</td>
+                <td style={cell}>{r.order_date || "—"}</td>
+                <td style={cell}>{r.release_date || "—"}</td>
+                <td style={{ maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }} title={r.products || undefined}>{r.products || "—"}</td>
+                <td className="num" style={cell}>{rpFull(r.sales)}</td>
+                <td className="num" style={cell}>{rpFull(r.net_income)}</td>
+                <td style={{ ...cell, fontSize: 11.5, fontWeight: 700, color: reasonColor(r.reason) }}>{reasonLabel(r.reason)}</td>
+              </tr>
+            ))}
+            {sortedData.length === 0 && (
+              <tr><td colSpan={7} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                {open === 0 ? t("Nothing to show — every earning is connected.") : t("No data for these filters")}
               </td></tr>
             )}
           </tbody>
