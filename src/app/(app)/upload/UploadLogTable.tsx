@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtDateTime } from "@/lib/dates";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -36,10 +37,7 @@ type UploadRow = {
 };
 
 function fmtUploadTime(iso: string): string {
-  const d = new Date(iso);
-  const day = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
-  const time = `${String(d.getHours()).padStart(2, "0")}.${String(d.getMinutes()).padStart(2, "0")}`;
-  return `${day} ${time}`;
+  return fmtDateTime(iso);
 }
 
 // Shared Upload Log — same grouped-batch table on both "Upload by Admin"

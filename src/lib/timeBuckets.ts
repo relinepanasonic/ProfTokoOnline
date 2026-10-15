@@ -1,3 +1,5 @@
+import { fmtDate } from "./dates";
+
 // Shared helpers for the dynamic chart granularity (month → week/day).
 // A single trend series is always homogeneous — all month names, OR all
 // week labels, OR all ISO date strings — so one rank function that checks
@@ -36,6 +38,11 @@ export function sortByBucket<T>(arr: T[], key: keyof T): T[] {
 
 // X-axis tick label: day-of-month for ISO dates, short name for months,
 // week labels passed through unchanged.
+// Tooltip title: a full "DD MMM YY" for ISO dates (the axis only has room for the day number),
+// otherwise same as the axis label.
+export function bucketTooltipLabel(label: string): string {
+  return isIsoDate(label) ? fmtDate(label) : bucketAxisLabel(label);
+}
 export function bucketAxisLabel(label: string): string {
   if (isIsoDate(label)) return String(new Date(label.slice(0, 10) + "T00:00:00").getDate());
   return SHORT_MONTH[label] ?? label;

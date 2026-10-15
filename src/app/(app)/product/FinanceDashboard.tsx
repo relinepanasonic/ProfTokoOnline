@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtDate } from "@/lib/dates";
 import { useEffect, useState, useCallback, useMemo, useId } from "react";
 import {
   BarChart, Bar, ComposedChart, Line, PieChart, Pie, Cell,
@@ -10,7 +11,7 @@ import Loader from "@/components/Loader";
 import { useLang } from "@/lib/i18n";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
-import { sortByBucket, bucketAxisLabel } from "@/lib/timeBuckets";
+import { sortByBucket, bucketAxisLabel, bucketTooltipLabel } from "@/lib/timeBuckets";
 
 const MONTH_ORDER = ["Baseline","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const WEEKS = ["Week 1","Week 2","Week 3","Week 4","Week 5"];
@@ -39,7 +40,6 @@ function RpPct({ value, sales }: { value: number; sales: number }) {
     </>
   );
 }
-const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 
 type Kpis = {
   sales: number; promotion_cost: number; refund: number; delivery_cost: number;
@@ -545,8 +545,8 @@ function NotPaidTable({ data, t }: { data: NotPaidData | null; t: (k: string) =>
             {sortedData.map((r) => (
               <tr key={r.order_no}>
                 <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.order_no}</td>
-                <td style={cell}>{r.created_at || "—"}</td>
-                <td style={cell}>{r.completed_at || "—"}</td>
+                <td style={cell}>{fmtDate(r.created_at)}</td>
+                <td style={cell}>{fmtDate(r.completed_at)}</td>
                 <td className="num" style={{ ...cell, fontWeight: 700, color: waitColor(r.days_waiting) }}>{r.days_waiting == null ? "—" : r.days_waiting}</td>
                 <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }} title={r.products || undefined}>{r.products || "—"}</td>
                 <td className="num" style={cell}>{Math.round(r.units).toLocaleString("id-ID")}</td>
@@ -658,8 +658,8 @@ function NotConnectedTable({ data, t }: { data: UnconnectedData | null; t: (k: s
             {sortedData.map((r) => (
               <tr key={r.order_no}>
                 <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.order_no}</td>
-                <td style={cell}>{r.order_date || "—"}</td>
-                <td style={cell}>{r.release_date || "—"}</td>
+                <td style={cell}>{fmtDate(r.order_date)}</td>
+                <td style={cell}>{fmtDate(r.release_date)}</td>
                 <td style={{ maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }} title={r.products || undefined}>{r.products || "—"}</td>
                 <td className="num" style={cell}>{rpFull(r.sales)}</td>
                 <td className="num" style={cell}>{rpFull(r.net_income)}</td>
@@ -893,7 +893,7 @@ function DailyGrossChart({ data, t }: { data: DailyGrossRow[]; t: (k: string) =>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="day" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketAxisLabel(String(l))}
+          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketTooltipLabel(String(l))}
             formatter={(v, n) => [rpFull(Number(v)), n === "gross_sales" ? t("Gross Sales") : t("Gross Profit")]} />
           <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8}
             formatter={(v) => (v === "gross_sales" ? t("Gross Sales") : t("Gross Profit"))} />
@@ -921,7 +921,7 @@ function SimpleBarChart({ data, dataKey, top, bottom }: { data: Record<string, u
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
           <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
           <YAxis tick={axis} tickFormatter={(v) => rpC(Number(v))} axisLine={false} tickLine={false} width={58} />
-          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketAxisLabel(String(l))} formatter={(v) => [rpFull(Number(v)), ""]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
+          <Tooltip contentStyle={TIP_STYLE} labelFormatter={(l) => bucketTooltipLabel(String(l))} formatter={(v) => [rpFull(Number(v)), ""]} cursor={{ fill: "rgba(201,162,39,0.04)" }} />
           <Bar dataKey={dataKey} radius={[6, 6, 0, 0]} maxBarSize={104} fill={`url(#${gid})`} />
         </BarChart>
       </ResponsiveContainer>

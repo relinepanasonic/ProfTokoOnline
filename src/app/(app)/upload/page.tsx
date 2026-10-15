@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtDate } from "@/lib/dates";
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { DataSource } from "@/lib/parse";
@@ -45,8 +46,7 @@ function addDays(iso: string, n: number): string {
   return toISODate(d);
 }
 function fmtID(iso: string): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+  return fmtDate(iso);
 }
 
 export default function UploadPage() {

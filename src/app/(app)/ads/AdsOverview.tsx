@@ -19,7 +19,7 @@ import { useLang } from "@/lib/i18n";
 import Loader from "@/components/Loader";
 import { useTableSort } from "@/hooks/useTableSort";
 import SortableHeader from "@/components/SortableHeader";
-import { sortByBucket, bucketAxisLabel } from "@/lib/timeBuckets";
+import { sortByBucket, bucketAxisLabel, bucketTooltipLabel } from "@/lib/timeBuckets";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -239,7 +239,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
               <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
               <YAxis yAxisId="left" tick={axis} axisLine={false} tickLine={false} tickFormatter={idr} />
               <YAxis yAxisId="right" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(1) + "×"} />
-              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "ROAS" ? [roasF(Number(v)), n] : [idrF(Number(v)), n]} labelFormatter={(l) => bucketAxisLabel(String(l))} />
+              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "ROAS" ? [roasF(Number(v)), n] : [idrF(Number(v)), n]} labelFormatter={(l) => bucketTooltipLabel(String(l))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar yAxisId="left" dataKey="gmv_max_sales" stackId="s" name="GMV Max Auto" fill={BLUE} radius={[0,0,0,0]} />
               <Bar yAxisId="left" dataKey="group_sales" stackId="s" name="Group Ads" fill={BLUE_L} radius={[0,0,0,0]} />
@@ -261,7 +261,7 @@ export default function AdsOverview({ clientId, refreshKey }: { clientId: string
               <XAxis dataKey="month" tickFormatter={bucketAxisLabel} tick={axis} axisLine={false} tickLine={false} />
               <YAxis yAxisId="left" tick={axis} axisLine={false} tickLine={false} tickFormatter={num} />
               <YAxis yAxisId="right" orientation="right" tick={axis} axisLine={false} tickLine={false} tickFormatter={idr} />
-              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "Sales" ? [idrF(Number(v)), n] : [num(Number(v)), n]} labelFormatter={(l) => bucketAxisLabel(String(l))} />
+              <Tooltip contentStyle={TIP_STYLE} formatter={(v, n) => n === "Sales" ? [idrF(Number(v)), n] : [num(Number(v)), n]} labelFormatter={(l) => bucketTooltipLabel(String(l))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line yAxisId="left" type="monotone" dataKey="item_sold" name="Item Sold" stroke={BLUE_L} strokeWidth={2} dot={{ r: 3 }} />
               <Line yAxisId="right" type="monotone" dataKey="sales" name="Sales" stroke={GOLD_L} strokeWidth={2} dot={{ r: 3 }} />

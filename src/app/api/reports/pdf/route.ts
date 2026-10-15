@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fmtDate } from "@/lib/dates";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
 import { ReportDocument, lastN } from "@/lib/reportPdf";
@@ -105,9 +106,7 @@ export async function POST(req: NextRequest) {
       storeLabel: client?.store_label || "Store",
       storeName: f.store || "",
       periodLabel,
-      generatedAt: new Date().toLocaleDateString(lang === "id" ? "id-ID" : "en-GB", {
-        day: "2-digit", month: "long", year: "numeric",
-      }),
+      generatedAt: fmtDate(new Date(), "Asia/Jakarta"),
       current,
       previous: (prevR.data as Summary) || null,
       baseline: (baseR.data as Summary) || null,

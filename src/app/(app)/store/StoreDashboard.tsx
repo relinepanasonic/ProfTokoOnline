@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtDate, fmtDateTime } from "@/lib/dates";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import {
@@ -28,7 +29,6 @@ const PALETTE = [GOLD, BLUE, GOLD_L, BLUE_L, BLUE_PALE, GOLD_D, BLUE_D, "#f5e6a8
 
 const rpFull = (n: number) => "Rp " + Math.round(n || 0).toLocaleString("id-ID");
 const numFull = (n: number) => Math.round(n || 0).toLocaleString("id-ID");
-const fmtDate = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 const fmtHours = (h: number | null) => h == null ? "—" : h < 48 ? `${h.toFixed(1)} jam` : `${(h / 24).toFixed(1)} hari`;
 const fmtDays = (d: number | null) => d == null ? "—" : `${d.toFixed(1)} hari`;
 
@@ -372,10 +372,7 @@ type DetailRow = {
   total_payment: number | null; order_status: string | null; cancel_return_status: string | null;
 };
 function fmtDT(s: string | null): string {
-  if (!s) return "—";
-  const d = new Date(s.replace(" ", "T"));
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return fmtDateTime(s);
 }
 function slaFor(paid: string | null, completed: string | null): string {
   if (!paid || !completed) return "—";
@@ -456,10 +453,7 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
 /* ── Province / City / Username drill-down: that group's transactions, by date ── */
 const ENTITY_PAGE = 500;
 function fmtDTY(s: string | null): string {
-  if (!s) return "—";
-  const d = new Date(s.replace(" ", "T"));
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return fmtDateTime(s);
 }
 function EntityDrillDown({ entity, clientId, sel, supabase, onClose }: {
   entity: Entity; clientId: string;

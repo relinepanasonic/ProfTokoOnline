@@ -6,6 +6,7 @@
 // server-side — nothing here computes dates itself. layout.tsx's route
 // guard keeps /payments superadmin-only, and the RPCs re-check the role.
 
+import { fmtDateTime } from "@/lib/dates";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
@@ -21,7 +22,7 @@ type Req = {
 type Expiring = { id: string; display_name: string | null; scope_owner: string | null; phone: string | null; plan_type: string | null; subscription_end: string };
 
 const rp = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
-const fmtDT = (iso: string) => new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const fmtDT = (iso: string) => fmtDateTime(iso);
 const who = (p: Prof) => p?.display_name || p?.scope_owner || p?.username || "—";
 // 08xx… -> 628xx… for wa.me
 const waNumber = (phone: string | null) => {

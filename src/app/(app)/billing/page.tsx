@@ -6,6 +6,7 @@
 // An expired Owner can still reach it (layout.tsx keeps /billing in every
 // self-serve plan's allowed pages), which is the whole point of it.
 
+import { fmtDateTime } from "@/lib/dates";
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Loader from "@/components/Loader";
@@ -28,7 +29,7 @@ type Req = {
 type Me = { id: string; role: string; plan_type: string | null; subscription_end: string | null };
 
 const rp = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
-const fmtDT = (iso: string) => new Date(iso).toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const fmtDT = (iso: string) => fmtDateTime(iso);
 
 export default function BillingPage() {
   const { t } = useLang();

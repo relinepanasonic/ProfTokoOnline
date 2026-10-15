@@ -1,5 +1,6 @@
 "use client";
 
+import { fmtDate } from "@/lib/dates";
 import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
@@ -303,7 +304,7 @@ export default function UsersPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                    Joined {new Date(r.created_at).toLocaleDateString("id-ID")}
+                    Joined {fmtDate(r.created_at)}
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: dl != null && dl <= 7 ? "#f87171" : "#34d399", whiteSpace: "nowrap" }}>
                     {dl != null ? `${dl}d left` : "unlimited"}
@@ -428,7 +429,7 @@ export default function UsersPage() {
                     <div style={{ fontWeight: 600, fontSize: 14, color: "#e8edf8" }}>{inv.owner_name}</div>
                     <div style={{ fontSize: 12, color: "#7b8db0" }}>{ROLE_LABEL[inv.role] || inv.role}{inv.store_name ? ` · ${inv.store_name}` : ""}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#7b8db0" }}>{inv.expires_at ? `Expires ${new Date(inv.expires_at).toLocaleDateString()}` : "Never expires"}</div>
+                  <div style={{ fontSize: 11, color: "#7b8db0" }}>{inv.expires_at ? `Expires ${fmtDate(inv.expires_at)}` : "Never expires"}</div>
                   <button onClick={() => copyLink(inv.token, `p:${inv.id}`)}
                     style={{ padding: "5px 12px", borderRadius: 8, border: "1px solid rgba(201,162,39,0.3)", background: "rgba(201,162,39,0.1)", color: "#c9a227", fontSize: 12, cursor: "pointer" }}>
                     {copiedKey === `p:${inv.id}` ? "Copied!" : "Copy Link"}
@@ -592,7 +593,7 @@ export default function UsersPage() {
                   onChange={(e) => setPlanForm({ ...planForm, days: Number(e.target.value) })} />
                 <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#7b8db0" }}>
                   {Number(planForm.days) > 0
-                    ? `Countdown starts now — expires ${nowTs != null ? new Date(nowTs + Number(planForm.days) * 86_400_000).toLocaleDateString() : "—"}.`
+                    ? `Countdown starts now — expires ${nowTs != null ? fmtDate(new Date(nowTs + Number(planForm.days) * 86_400_000)) : "—"}.`
                     : "No expiry (unlimited access)."}
                 </p>
               </Fld>

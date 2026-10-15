@@ -9,7 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, AreaChart, Area, Cell, Legend,
 } from "recharts";
-import { bucketAxisLabel } from "@/lib/timeBuckets";
+import { bucketAxisLabel, bucketTooltipLabel } from "@/lib/timeBuckets";
 
 // Shared with globals.css's mobile breakpoint (max-width:760px). Duplicated
 // from page.tsx (rather than imported) so this chunk has no dependency back
@@ -292,7 +292,7 @@ export function CostRoasChart({ data }: { data: { month:string; cost:number; roa
               ? [(Number(v)||0).toFixed(2)+"×", "ROAS"]
               : [idrF(Number(v)), "Ads Cost"]
             }
-            labelFormatter={(l) => l}
+            labelFormatter={(l) => bucketTooltipLabel(String(l))}
           />
           {/* fill="#9ab0cc" is a plain-color fallback for the tooltip's
               default text color (Recharts can't resolve one from a
@@ -429,7 +429,7 @@ export function TrafficChart({ data }: { data: { month:string; traffic:number; i
           <Tooltip
             contentStyle={TIP_STYLE}
             formatter={(v, n) => [num(Number(v)), n==="in_cart"?"In-Cart":"Traffic"]}
-            labelFormatter={(l) => l}
+            labelFormatter={(l) => bucketTooltipLabel(String(l))}
           />
           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:10, color:"#9ab0cc", paddingTop:4 }} />
           <Area type="monotone" dataKey="traffic"

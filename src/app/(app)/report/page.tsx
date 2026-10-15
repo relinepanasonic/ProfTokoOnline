@@ -18,6 +18,7 @@
 // exactly with the dashboard, and both are already rollup-backed so this adds
 // no new query cost.
 
+import { fmtDate } from "@/lib/dates";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -218,7 +219,7 @@ function ReportInner() {
           <div className="rpt-scope">{scopeLabel(sel, lang, storeLabel)}</div>
           <div className="rpt-meta">
             {clientName && <span>{clientName} · </span>}
-            {t("Generated")} {new Date().toLocaleDateString(lang === "id" ? "id-ID" : "en-GB", { day: "2-digit", month: "long", year: "numeric" })}
+            {t("Generated")} {fmtDate(new Date())}
           </div>
           {partialWeeks != null && partialWeeks < 4 && (
             <div className="rpt-warn">
