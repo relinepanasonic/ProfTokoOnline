@@ -18,7 +18,7 @@ export default function BrowseFile({ label, hint, file, onPick, guideImage }: {
       </label>
       <input id={inputId} type="file" accept=".xlsx,.xls,.csv" style={{ display: "none" }}
         onChange={(e) => onPick(e.target.files?.[0] ?? null)} />
-      <label htmlFor={inputId} className="btn-ghost" style={{ display: "inline-block", padding: "8px 20px", cursor: "pointer", fontSize: 12.5, alignSelf: "flex-start" }}>
+      <label htmlFor={inputId} className="btn-ghost" style={{ display: "inline-block", padding: "8px 20px", cursor: "pointer", fontSize: 12.5, alignSelf: "flex-start", color: "var(--gold)", fontWeight: 700 }}>
         Browse File
       </label>
       <span style={{ marginTop: 8, fontSize: 11.5, color: file ? "var(--gold)" : "var(--muted)" }}>

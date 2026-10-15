@@ -97,7 +97,7 @@ export default function FinanceUpload({ clientId, onUploaded }: { clientId: stri
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, padding: 16, border: "1px dashed rgba(201,162,39,.35)", borderRadius: 14, background: "rgba(15,32,64,.4)", marginBottom: 14 }}>
         <div>
           <label style={{ fontSize: 12, color: "#cdd9f0", fontWeight: 600 }}>Income Report <span style={{ color: "var(--muted)", fontWeight: 400, fontSize: 11 }}>(Laporan Penghasilan)</span></label>
-          <input type="file" accept=".xlsx,.xls,.csv" style={{ fontSize: 12, color: "#bcd", display: "block", marginTop: 6, width: "100%" }}
+          <input type="file" accept=".xlsx,.xls,.csv" className="file-gold" style={{ fontSize: 12, display: "block", marginTop: 6, width: "100%" }}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           {file && <p style={{ marginTop: 6, fontSize: 11, color: "var(--gold)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>✓ {file.name}</p>}
         </div>

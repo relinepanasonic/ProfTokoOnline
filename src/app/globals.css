@@ -451,3 +451,8 @@ table.tbl-sticky2{width:max-content;min-width:100%}
   border:2px solid rgba(11,20,38,.35);border-top-color:var(--navy-deep);
   animation:btn-report-spin .7s linear infinite}
 @keyframes btn-report-spin{to{transform:rotate(360deg)}}
+
+/* Upload page file choosers: gold text, including the native "Choose File" button */
+.file-gold{color:var(--gold)}
+.file-gold::file-selector-button{color:var(--gold);background:rgba(201,162,39,.12);border:1px solid rgba(201,162,39,.4);border-radius:8px;padding:6px 14px;margin-right:10px;font-weight:700;font-size:12px;cursor:pointer}
+.file-gold::file-selector-button:hover{background:rgba(201,162,39,.22)}
