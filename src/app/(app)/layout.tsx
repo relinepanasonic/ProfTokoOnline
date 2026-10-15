@@ -19,8 +19,8 @@ const NAV: { href: string; icon: string; label: string; roles?: Role[] }[] = [
   { href: "/upload",    icon: "⬆️", label: "Upload Data",         roles: ["superadmin", "client_admin", "advertiser"] },
   { href: "/",          icon: "📊", label: "Dashboard",           roles: ["superadmin", "branch_manager", "advertiser", "client_admin"] },
   { href: "/ads",       icon: "🎯", label: "Ads Performance",     roles: ["superadmin", "branch_manager", "advertiser"] },
-  { href: "/product",   icon: "💹", label: "Finance Detail",      roles: ["superadmin"] },
-  { href: "/store",     icon: "🏬", label: "Operational Performance", roles: ["superadmin"] },
+  { href: "/product",   icon: "💹", label: "Earning",      roles: ["superadmin"] },
+  { href: "/store",     icon: "🏬", label: "Demographic", roles: ["superadmin"] },
   // client_admin added: Marketplace Fee (write access) now lives as a tab
   // under Price Calculator (/calc/marketplace-fee) instead of its own nav
   // item — client_admin needs this entry visible to reach it.

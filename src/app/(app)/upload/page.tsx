@@ -396,11 +396,11 @@ export default function UploadPage() {
       {canFinance && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 18, marginTop: 18 }}>
           <div>
-            <CardLabel title={t("Finance Detail")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <CardLabel title={t("Earning")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
             <FinanceUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
           <div>
-            <CardLabel title={t("Operational Performance")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
+            <CardLabel title={t("Demographic")} sub="Sultan | King | Superadmin | Admin | Advertiser" />
             <StoreUpload clientId={clientId} onUploaded={() => setLogRefreshKey((k) => k + 1)} />
           </div>
         </div>

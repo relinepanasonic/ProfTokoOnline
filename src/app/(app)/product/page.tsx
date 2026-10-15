@@ -15,7 +15,7 @@ const FinanceDashboard = dynamicImport(() => import("./FinanceDashboard"), { ssr
 const ModalProduct = dynamicImport(() => import("./ModalProduct"), { ssr: false });
 
 const TABS = [
-  { v: "dashboard", l: "Finance Dashboard" },
+  { v: "dashboard", l: "Earning Dashboard" },
   { v: "modal", l: "Modal Product" },
 ] as const;
 // Finance upload now lives on the consolidated /upload page (Finance Performa

@@ -121,8 +121,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       <div className="panel">
         <div className="coming">
           <div className="big">🏬</div>
-          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Upload Data Operational Performance First")}</h3>
-          <p style={{ maxWidth: 420, margin: 0 }}>{t("No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Operational Performance\" tab to import one.")}</p>
+          <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Upload Data Demographic First")}</h3>
+          <p style={{ maxWidth: 420, margin: 0 }}>{t("No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Demographic\" tab to import one.")}</p>
         </div>
       </div>
     );
@@ -158,7 +158,7 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
           <div className="coming">
             <div className="big">🏬</div>
             <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Choose Store")}</h3>
-            <p style={{ maxWidth: 420, margin: 0 }}>{t("Operational Performance is shown per store — pick a Store above to view its dashboard.")}</p>
+            <p style={{ maxWidth: 420, margin: 0 }}>{t("Demographic is shown per store — pick a Store above to view its dashboard.")}</p>
           </div>
         </div>
       ) : (

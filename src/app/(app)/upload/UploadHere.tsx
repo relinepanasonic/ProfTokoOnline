@@ -351,7 +351,7 @@ export default function UploadHere() {
         <div style={{ marginTop: 28 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, marginBottom: 8 }}>
             <CardLabel title={t("Order Complete")} sub="Sultan | King | Prof" />
-            <CardLabel title={t("Finance Detail")} sub="Sultan | King | Prof" />
+            <CardLabel title={t("Earning")} sub="Sultan | King | Prof" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 14, alignItems: "start" }}>
             <div>
@@ -364,7 +364,7 @@ export default function UploadHere() {
               </div>
             </div>
             <div>
-              <BrowseFile label={t("Finance Detail")} hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} guideImage={GUIDE.finance} />
+              <BrowseFile label={t("Earning")} hint="IncomeDilepas.xlsx" file={financeFile} onPick={setFinanceFile} guideImage={GUIDE.finance} />
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 10 }}>
                 <button className="btn-gold" disabled={financeBusy || !financeFile} onClick={submitFinance} style={{ padding: "9px 30px", fontSize: 13.5 }}>
                   {financeBusy ? t("Uploading…") : t("Upload")}

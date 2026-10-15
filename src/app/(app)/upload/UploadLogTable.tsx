@@ -9,7 +9,7 @@ type UploadSource = "perf" | "spos" | "ads" | "ads_group" | "finance" | "orders"
 
 const SRC_LABEL: Record<UploadSource, string> = {
   perf: "Store Performa", spos: "Product Performa", ads: "Ads Performa",
-  ads_group: "Grup/Inkubasi", finance: "Finance Detail", orders: "Order Complete",
+  ads_group: "Grup/Inkubasi", finance: "Earning", orders: "Order Complete",
 };
 const SRC_COLOR: Record<UploadSource, string> = {
   perf: "#22c55e", spos: "#3b82f6", ads: "#f59e0b",
@@ -22,7 +22,7 @@ const SOURCE_ORDER: UploadSource[] = ["perf", "spos", "ads", "ads_group", "finan
 // Ads Performance (ads+ads_group — covers Ads/Inkubasi/Group alike) always
 // merge, Order Complete and Finance Detail each stand alone.
 type Category = "store" | "ads" | "order" | "finance";
-const CATEGORY_LABEL: Record<Category, string> = { store: "Store Performance", ads: "Ads Performance", order: "Order Complete", finance: "Finance Detail" };
+const CATEGORY_LABEL: Record<Category, string> = { store: "Store Performance", ads: "Ads Performance", order: "Order Complete", finance: "Earning" };
 function categoryOf(source: UploadSource): Category {
   if (source === "perf" || source === "spos") return "store";
   if (source === "ads" || source === "ads_group") return "ads";

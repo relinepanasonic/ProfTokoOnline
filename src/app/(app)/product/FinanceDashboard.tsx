@@ -188,7 +188,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
           <div className="coming">
             <div className="big">🏬</div>
             <h3 style={{ fontSize: 18, color: "#fff", margin: 0 }}>{t("Choose Store")}</h3>
-            <p style={{ maxWidth: 420, margin: 0 }}>{t("Finance Detail is shown per store — pick a Store above to view its dashboard.")}</p>
+            <p style={{ maxWidth: 420, margin: 0 }}>{t("Earning is shown per store — pick a Store above to view its dashboard.")}</p>
           </div>
         </div>
       ) : (

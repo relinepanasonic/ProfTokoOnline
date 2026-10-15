@@ -11,10 +11,10 @@ const ID_DICT: Record<string, string> = {
   // nav / shell
   "Dashboard": "Dasbor",
   "Ads Performance": "Performa Iklan",
-  "Finance Detail": "Detail Keuangan",
+  "Earning": "Penghasilan",
   "Upload the Data First in Upload Page to open the Features": "Unggah Data Terlebih Dahulu di Halaman Upload untuk membuka Fitur ini",
   "Go to Upload Page": "Ke Halaman Upload",
-  "Operational Performance": "Performa Operasional",
+  "Demographic": "Demografi",
   "Price Calculator": "Kalkulator Harga",
   "Market Place Fee": "Biaya Marketplace",
   "Upload Data": "Unggah Data",
@@ -166,8 +166,8 @@ const ID_DICT: Record<string, string> = {
   "No Shopee Income (Laporan Penghasilan) data has been uploaded yet. Go to the \"Upload Keuangan\" tab to import one.":
     "Belum ada data Income (Laporan Penghasilan) Shopee yang diunggah. Buka tab \"Upload Keuangan\" untuk mengimpornya.",
   "Choose Store": "Pilih Store",
-  "Finance Detail is shown per store — pick a Store above to view its dashboard.":
-    "Detail Keuangan ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
+  "Earning is shown per store — pick a Store above to view its dashboard.":
+    "Penghasilan ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
   "Gross Sales": "Penjualan Kotor", "Gross Profit": "Laba Kotor",
   "Ads Spent": "Belanja Iklan", "Nett Profit": "Laba Bersih",
   "Promotion Cost": "Biaya Promosi", "Refund": "Pengembalian Dana",
@@ -209,14 +209,14 @@ const ID_DICT: Record<string, string> = {
   "Other": "Lainnya",
   "Pajak": "Pajak",
   "orders": "pesanan",
-  "Finance Dashboard": "Dashboard Keuangan",
+  "Earning Dashboard": "Dashboard Penghasilan",
 
   // Operational Performance
-  "Upload Data Operational Performance First": "Unggah Data Operational Performance Dulu",
-  "No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Operational Performance\" tab to import one.":
-    "Belum ada data Order.completed Shopee yang diunggah. Buka tab \"Upload Operational Performance\" untuk mengimpornya.",
-  "Operational Performance is shown per store — pick a Store above to view its dashboard.":
-    "Operational Performance ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
+  "Upload Data Demographic First": "Unggah Data Demografi Dulu",
+  "No Shopee Order.completed data has been uploaded yet. Go to the \"Upload Demographic\" tab to import one.":
+    "Belum ada data Order.completed Shopee yang diunggah. Buka tab \"Upload Demographic\" untuk mengimpornya.",
+  "Demographic is shown per store — pick a Store above to view its dashboard.":
+    "Demografi ditampilkan per store — pilih satu Store di atas untuk melihat dashboard-nya.",
   "Unique orders": "Pesanan unik",
   "Total Product Ordered": "Total Produk Dipesan",
   "Ready to ship": "Siap dikirim",
