@@ -73,6 +73,26 @@ export async function POST(req: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
+  // Orders already in the system (e.g. the same month uploaded again) would be inserted a second
+  // time and double every unit on the Demographic page. Refuse and say how to replace them:
+  // delete the earlier upload (Upload history), then upload the new file.
+  {
+    const orderNos = Array.from(new Set(parsedRows.map((r) => r.order_no).filter(Boolean) as string[]));
+    const already = new Set<string>();
+    for (let i = 0; i < orderNos.length; i += 300) {
+      let q = admin.from("order_rows").select("order_no").eq("client_id", clientId).in("order_no", orderNos.slice(i, i + 300));
+      if (manual.store_name) q = q.eq("store_name", manual.store_name);
+      const { data } = await q;
+      (data || []).forEach((x: { order_no: string }) => already.add(x.order_no));
+    }
+    if (already.size > 0) {
+      return NextResponse.json({
+        error: `${already.size} of these ${orderNos.length} orders are already uploaded for this store. Delete the earlier upload first (Upload history), then upload this file again.`,
+        code: "DUPLICATE_ORDERS", duplicate_orders: already.size,
+      }, { status: 409 });
+    }
+  }
+
   const { data: upload, error: upErr } = await admin
     .from("uploads")
     .insert({
