@@ -80,6 +80,14 @@ type FinanceProductView = FinanceProductRow & { units_per_order: number | null }
 // finance lines with no Order Completed match, grouped by the month the order was created (YYMM from the order number)
 type MissingUnits = { ym: string; orders: number; sales: number };
 type FinanceProducts = { rows: FinanceProductRow[]; missing?: MissingUnits[]; orders_total: number; orders_with_detail: number };
+type NotPaidRow = {
+  order_no: string; created_at: string | null; completed_at: string | null; days_waiting: number | null;
+  payment_method: string | null; order_value: number | null; units: number; return_status: string | null; products: string | null;
+};
+type NotPaidData = {
+  rows: NotPaidRow[]; not_paid_orders: number; not_paid_value: number; orders_checked: number;
+  window_from: string | null; window_to: string | null;
+};
 type UnconnectedRow = {
   order_no: string; order_date: string | null; release_date: string | null; products: string | null;
   sales: number; net_income: number; reason: "month_missing" | "not_in_file" | "unknown";
@@ -107,7 +115,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   const [fp, setFp] = useState<FinanceProducts | null>(null);
   const [loading, setLoading] = useState(false);
   const [drill, setDrill] = useState<string | null>(null);
-  const [activeTable, setActiveTable] = useState<"transaksi" | "profit" | "unconnected">("transaksi");
+  const [activeTable, setActiveTable] = useState<"transaksi" | "profit" | "notpaid" | "unconnected">("transaksi");
+  const [np, setNp] = useState<NotPaidData | null>(null);
   const [uc, setUc] = useState<UnconnectedData | null>(null);
   const [dailyPajak, setDailyPajak] = useState<Record<string, number>>({});
 
@@ -128,7 +137,7 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
   useEffect(() => { checkData(); }, [checkData, refreshKey]);
 
   const load = useCallback(async () => {
-    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); setFp(null); setUc(null); setDailyPajak({}); return; }
+    if (!clientId || !hasAnyData || !sel.store) { setD(null); setPd(null); setFp(null); setUc(null); setNp(null); setDailyPajak({}); return; }
     setLoading(true);
     const params = {
       p_year: sel.year ? Number(sel.year) : null,
@@ -138,17 +147,19 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       p_brand: null,
       p_store: sel.store,
     };
-    const [{ data }, { data: pdata }, { data: fpdata }, { data: ucdata }, { data: dpdata }] = await Promise.all([
+    const [{ data }, { data: pdata }, { data: fpdata }, { data: ucdata }, { data: dpdata }, { data: npdata }] = await Promise.all([
       supabase.rpc("finance_summary", params),
       supabase.rpc("product_profit_detail", params), // still feeds the Modal KPI and charts
       supabase.rpc("finance_product_profit", params), // the Detail Product Profit table (migration 0130)
       supabase.rpc("finance_unconnected_orders", params), // earnings with no Order Selesai row (migration 0133)
       supabase.rpc("finance_daily_pajak", params), // Pajak per release date (migration 0134)
+      supabase.rpc("finance_not_paid_orders", params), // completed orders with no earning yet (migration 0135)
     ]);
     setD(data as Summary);
     setPd(pdata as ProductDetail);
     setFp((fpdata as FinanceProducts) || null);
     setUc((ucdata as UnconnectedData) || null);
+    setNp((npdata as NotPaidData) || null);
     setDailyPajak(Object.fromEntries(((dpdata as { tx_date: string; pajak: number }[]) || []).map((x) => [x.tx_date, Number(x.pajak)])));
     setLoading(false);
   }, [supabase, clientId, hasAnyData, sel]);
@@ -288,6 +299,9 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
       <div className="tbl-tabs">
         <button onClick={() => setActiveTable("transaksi")} style={tableTabBtn(activeTable === "transaksi")}>{t("Daily Transaction Detail")}</button>
         <button onClick={() => setActiveTable("profit")} style={tableTabBtn(activeTable === "profit")}>Detail Product Profit</button>
+        <button onClick={() => setActiveTable("notpaid")} style={tableTabBtn(activeTable === "notpaid")}>
+          {t("Not Paid Order")}{np && np.not_paid_orders > 0 ? ` (${np.not_paid_orders.toLocaleString("id-ID")})` : ""}
+        </button>
         <button onClick={() => setActiveTable("unconnected")} style={tableTabBtn(activeTable === "unconnected")}>
           {t("Not Connected")}{uc && uc.unconnected_orders > 0 ? ` (${uc.unconnected_orders.toLocaleString("id-ID")})` : ""}
         </button>
@@ -303,6 +317,8 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         <DailyTransactionTable rows={dailyRows} onRowClick={setDrill} t={t} />
       ) : activeTable === "profit" ? (
         <ProductProfitTable data={fp} t={t} />
+      ) : activeTable === "notpaid" ? (
+        <NotPaidTable data={np} t={t} />
       ) : (
         <NotConnectedTable data={uc} t={t} />
       )}
@@ -450,6 +466,98 @@ function ProductProfitTable({ data, t }: { data: FinanceProducts | null; t: (k: 
                 {total > 0 && withDetail === 0
                   ? t("No per-product data for this period. Upload the newer Shopee Penghasilan income report to see products here.")
                   : t("No data for these filters")}
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Not Paid Order: orders that are completed (Order Selesai) but have no earning yet ──
+   Earning is the core. An order is listed until its No. Pesanan appears in ANY finance upload,
+   then it drops off (migration 0135). Orders created outside the period the Earning uploads
+   cover (e.g. December when Earning starts in January) are ignored. */
+function NotPaidTable({ data, t }: { data: NotPaidData | null; t: (k: string) => string }) {
+  const [search, setSearch] = useState("");
+  const rows = data?.rows;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (rows || []).filter((r) => !q || r.order_no.toLowerCase().includes(q) || (r.products || "").toLowerCase().includes(q));
+  }, [rows, search]);
+  const { sortedData, sortConfig, requestSort } = useTableSort<NotPaidRow>(filtered, "completed_at");
+
+  function downloadCsv() {
+    const esc = (v: unknown) => { const s = String(v ?? ""); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ["No. Pesanan", "Order Created", "Order Completed", "Days Waiting", "Products", "Units", "Order Value", "Payment Method", "Return Status"];
+    const lines = [head.join(",")].concat(sortedData.map((r) => [r.order_no, r.created_at, r.completed_at, r.days_waiting, r.products, r.units, r.order_value, r.payment_method, r.return_status].map(esc).join(",")));
+    const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `not-paid-orders_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const count = data?.not_paid_orders ?? 0;
+  const cell = { whiteSpace: "nowrap" } as const;
+  const waitColor = (d: number | null) => (d == null ? "var(--muted)" : d > 14 ? "#f87171" : d > 7 ? "#fbbf24" : "inherit");
+
+  return (
+    <div className="panel">
+      <h3>{t("Not Paid Order")}</h3>
+      <div className="hint">
+        {t("Completed (Order Selesai) orders whose earning is not in Earning yet. An order leaves this list as soon as its earning is uploaded.")}
+        {data?.window_from && <> {t("Orders created")} {data.window_from} – {data.window_to} {t("(the period your Earning covers); orders outside it are ignored.")}</>}
+      </div>
+      {data && data.orders_checked > 0 && (
+        <div className="hint" style={{ marginTop: 6, color: count ? "#fbbf24" : "#86efac" }}>
+          {count
+            ? <><b>{count.toLocaleString("id-ID")}</b> / {data.orders_checked.toLocaleString("id-ID")} {t("orders not paid yet")} · {t("Order Value")} {rpFull(data.not_paid_value)}</>
+            : <>✓ {t("Every completed order in this period has its earning.")}</>}
+        </div>
+      )}
+
+      <div className="filterbar" style={{ marginTop: 6, marginBottom: 10, alignItems: "flex-end" }}>
+        <div className="fld" style={{ minWidth: 240 }}>
+          <label>{t("Search")}</label>
+          <input type="text" placeholder={t("Order No. / Product")} value={search} onChange={(e) => setSearch(e.target.value)}
+            style={{ background: "rgba(10,22,40,.5)", border: "1px solid rgba(201,162,39,.2)", borderRadius: 8, padding: "8px 10px", color: "#e8edf8", fontSize: 13, width: "100%" }} />
+        </div>
+        <button className="btn-ghost" onClick={downloadCsv} disabled={!sortedData.length}>⬇ {t("Download CSV")}</button>
+      </div>
+
+      <div className="tbl-wrap" style={{ maxHeight: 450 }}>
+        <table className="tbl">
+          <thead><tr>
+            <SortableHeader label={t("Order No.")} sortKey="order_no" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Order Created")} sortKey="created_at" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Order Completed")} sortKey="completed_at" currentSort={sortConfig} onRequestSort={requestSort} />
+            <SortableHeader label={t("Days Waiting")} sortKey="days_waiting" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <th>{t("Products")}</th>
+            <SortableHeader label={t("Units")} sortKey="units" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <SortableHeader label={t("Order Value")} sortKey="order_value" currentSort={sortConfig} onRequestSort={requestSort} className="num" />
+            <th>{t("Payment")}</th>
+            <th>{t("Note")}</th>
+          </tr></thead>
+          <tbody>
+            {sortedData.map((r) => (
+              <tr key={r.order_no}>
+                <td style={{ ...cell, fontFamily: "monospace", fontSize: 12 }}>{r.order_no}</td>
+                <td style={cell}>{r.created_at || "—"}</td>
+                <td style={cell}>{r.completed_at || "—"}</td>
+                <td className="num" style={{ ...cell, fontWeight: 700, color: waitColor(r.days_waiting) }}>{r.days_waiting == null ? "—" : r.days_waiting}</td>
+                <td style={{ maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }} title={r.products || undefined}>{r.products || "—"}</td>
+                <td className="num" style={cell}>{Math.round(r.units).toLocaleString("id-ID")}</td>
+                <td className="num" style={cell}>{r.order_value == null ? "—" : rpFull(r.order_value)}</td>
+                <td style={{ ...cell, fontSize: 12 }}>{r.payment_method || "—"}</td>
+                <td style={{ ...cell, fontSize: 11.5, color: "#fbbf24" }}>{r.return_status ? t("Return approved") : ""}</td>
+              </tr>
+            ))}
+            {sortedData.length === 0 && (
+              <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>
+                {data?.window_from ? t("No unpaid orders.") : t("Upload Earning for this store first — nothing to compare yet.")}
               </td></tr>
             )}
           </tbody>
