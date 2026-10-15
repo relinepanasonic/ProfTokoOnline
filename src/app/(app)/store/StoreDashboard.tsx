@@ -203,8 +203,8 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
         <div className="kpi kpi-hero"><div className="kpi-icon">🧾</div><div className="lbl">{t("Total Transaction")}</div><div className="val">{k ? numFull(k.total_transaksi) : "—"}</div><div className="kpi-sub">{t("Unique orders")}</div><MiniSparkline data={ordersSeries} color={GOLD} /></div>
         <div className="kpi"><div className="kpi-icon">📦</div><div className="lbl">{t("Total Product Ordered")}</div><div className="val">{k ? numFull(k.total_produk) : "—"}</div><div className="kpi-sub">{t("Ready to ship")}</div>
           <div style={{ display: "grid", gap: 3, marginTop: 8 }}>
-            <SubStat label={t("Avg Product per Transaction")} value={avgUnits == null ? "—" : avgUnits.toLocaleString("id-ID", { maximumFractionDigits: 2 })} title="UPT — Units Per Transaction" />
-            <SubStat label={t("Avg Sales per Transaction")} value={avgSales == null ? "—" : rpFull(avgSales)} title="AOV — Average Order Value" />
+            <SubStat label={t("Unit per Transaction")} value={avgUnits == null ? "—" : avgUnits.toLocaleString("id-ID", { maximumFractionDigits: 2 })} title="UPT — Units Per Transaction" />
+            <SubStat label={t("AOV")} value={avgSales == null ? "—" : rpFull(avgSales)} title="AOV — Average Order Value" />
           </div>
         </div>
         <div className="kpi kpi-roas" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
