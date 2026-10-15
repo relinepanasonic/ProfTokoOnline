@@ -65,6 +65,7 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   const [loading, setLoading] = useState(false);
   const [loadErr, setLoadErr] = useState("");
   const [drill, setDrill] = useState<string | null>(null);
+  const [entity, setEntity] = useState<Entity | null>(null); // Top 5 row opened for its transactions
 
   const checkData = useCallback(async () => {
     if (!clientId) return;
@@ -152,10 +153,18 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
   const ordersForAvg = tb ? tb.total_orders : (k?.total_transaksi ?? 0);
   const avgSales = ordersForAvg > 0 ? gmvTotal / ordersForAvg : null;
   const avgUnits = k && k.total_transaksi > 0 ? k.total_produk / k.total_transaksi : null;
-  const topProvinces = (d?.province_gmv || []).slice(0, 5).map((x) => ({ name: x.province, sub: "", orders: x.transactions, sales: x.gmv }));
-  const topCities = [...(d?.city_detail || [])].sort((a, b) => b.gmv - a.gmv).slice(0, 5)
-    .map((x) => ({ name: x.city, sub: x.province, orders: x.transactions, sales: x.gmv }));
-  const topUsers = (tb?.rows || []).map((x) => ({ name: x.username, sub: "", orders: x.orders, sales: x.gmv }));
+  const topProvinces: Top5Row[] = (d?.province_gmv || []).slice(0, 5).map((x) => ({
+    name: x.province, orders: x.transactions, sales: x.gmv,
+    pick: { field: "province", value: x.province, label: x.province, orders: x.transactions, sales: x.gmv },
+  }));
+  const topCities: Top5Row[] = [...(d?.city_detail || [])].sort((a, b) => b.gmv - a.gmv).slice(0, 5).map((x) => ({
+    name: x.city, orders: x.transactions, sales: x.gmv,
+    pick: { field: "city", value: x.city, label: x.city, also: { field: "province", value: x.province }, orders: x.transactions, sales: x.gmv },
+  }));
+  const topUsers: Top5Row[] = (tb?.rows || []).map((x) => ({
+    name: x.username, orders: x.orders, sales: x.gmv,
+    pick: { field: "buyer_username", value: x.username, label: x.username, orders: x.orders, sales: x.gmv },
+  }));
   const slaBuckets = SLA_ORDER.map((b) => ({ bucket: b, cnt: d?.sla_buckets.find((x) => x.bucket === b)?.cnt ?? 0 }));
 
   return (
@@ -211,10 +220,10 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       </div>
 
       {/* Top 5 by sales: province, city / regency, buyer username */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(330px,1fr))", gap: 18, marginBottom: 18 }}>
-        <Top5Table title={t("Top 5 Province by Sales")} nameLabel={t("Province")} rows={topProvinces} t={t} />
-        <Top5Table title={t("Top 5 City / Regency by Sales")} nameLabel={t("City / Regency")} rows={topCities} t={t} />
-        <Top5Table title={t("Top 5 Username by Sales")} nameLabel={t("Username")} rows={topUsers} t={t} />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(380px,1fr))", gap: 18, marginBottom: 18 }}>
+        <Top5Table title={t("Top 5 Province by Sales")} nameLabel={t("Province")} rows={topProvinces} onPick={setEntity} t={t} />
+        <Top5Table title={t("Top 5 City / Regency by Sales")} nameLabel={t("City / Regency")} rows={topCities} onPick={setEntity} t={t} />
+        <Top5Table title={t("Top 5 Username by Sales")} nameLabel={t("Username")} rows={topUsers} onPick={setEntity} t={t} />
       </div>
 
       {/* Map + SLA bucket, side by side */}
@@ -267,6 +276,9 @@ export default function StoreDashboard({ clientId, refreshKey }: { clientId: str
       {drill && (
         <DayDrillDown day={drill} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setDrill(null)} />
       )}
+      {entity && (
+        <EntityDrillDown entity={entity} clientId={clientId} sel={sel} supabase={supabase} onClose={() => setEntity(null)} />
+      )}
       </>
       )}
     </>
@@ -283,34 +295,59 @@ function SubStat({ label, value, title }: { label: string; value: string; title?
   );
 }
 
-type Top5Row = { name: string; sub: string; orders: number; sales: number };
-function Top5Table({ title, nameLabel, rows, t }: { title: string; nameLabel: string; rows: Top5Row[]; t: (k: string) => string }) {
+/* ── Top 5 tables: one look for Province / City / Username, every row clickable ── */
+type Entity = {
+  field: "province" | "city" | "buyer_username"; value: string; label: string;
+  also?: { field: "province"; value: string };   // a city is also matched on its province
+  orders: number; sales: number;
+};
+type Top5Row = { name: string; orders: number; sales: number; pick: Entity };
+const TOP5_ROWS = 5;
+const TOP5_ROW_H = 46; // identical in all three tables
+
+function Top5Table({ title, nameLabel, rows, onPick, t }: { title: string; nameLabel: string; rows: Top5Row[]; onPick: (e: Entity) => void; t: (k: string) => string }) {
+  const max = rows.reduce((m, r) => Math.max(m, r.sales), 0) || 1;
+  const blanks = Math.max(TOP5_ROWS - rows.length, 0);
+  const cellBase: React.CSSProperties = { height: TOP5_ROW_H, padding: "0 10px", verticalAlign: "middle", whiteSpace: "nowrap" };
   return (
     <div className="panel" style={{ marginBottom: 0 }}>
-      <h3 style={{ margin: "0 0 10px" }}>{title}</h3>
-      <div className="tbl-wrap">
-        <table className="tbl">
+      <style>{`.top5-row{cursor:pointer;transition:background-color .15s}.top5-row:hover td{background:rgba(255,255,255,.045)}`}</style>
+      <h3 style={{ margin: "0 0 12px" }}>{title}</h3>
+      <div className="tbl-wrap" style={{ overflow: "hidden" }}>
+        <table className="tbl" style={{ tableLayout: "fixed", width: "100%" }}>
+          <colgroup><col style={{ width: 46 }} /><col /><col style={{ width: 66 }} /><col style={{ width: 132 }} /></colgroup>
           <thead><tr>
-            <th style={{ width: 28 }}>#</th>
-            <th>{nameLabel}</th>
-            <th className="num">{t("Orders")}</th>
-            <th className="num">{t("Sales")}</th>
+            <th style={{ ...cellBase, height: 38 }}>#</th>
+            <th style={{ ...cellBase, height: 38 }}>{nameLabel}</th>
+            <th className="num" style={{ ...cellBase, height: 38 }}>{t("Orders")}</th>
+            <th className="num" style={{ ...cellBase, height: 38 }}>{t("Sales")}</th>
           </tr></thead>
           <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.name + i}>
-                <td style={{ color: "var(--muted)" }}>{i + 1}</td>
-                <td style={{ fontWeight: 600 }}>
-                  {r.name}
-                  {r.sub && <div style={{ fontSize: 10.5, color: "var(--muted)", fontWeight: 400 }}>{r.sub}</div>}
-                </td>
-                <td className="num">{numFull(r.orders)}</td>
-                <td className="num" style={{ whiteSpace: "nowrap" }}>{rpFull(r.sales)}</td>
+            {rows.map((r, i) => {
+              const pct = Math.max(Math.round((r.sales / max) * 100), 4);
+              return (
+                <tr key={r.name + i} className="top5-row" onClick={() => onPick(r.pick)} title={t("Click to see the transactions")}
+                  style={{ backgroundImage: `linear-gradient(90deg, rgba(201,162,39,.16) ${pct}%, transparent ${pct}%)` }}>
+                  <td style={cellBase}>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24, borderRadius: "50%", fontSize: 12, fontWeight: 800,
+                      background: i === 0 ? "linear-gradient(135deg,var(--gold),var(--gold-soft))" : "rgba(255,255,255,.06)",
+                      color: i === 0 ? "var(--navy-deep)" : "var(--muted)",
+                    }}>{i + 1}</span>
+                  </td>
+                  <td style={{ ...cellBase, overflow: "hidden", textOverflow: "ellipsis", fontWeight: 600 }} title={r.name}>{r.name}</td>
+                  <td className="num" style={cellBase}>{numFull(r.orders)}</td>
+                  <td className="num" style={{ ...cellBase, fontWeight: 700 }}>{rpFull(r.sales)}</td>
+                </tr>
+              );
+            })}
+            {Array.from({ length: blanks }).map((_, i) => (
+              <tr key={"blank" + i}>
+                <td style={cellBase}><span style={{ color: "var(--muted)", opacity: 0.4, fontSize: 12 }}>{rows.length + i + 1}</span></td>
+                <td style={{ ...cellBase, color: "var(--muted)", opacity: 0.5 }}>{rows.length === 0 && i === 0 ? t("No data yet") : "—"}</td>
+                <td style={cellBase} /><td style={cellBase} />
               </tr>
             ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--muted)", padding: 16 }}>{t("No data yet")}</td></tr>
-            )}
           </tbody>
         </table>
       </div>
@@ -410,6 +447,124 @@ function DayDrillDown({ day, clientId, sel, supabase, onClose }: {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Province / City / Username drill-down: that group's transactions, by date ── */
+const ENTITY_PAGE = 500;
+function fmtDTY(s: string | null): string {
+  if (!s) return "—";
+  const d = new Date(s.replace(" ", "T"));
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function EntityDrillDown({ entity, clientId, sel, supabase, onClose }: {
+  entity: Entity; clientId: string;
+  sel: { year: string; month: string; week: string; owner: string; store: string };
+  supabase: ReturnType<typeof createClient>; onClose: () => void;
+}) {
+  const { t } = useLang();
+  const [rows, setRows] = useState<DetailRow[] | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  // same filters as the page, plus this province / city / username; one page of lines at a time
+  const fetchPage = useCallback(async (from: number) => {
+    let q = supabase.from("order_rows")
+      .select("order_no,product_name,variant_name,qty,paid_at,ship_deadline,completed_at,payment_method,shipping_option,city,province,total_payment,order_status,cancel_return_status", { count: "exact" })
+      .eq("client_id", clientId).eq(entity.field, entity.value);
+    if (entity.also) q = q.eq(entity.also.field, entity.also.value);
+    if (sel.year) q = q.eq("year", Number(sel.year));
+    if (sel.month) q = q.eq("month", sel.month);
+    if (sel.week) q = q.eq("week", sel.week);
+    if (sel.owner) q = q.eq("pic_client", sel.owner);
+    if (sel.store) q = q.eq("store_name", sel.store);
+    return q.order("completed_at", { ascending: !newestFirst, nullsFirst: false }).order("order_no").order("id")
+      .range(from, from + ENTITY_PAGE - 1);
+  }, [supabase, clientId, entity, sel, newestFirst]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setRows(null);
+      const { data, count } = await fetchPage(0);
+      if (!alive) return;
+      setRows((data as DetailRow[]) || []);
+      setTotal(count ?? null);
+    })();
+    return () => { alive = false; };
+  }, [fetchPage]);
+
+  async function loadMore() {
+    if (!rows) return;
+    setBusy(true);
+    const { data } = await fetchPage(rows.length);
+    setRows((prev) => (prev || []).concat((data as DetailRow[]) || []));
+    setBusy(false);
+  }
+
+  const heading = { province: t("Province"), city: t("City / Regency"), buyer_username: t("Username") }[entity.field];
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={drawer} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
+          <div>
+            <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".5px", fontWeight: 700 }}>{heading}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>{entity.label}</div>
+          </div>
+          <button className="btn-ghost" onClick={onClose}>✕ {t("Close")}</button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 14, fontSize: 13, color: "var(--muted)" }}>
+          <span><b style={{ color: "#fff" }}>{numFull(entity.orders)}</b> {t("orders")} · <b style={{ color: GOLD }}>{rpFull(entity.sales)}</b></span>
+          <button className="btn-ghost" style={{ padding: "4px 12px", fontSize: 12 }} onClick={() => setNewestFirst((v) => !v)}>
+            {t("Date")} {newestFirst ? "↓ " + t("Newest first") : "↑ " + t("Oldest first")}
+          </button>
+          {rows && total != null && <span>{t("Showing")} {numFull(rows.length)} {t("of")} {numFull(total)} {t("lines")}</span>}
+        </div>
+        {rows === null ? <Loader center /> : (
+          <>
+            <div className="tbl-wrap" style={{ maxHeight: "66vh" }}>
+              <table className="tbl" style={{ color: "#e8edf8", fontSize: 13.5 }}>
+                <thead><tr>
+                  <th>{t("Completed At")}</th><th>{t("Order No.")}</th><th>{t("Product")}</th><th>{t("Variant")}</th><th className="num">Qty</th>
+                  <th>{t("Paid At")}</th><th>SLA</th><th>{t("Payment Method")}</th><th>{t("Courier")}</th>
+                  <th>{t("City")}</th><th>{t("Province")}</th><th className="num">Total Sales</th><th>{t("Status")}</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map((r, i) => {
+                    const first = i === 0 || rows[i - 1].order_no !== r.order_no; // total + order no only on an order's first line
+                    return (
+                      <tr key={i}>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? fmtDTY(r.completed_at) : ""}</td>
+                        <td style={{ fontFamily: "monospace", fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.order_no || "—") : ""}</td>
+                        <td style={{ maxWidth: 240, whiteSpace: "normal" }}>{r.product_name || "—"}</td>
+                        <td style={{ whiteSpace: "nowrap" }}>{r.variant_name || "—"}</td>
+                        <td className="num">{r.qty ?? "—"}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? fmtDTY(r.paid_at) : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap", fontWeight: 700, color: GOLD }}>{first ? slaFor(r.paid_at, r.completed_at) : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.payment_method || "—") : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.shipping_option || "—") : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.city || "—") : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.province || "—") : ""}</td>
+                        <td className="num">{first ? rpFull(r.total_payment || 0) : ""}</td>
+                        <td style={{ fontSize: 12.5, whiteSpace: "nowrap" }}>{first ? (r.cancel_return_status || r.order_status || "—") : ""}</td>
+                      </tr>
+                    );
+                  })}
+                  {rows.length === 0 && <tr><td colSpan={13} style={{ textAlign: "center", color: "var(--muted)", padding: 20 }}>{t("No transactions")}</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            {total != null && rows.length < total && (
+              <div style={{ textAlign: "center", marginTop: 12 }}>
+                <button className="btn-ghost" onClick={loadMore} disabled={busy}>{busy ? "…" : t("Load more")}</button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
