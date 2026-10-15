@@ -300,19 +300,12 @@ export default function FinanceDashboard({ clientId, refreshKey }: { clientId: s
         <button onClick={() => setActiveTable("transaksi")} style={tableTabBtn(activeTable === "transaksi")}>{t("Daily Transaction Detail")}</button>
         <button onClick={() => setActiveTable("profit")} style={tableTabBtn(activeTable === "profit")}>Detail Product Profit</button>
         <button onClick={() => setActiveTable("notpaid")} style={tableTabBtn(activeTable === "notpaid")}>
-          {t("Not Paid Order")}{np && np.not_paid_orders > 0 ? ` (${np.not_paid_orders.toLocaleString("id-ID")})` : ""}
+          {t("Not Paid Order")}
         </button>
         <button onClick={() => setActiveTable("unconnected")} style={tableTabBtn(activeTable === "unconnected")}>
-          {t("Not Connected")}{uc && uc.unconnected_orders > 0 ? ` (${uc.unconnected_orders.toLocaleString("id-ID")})` : ""}
+          {t("Not Connected")}{uc && uc.unconnected_orders > 0 && <span style={COUNT_BADGE}>{uc.unconnected_orders > 99 ? "99+" : uc.unconnected_orders}</span>}
         </button>
       </div>
-      {uc && uc.orders_total > 0 && (
-        <div className="hint" style={{ margin: "-4px 0 10px", color: uc.unconnected_orders ? "#fbbf24" : "#86efac" }}>
-          {t("Connected to Order Selesai")}: {uc.orders_connected.toLocaleString("id-ID")} / {uc.orders_total.toLocaleString("id-ID")} {t("orders")} ({(uc.orders_connected / uc.orders_total * 100).toFixed(1)}%)
-          {uc.unconnected_orders > 0 && <> — <button onClick={() => setActiveTable("unconnected")} style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit" }}>{uc.unconnected_orders.toLocaleString("id-ID")} {t("not connected")}</button></>}
-        </div>
-      )}
-
       {activeTable === "transaksi" ? (
         <DailyTransactionTable rows={dailyRows} onRowClick={setDrill} t={t} />
       ) : activeTable === "profit" ? (
@@ -507,18 +500,21 @@ function NotPaidTable({ data, t }: { data: NotPaidData | null; t: (k: string) =>
   return (
     <div className="panel">
       <h3>{t("Not Paid Order")}</h3>
-      <div className="hint">
-        {t("Completed (Order Selesai) orders whose earning is not in Earning yet. An order leaves this list as soon as its earning is uploaded.")}
-        {data?.window_from && <> {t("Orders created")} {data.window_from} – {data.window_to} {t("(the period your Earning covers); orders outside it are ignored.")}</>}
-      </div>
       {data && data.orders_checked > 0 && (
-        <div className="hint" style={{ marginTop: 6, color: count ? "#fbbf24" : "#86efac" }}>
-          {count
-            ? <><b>{count.toLocaleString("id-ID")}</b> / {data.orders_checked.toLocaleString("id-ID")} {t("orders not paid yet")} · {t("Order Value")} {rpFull(data.not_paid_value)}</>
-            : <>✓ {t("Every completed order in this period has its earning.")}</>}
+        <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 270px))", marginBottom: 14 }}>
+          <div className="kpi kpi-hero">
+            <div className="kpi-icon">⏳</div>
+            <div className="lbl">{t("Not Paid Order")}</div>
+            <div className="val">{count.toLocaleString("id-ID")}</div>
+            <div className="kpi-sub">{t("of")} {data.orders_checked.toLocaleString("id-ID")} {t("orders")}</div>
+          </div>
+          <div className="kpi">
+            <div className="kpi-icon">💰</div>
+            <div className="lbl">{t("Order Value")}</div>
+            <div className="val">{rpFull(data.not_paid_value)}</div>
+          </div>
         </div>
       )}
-
       <div className="filterbar" style={{ marginTop: 6, marginBottom: 10, alignItems: "flex-end" }}>
         <div className="fld" style={{ minWidth: 240 }}>
           <label>{t("Search")}</label>
@@ -601,30 +597,12 @@ function NotConnectedTable({ data, t }: { data: UnconnectedData | null; t: (k: s
     URL.revokeObjectURL(url);
   }
 
-  const total = data?.orders_total ?? 0;
-  const connected = data?.orders_connected ?? 0;
   const open = data?.unconnected_orders ?? 0;
   const cell = { whiteSpace: "nowrap" } as const;
-  const br = data?.by_reason || {};
 
   return (
     <div className="panel">
       <h3>{t("Earning not connected to Order Selesai")}</h3>
-      <div className="hint">
-        {t("Finance is the base. An earning is connected when its order number (No. Pesanan) is in an Order Completed upload — any month. These earnings are still fully counted in Earning; they only lack units and order details.")}
-      </div>
-      {total > 0 && open === 0 && (
-        <div className="hint" style={{ marginTop: 8, color: "#86efac" }}>✓ {t("All earnings are connected to Order Selesai.")} ({connected.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")})</div>
-      )}
-      {open > 0 && (
-        <div className="hint" style={{ marginTop: 8 }}>
-          {connected.toLocaleString("id-ID")} / {total.toLocaleString("id-ID")} {t("orders connected")} · <b>{open.toLocaleString("id-ID")}</b> {t("not connected")} · {t("Nett Income")} {rpFull(data?.unconnected_net ?? 0)}
-          {br.month_missing && <div style={{ color: "#fbbf24" }}>• {br.month_missing.orders.toLocaleString("id-ID")} {t("orders: Order Completed for the month they were created is not uploaded yet — upload it and they connect automatically.")}</div>}
-          {br.not_in_file && <div style={{ color: "#f87171" }}>• {br.not_in_file.orders.toLocaleString("id-ID")} {t("orders: that month is uploaded but these orders are not in it (cancelled, returned or never reached Selesai).")}</div>}
-          {br.unknown && <div>• {br.unknown.orders.toLocaleString("id-ID")} {t("orders: the income report has no created date for them.")}</div>}
-        </div>
-      )}
-
       <div className="filterbar" style={{ marginTop: 6, marginBottom: 10, alignItems: "flex-end" }}>
         <div className="fld" style={{ minWidth: 240 }}>
           <label>{t("Search")}</label>
@@ -823,6 +801,12 @@ function Empty() {
   const { t } = useLang();
   return <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 13 }}>{t("No data yet")}</div>;
 }
+// round count badge on a tab, like an unread-message notification
+const COUNT_BADGE: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 20, height: 20, padding: "0 6px",
+  marginLeft: 8, borderRadius: 999, background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 800, lineHeight: 1,
+  boxShadow: "0 2px 8px rgba(239,68,68,.45)", verticalAlign: "middle",
+};
 function tableTabBtn(active: boolean): React.CSSProperties {
   return {
     padding: "9px 20px", borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: "pointer",
