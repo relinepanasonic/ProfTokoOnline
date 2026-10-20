@@ -12,6 +12,7 @@ import { GUIDE } from "@/lib/uploadGuides";
 import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
 import { safeJson } from "@/lib/safeJson";
+import { refreshAfterUpload } from "@/lib/uploadClient";
 
 export const dynamic = "force-dynamic";
 
@@ -193,9 +194,16 @@ export default function UploadPage() {
       fd.append("source", slot.source);
       fd.append("manual", JSON.stringify(manualToSend));
       fd.append("client_id", clientId);
+      fd.append("refresh", "later"); // dashboard refresh runs as its own request, see /api/upload/refresh
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const j = await safeJson(res);
+        if (res.ok) {
+          setLog((l) => [...l, `… ${slot.label}: ${j.rows} rows saved, refreshing dashboard`]);
+          const w = await refreshAfterUpload(j.upload_id);
+          if (w) j.rollup_warning = w;
+          setLog((l) => l.filter((x) => !x.startsWith(`… ${slot.label}:`)));
+        }
         setLog((l) => [...l, res.ok ? `✓ ${slot.label}: ${j.rows} rows${warn(j)}` : `✗ ${slot.label}: ${j.error}`]);
       } catch (e) {
         setLog((l) => [...l, `✗ ${slot.label}: ${String(e)}`]);

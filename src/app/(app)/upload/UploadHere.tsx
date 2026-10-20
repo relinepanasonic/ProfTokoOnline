@@ -8,6 +8,7 @@ import UploadLogTable from "./UploadLogTable";
 import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
 import { safeJson } from "@/lib/safeJson";
+import { refreshAfterUpload } from "@/lib/uploadClient";
 
 type Link = { owner: string | null; brand: string | null; store_name: string | null };
 type Profile = { role: string; client_id: string | null; scope_owner: string | null };
@@ -157,9 +158,14 @@ export default function UploadHere() {
       fd.append("source", source);
       fd.append("client_id", resolvedCid);
       fd.append("manual", JSON.stringify(manualToSend));
+      fd.append("refresh", "later"); // dashboard refresh runs as its own request, see /api/upload/refresh
       try {
         const res = await fetch("/api/upload", { method: "POST", body: fd });
         const j = await safeJson(res);
+        if (res.ok) {
+          const w = await refreshAfterUpload(j.upload_id);
+          if (w) j.rollup_warning = w;
+        }
         return { ok: res.ok, j };
       } catch (e) {
         return { ok: false, j: { error: String(e) } };

@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { mapRow, bqCol, type DataSource, type ManualFields } from "@/lib/parse";
+import { runUploadRefresh } from "@/lib/uploadRefresh";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -223,50 +224,16 @@ async function handleUpload(req: NextRequest) {
     .update({ row_count: inserted })
     .eq("id", upload.id);
 
-  // Refresh the derived tables the dashboards actually read from. These are
-  // SLICE-scoped (migration 0107): an upload can only change the one
-  // (client_id, source, year, month, week, store_name) slice it carries, so
-  // only that slice is recomputed — a few hundred rows, milliseconds, and it
-  // stays that way however large the database grows. Earlier versions
-  // re-aggregated the client's whole history on every upload, which is what
-  // made this the recurring source of 57014 timeouts and lock timeouts
-  // (0060 → 0102 → 0104/0105 all tuned that same unbounded work).
-  //
-  // Errors are surfaced rather than discarded (migration 0102): the rows land
-  // in sales_rows regardless, so a failed refresh would otherwise leave the
-  // dashboard silently stale behind a green checkmark.
-  const rollupWarnings: string[] = [];
-  const canSlice = slice.year != null && slice.month && slice.week && slice.store_name;
-  const { error: dashErr } = canSlice
-    ? await admin.rpc("refresh_dashboard_rollup_slice", {
-        p_client_id: clientId, p_source: source, p_year: slice.year,
-        p_month: slice.month, p_week: slice.week, p_store_name: slice.store_name,
-      })
-    // No slice key (shouldn't happen — the UI requires Year/Month/Store) —
-    // fall back to the client-wide rebuild so data is never left stale.
-    : await admin.rpc("refresh_dashboard_rollup", { p_client_id: clientId });
-  if (dashErr) { console.error("refresh_dashboard_rollup failed:", dashErr); rollupWarnings.push(`dashboard: ${dashErr.message}`); }
-  // Only ads uploads feed ads_rollup (migration 0067).
-  if (source === "ads") {
-    const { error: adsErr } = canSlice
-      ? await admin.rpc("refresh_ads_rollup_slice", {
-          p_client_id: clientId, p_year: slice.year,
-          p_month: slice.month, p_week: slice.week, p_store_name: slice.store_name,
-        })
-      : await admin.rpc("refresh_ads_rollup", { p_client_id: clientId });
-    if (adsErr) { console.error("refresh_ads_rollup failed:", adsErr); rollupWarnings.push(`ads: ${adsErr.message}`); }
-  }
-  // Modal Product's catalog (migration 0071) — only spos uploads feed it.
-  // Scoped to the products in THIS upload (0107): it derives a latest-known
-  // price across history, so it can't be period-sliced, but it can skip
-  // every product the upload didn't touch.
-  if (source === "spos") {
-    const { error: catErr } = await admin.rpc("refresh_product_catalog_for_upload", { p_upload_id: upload.id });
-    if (catErr) { console.error("refresh_product_catalog failed:", catErr); rollupWarnings.push(`catalog: ${catErr.message}`); }
-  }
+  // Refresh the derived tables the dashboards read from (slice-scoped, migration 0107; see lib/uploadRefresh.ts).
+  // The upload page sends refresh=later and calls /api/upload/refresh as a SECOND request: a big SPOS file
+  // spent the whole 60 s of this one on parse + insert + both refreshes and Vercel killed it (504). Callers
+  // that do not ask for it still get the refresh inside this request, now run in parallel.
+  const deferRefresh = String(form.get("refresh") || "") === "later";
+  const rollupWarnings = deferRefresh ? [] : await runUploadRefresh(admin, { clientId, source, uploadId: upload.id, slice });
 
   return NextResponse.json({
     ok: true, upload_id: upload.id, rows: inserted,
+    ...(deferRefresh ? { refresh: "later" } : {}),
     ...(rollupWarnings.length ? { rollup_warning: rollupWarnings.join("; ") } : {}),
   });
 }
