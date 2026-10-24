@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { erpAuthorized } from "@/lib/erpAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,32 +53,12 @@ type UploadRow = {
   meta: { pic_client?: string; brand?: string; store_name?: string; bulan?: string; year?: number; admin?: string; ads_level?: string } | null;
 };
 
-// SHA-256 comparison (not a raw string ===) so the check takes constant
-// time regardless of where the first mismatched byte falls, AND so a
-// length mismatch (the usual reason a naive timingSafeEqual throws or
-// short-circuits) never leaks anything either — both sides are always
-// fixed-length digests before comparing.
-function safeEqual(a: string, b: string): boolean {
-  const ha = crypto.createHash("sha256").update(a, "utf8").digest();
-  const hb = crypto.createHash("sha256").update(b, "utf8").digest();
-  return crypto.timingSafeEqual(ha, hb);
-}
-
-function checkAuth(req: NextRequest): boolean {
-  const expected = process.env.ERP_API_KEY;
-  if (!expected) return false; // unset -> always 401, per spec
-  const header = req.headers.get("authorization") || "";
-  const m = /^Bearer\s+(.+)$/.exec(header.trim());
-  if (!m) return false;
-  return safeEqual(m[1], expected);
-}
-
 function jakartaDayStart(dateStr: string): Date {
   return new Date(`${dateStr}T00:00:00${JAKARTA_OFFSET}`);
 }
 
 export async function GET(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!erpAuthorized(req)) {
     return new NextResponse(null, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
 

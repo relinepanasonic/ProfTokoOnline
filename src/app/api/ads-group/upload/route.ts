@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { adGroupReplaceKey } from "@/lib/adGroupReplace";
 import * as XLSX from "xlsx";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
@@ -148,17 +149,24 @@ async function handleAdsGroupUpload(req: NextRequest) {
   // it instead of appending a duplicate copy (see migration 0106, which
   // cleans up the duplicates the old append-only behavior accumulated).
   // Keyed by grup_iklan as well as the period/store, so the several groups
-  // that legitimately share one week don't delete each other.
-  if (manual.year != null && manual.bulan && manual.week && manual.store_name && grupIklan) {
-    const { error: delErr } = await admin
+  // that legitimately share one week don't delete each other. A file WITHOUT a
+  // group name (the GMV Max "Inkubasi" file, unnamed "Grup Iklan" files) used to be
+  // skipped here, so every re-upload added a second copy and doubled GMV Max —
+  // those now replace the unnamed rows of the same ads_level (lib/adGroupReplace.ts).
+  const replaceKey = adGroupReplaceKey(grupIklan, adsLevel);
+  if (manual.year != null && manual.bulan && manual.week && manual.store_name && replaceKey) {
+    let del = admin
       .from("ad_groups")
       .delete()
       .eq("client_id", clientId)
       .eq("year", manual.year)
       .eq("month", manual.bulan)
       .eq("week", manual.week)
-      .eq("store_name", manual.store_name)
-      .eq("grup_iklan", grupIklan);
+      .eq("store_name", manual.store_name);
+    del = replaceKey.by === "name"
+      ? del.eq("grup_iklan", replaceKey.grup_iklan)
+      : del.is("grup_iklan", null).eq("ads_level", replaceKey.ads_level);
+    const { error: delErr } = await del;
     if (delErr) {
       await admin.from("uploads").delete().eq("id", upload.id);
       return NextResponse.json({ error: `Could not clear previous upload: ${delErr.message}` }, { status: 500 });
