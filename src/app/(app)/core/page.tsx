@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Dropdown from "@/components/Dropdown";
+import ReportGroups from "./ReportGroups";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default function CoreListPage() {
   const [msg, setMsg] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const reload = useCallback(async (cid: string) => {
     if (!cid) { setItems([]); setLinks([]); return; }
@@ -35,6 +37,7 @@ export default function CoreListPage() {
       const { data: p } = await supabase.from("profiles").select("role,client_id").eq("id", user.id).single();
       const prof = p as { role?: string; client_id?: string | null } | null;
       setIsSuperadmin(prof?.role === "superadmin");
+      setIsAdmin(prof?.role === "superadmin" || prof?.role === "client_admin");
       // client_admin is tied to one real tenant — use THEIR OWN client_id,
       // not "whichever client was created first" (which only happened to be
       // correct here because Prof Toko Online is the first-created client;
@@ -198,6 +201,8 @@ export default function CoreListPage() {
         </Card>
 
       </div>
+
+      {isAdmin && <ReportGroups clientId={clientId} owners={owners.map((o) => o.value)} />}
     </>
   );
 }

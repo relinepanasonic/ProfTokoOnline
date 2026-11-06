@@ -45,9 +45,11 @@ export async function proxy(request: NextRequest) {
   // it never carries a Supabase session cookie, only its own
   // Authorization: Bearer ERP_API_KEY, checked inside the route itself.
   // Redirecting it here would 307 every call before that check ever runs.
+  // /api/reports/weekly is the same kind of feed (Make.com -> WhatsApp), keyed by REPORT_API_KEY.
   const isPublic = isAuthPage || path.startsWith("/join/") || path === "/api/join"
     || path === "/api/register"
     || path.startsWith("/api/erp/")
+    || path === "/api/reports/weekly"
     || path === "/manifest.webmanifest" || path === "/sw.js";
 
   if (!user && !isPublic) {
