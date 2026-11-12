@@ -13,6 +13,7 @@ import BrowseFile from "@/components/BrowseFile";
 import { useLang } from "@/lib/i18n";
 import { safeJson } from "@/lib/safeJson";
 import { refreshAfterUpload } from "@/lib/uploadClient";
+import SendWeeklyReport from "./SendWeeklyReport";
 
 export const dynamic = "force-dynamic";
 
@@ -394,6 +395,10 @@ export default function UploadPage() {
             {log.map((l, i) => <div key={i} style={{ color: l.startsWith("✓") ? "var(--gold)" : "#f87171", marginBottom: 4 }}>{l}</div>)}
           </div>
         )}
+
+        {/* Weekly report to the client's WhatsApp group (sent by the ERP from Oli's number).
+            Sits right under the upload result so it is the next step once the week is uploaded. */}
+        <SendWeeklyReport key={`${manual.store_name}|${isBaseline ? "" : manual.tanggal_mulai}`} store={manual.store_name} week={isBaseline ? "" : manual.tanggal_mulai} />
       </div>
 
       {/* Card 3 / 4: Finance Performa + Ops Performa — Sultan | King |
