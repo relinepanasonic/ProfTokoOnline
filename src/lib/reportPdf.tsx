@@ -1,5 +1,5 @@
 import {
-  Document, Page, View, Text, StyleSheet, Svg, Rect, Path, Circle,
+  Document, Page, View, Text, StyleSheet, Svg, Rect, Path, Circle, Polygon,
   Line as SvgLine, Polyline, Font,
 } from "@react-pdf/renderer";
 import { Fragment } from "react";
@@ -90,11 +90,10 @@ const T = {
     kConv: "CONVERSION RATE", kConvSub: "Visitors who order",
     salesTitle: "Sales Performance", salesSub: "Last {n} periods",
     costRoasTitle: "Ad Spend & ROAS", costRoasSub: "Spend vs efficiency — last {n} periods",
-    funnelTitle: "Conversion Funnel", funnelSub: "Traffic to order — {period}",
-    shareTitle: "Brand Share", shareSub: "Top brand vs others (revenue)",
-    fTraffic: "Traffic", fViews: "Views", fCart: "Cart", fOrders: "Orders",
-    cartNote: "({pct} of traffic)",
-    legendOther: "Other brands — {v}",
+    funnelTitle: "Conversion Funnel", funnelSub: "Impression to sales — {period}",
+    shareTitle: "Top 10 Products", shareSub: "Share of sales — the rest grouped as Others",
+    fImpr: "IMPRESSION", fClick: "CLICK", fCart: "IN CART", fSold: "SALES",
+    others: "Others",
     adType: "AD TYPE", adCost: "AD SPEND", adSales: "SALES", adRoas: "ROAS",
     adOrders: "ORDER", adShare: "SHARE OF SPEND", adTotal: "Total",
     gmvMax: "GMV Max Auto", groupAds: "Group Ads", indepAds: "Independent Ads",
@@ -136,11 +135,10 @@ const T = {
     kConv: "CONVERSION RATE", kConvSub: "Pengunjung yang order",
     salesTitle: "Performa Penjualan", salesSub: "{n} periode terakhir",
     costRoasTitle: "Biaya Iklan & ROAS", costRoasSub: "Biaya vs efisiensi — {n} periode terakhir",
-    funnelTitle: "Funnel Konversi", funnelSub: "Traffic ke order — {period}",
-    shareTitle: "Pangsa Brand", shareSub: "Brand teratas vs lainnya (omzet)",
-    fTraffic: "Traffic", fViews: "Dilihat", fCart: "Keranjang", fOrders: "Order",
-    cartNote: "({pct} dari traffic)",
-    legendOther: "Brand lain — {v}",
+    funnelTitle: "Funnel Konversi", funnelSub: "Impresi sampai terjual — {period}",
+    shareTitle: "Top 10 Produk", shareSub: "Porsi penjualan — sisanya digabung sebagai Lainnya",
+    fImpr: "IMPRESI", fClick: "KLIK", fCart: "KERANJANG", fSold: "TERJUAL",
+    others: "Lainnya",
     adType: "JENIS IKLAN", adCost: "BIAYA IKLAN", adSales: "PENJUALAN", adRoas: "ROAS",
     adOrders: "ORDER", adShare: "PORSI BIAYA", adTotal: "Total",
     gmvMax: "GMV Max Auto", groupAds: "Iklan Grup", indepAds: "Iklan Mandiri",
@@ -290,25 +288,39 @@ function CostRoasSvg({ data, w, h, lang }: { data: { label: string; cost: number
   );
 }
 
-function FunnelSvg({ rows, w, h, lang }: { rows: { label: string; value: number; note?: string }[]; w: number; h: number; lang: Lang }) {
-  if (!rows.length || !rows[0].value) return <Empty w={w} h={h} lang={lang} />;
-  const padL = 52, padR = 8;
-  const barH = 14, gap = (h - rows.length * barH) / (rows.length + 1);
-  const cw = w - padL - padR - 120;
-  const max = Math.max(...rows.map((r) => r.value), 1);
+// Real funnel: four stacked trapezoids that taper top to bottom, each labelled with its share of the
+// TOP stage (same rule as the dashboard's Product Funnel), stage names + counts on the right.
+function FunnelSvg({ stages, w, h, lang }: { stages: { label: string; value: number }[]; w: number; h: number; lang: Lang }) {
+  if (!stages.some((x) => x.value > 0)) return <Empty w={w} h={h} lang={lang} />;
+  const W = Math.min(190, w * 0.46), minW = W * 0.24;
+  const segH = h / stages.length, gap = 3;
+  const max = Math.max(...stages.map((x) => x.value), 1);
+  const widths: number[] = [];
+  stages.forEach((st, i) => {
+    const raw = minW + (W - minW) * Math.max(st.value / max, 0.06);
+    widths.push(i === 0 ? raw : Math.min(raw, widths[i - 1])); // never wider than the stage above
+  });
+  const top = stages[0].value || 0;
+  const pctTxt = (v: number) => {
+    if (!top) return "—";
+    const p = (v / top) * 100;
+    return `${p >= 10 ? p.toFixed(0) : p.toFixed(p < 0.1 ? 2 : 1)}%`; // same style as pctFmt elsewhere in the deck
+  };
+  const fills = ["#3d74ad", "#2f5b8a", "#26486f", GOLD];
+  const x0 = 4, labelX = W + 28;
   return (
     <Svg width={w} height={h}>
-      {rows.map((r, i) => {
-        const y = gap + i * (barH + gap);
-        const bw = Math.max((r.value / max) * cw, 2);
+      {stages.map((st, i) => {
+        const y = i * segH;
+        const wTop = widths[i], wBot = widths[i + 1] ?? widths[i] * 0.62;
+        const xTop = x0 + (W - wTop) / 2, xBot = x0 + (W - wBot) / 2;
+        const pts = `${xTop},${y} ${xTop + wTop},${y} ${xBot + wBot},${y + segH - gap} ${xBot},${y + segH - gap}`;
         return (
           <Fragment key={i}>
-            <Text x={padL - 6} y={y + barH / 2 + 3} style={{ fontSize: 7, fill: MUTED, textAnchor: "end" } as never}>{r.label}</Text>
-            <Rect x={padL} y={y} width={bw} height={barH} fill={i === rows.length - 1 ? GOLD : NAVY} rx={2} />
-            <Text x={padL + bw + 6} y={y + barH / 2 + 3} style={{ fontSize: 7.5, fill: INK, fontFamily: F_BOLD } as never}>{numFmt(r.value)}</Text>
-            {r.note && (
-              <Text x={padL + bw + 6 + String(numFmt(r.value)).length * 4.6 + 8} y={y + barH / 2 + 3} style={{ fontSize: 6.5, fill: MUTED } as never}>{r.note}</Text>
-            )}
+            <Polygon points={pts} fill={fills[i] || NAVY} />
+            <Text x={x0 + W / 2} y={y + (segH - gap) / 2 + 3.5} style={{ fontSize: 9.5, fill: WHITE, textAnchor: "middle", fontFamily: F_BOLD } as never}>{pctTxt(st.value)}</Text>
+            <Text x={labelX} y={y + (segH - gap) / 2 - 3} style={{ fontSize: 6.5, fill: MUTED, letterSpacing: 0.4 } as never}>{st.label}</Text>
+            <Text x={labelX} y={y + (segH - gap) / 2 + 9} style={{ fontSize: 11, fill: NAVY, fontFamily: F_BOLD } as never}>{numFmt(st.value)}</Text>
           </Fragment>
         );
       })}
@@ -316,33 +328,28 @@ function FunnelSvg({ rows, w, h, lang }: { rows: { label: string; value: number;
   );
 }
 
-// Donut drawn from two arc paths; a 100%/0% split degenerates as an arc,
-// so those render as plain rings instead.
-function DonutSvg({ share, label, w, h }: { share: number; label: string; w: number; h: number }) {
-  const cxp = w / 2, cyp = h / 2;
-  const R = Math.min(w, h) / 2 - 4, r = R * 0.62;
-  const frac = Math.max(0, Math.min(1, share));
-  const ring = (color: string) => <Circle cx={cxp} cy={cyp} r={(R + r) / 2} fill="none" stroke={color} strokeWidth={R - r} />;
-  let body: React.ReactNode;
-  if (frac >= 0.999) body = ring(GOLD);
-  else if (frac <= 0.001) body = ring("#d7dce6");
-  else {
-    const a = frac * Math.PI * 2 - Math.PI / 2;
-    const st = -Math.PI / 2;
-    const p = (rad: number, ang: number) => `${(cxp + rad * Math.cos(ang)).toFixed(2)},${(cyp + rad * Math.sin(ang)).toFixed(2)}`;
-    const large = frac > 0.5 ? 1 : 0;
-    body = (
-      <Fragment>
-        <Circle cx={cxp} cy={cyp} r={(R + r) / 2} fill="none" stroke="#d7dce6" strokeWidth={R - r} />
-        <Path d={`M ${p(R, st)} A ${R} ${R} 0 ${large} 1 ${p(R, a)} L ${p(r, a)} A ${r} ${r} 0 ${large} 0 ${p(r, st)} Z`} fill={GOLD} />
-      </Fragment>
-    );
-  }
+const PIE_COLORS = ["#172c54", "#c9a227", "#3d74ad", "#1f9254", "#8c6bb1", "#e07b39", "#4fb3bf", "#c0392b", "#7a869a", "#a3b86c"];
+const PIE_OTHERS = "#d7dce6";
+
+// Plain pie: one wedge per slice, starting at 12 o'clock. A single 100% slice degenerates as an arc,
+// so it renders as a full circle.
+function PieSvg({ slices, size }: { slices: { value: number; color: string }[]; size: number }) {
+  const c = size / 2, R = c - 2;
+  const total = slices.reduce((a, x) => a + Math.max(x.value, 0), 0);
+  if (total <= 0) return <Svg width={size} height={size}><Circle cx={c} cy={c} r={R} fill={PIE_OTHERS} /></Svg>;
+  const live = slices.filter((x) => x.value > 0);
+  if (live.length === 1) return <Svg width={size} height={size}><Circle cx={c} cy={c} r={R} fill={live[0].color} /></Svg>;
+  let a0 = -Math.PI / 2;
+  const pt = (ang: number) => `${(c + R * Math.cos(ang)).toFixed(2)},${(c + R * Math.sin(ang)).toFixed(2)}`;
   return (
-    <Svg width={w} height={h}>
-      {body}
-      <Text x={cxp} y={cyp + 2} style={{ fontSize: 17, fill: NAVY, textAnchor: "middle", fontFamily: F_BOLD } as never}>{pctFmt(frac * 100)}</Text>
-      <Text x={cxp} y={cyp + 14} style={{ fontSize: 6.5, fill: MUTED, textAnchor: "middle" } as never}>{clip(label, 16)}</Text>
+    <Svg width={size} height={size}>
+      {live.map((x, i) => {
+        const a1 = a0 + (x.value / total) * Math.PI * 2;
+        const large = a1 - a0 > Math.PI ? 1 : 0;
+        const d = `M ${c},${c} L ${pt(a0)} A ${R} ${R} 0 ${large} 1 ${pt(a1)} Z`;
+        a0 = a1;
+        return <Path key={i} d={d} fill={x.color} stroke={WHITE} strokeWidth={0.8} />;
+      })}
     </Svg>
   );
 }
@@ -367,11 +374,13 @@ function Footer({ left, right }: { left: string; right: string }) {
     </View>
   );
 }
-function Legend({ color, text }: { color: string; text: string }) {
+function PieLegendRow({ color, name, pct, value }: { color: string; name: string; pct: string; value: string }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 7 }}>
-      <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: color, marginRight: 6 }} />
-      <Text style={{ fontSize: 8, color: INK }}>{clip(text, 23)}</Text>
+    <View style={{ flexDirection: "row", alignItems: "center", height: 11 }}>
+      <View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: color, marginRight: 5 }} />
+      <Text style={{ fontSize: 7, color: INK, flex: 1 }}>{clip(name, 30)}</Text>
+      <Text style={{ fontSize: 7, color: NAVY, fontFamily: F_BOLD, width: 30, textAlign: "right" }}>{pct}</Text>
+      <Text style={{ fontSize: 7, color: MUTED, width: 46, textAlign: "right" }}>{value}</Text>
     </View>
   );
 }
@@ -454,12 +463,15 @@ export function ReportDocument(props: {
   const coverTitle = brandNames.length ? brandNames.join(" | ") : (clientName || scopeName);
   const coverTitleSize = coverTitle.length > 40 ? 26 : 38;
 
-  // Brand share: biggest brand vs everything else in the selection.
-  const brands = [...(current.brand_share || [])].sort((a, b) => b.sales - a.sales);
-  const topBrand = brands[0];
-  const topSales = topBrand?.sales ?? 0;
-  const otherSales = brands.slice(1).reduce((a, b) => a + b.sales, 0);
-  const shareFrac = topSales + otherSales > 0 ? topSales / (topSales + otherSales) : 0;
+  // Top-10 product pie: the 10 best sellers, everything else in the selection as one "Others" slice.
+  const pieTop = (current.top_products || []).filter((x) => x.sales > 0).slice(0, 10);
+  const pieTopSum = pieTop.reduce((a, x) => a + x.sales, 0);
+  const pieOthers = Math.max((k.sales || 0) - pieTopSum, 0);
+  const pieTotal = pieTopSum + pieOthers;
+  const pieRows = [
+    ...pieTop.map((x, i) => ({ name: x.name, value: x.sales, color: PIE_COLORS[i % PIE_COLORS.length] })),
+    ...(pieOthers > 0 ? [{ name: t.others, value: pieOthers, color: PIE_OTHERS }] : []),
+  ];
 
   const dealers = [...(current.dealers || [])].filter((d) => d.sales > 0).sort((a, b) => b.sales - a.sales);
   const products = (current.top_products || []).slice(0, 10);
@@ -563,24 +575,27 @@ export function ReportDocument(props: {
             <Text style={s.cardTitle}>{t.funnelTitle}</Text>
             <Text style={s.cardSub}>{tf(t.funnelSub, { period: periodLabel })}</Text>
             <View style={{ marginTop: 6 }}>
-              <FunnelSvg lang={lang} w={COL2 - 24} h={132} rows={[
-                { label: t.fTraffic, value: k.traffic },
-                { label: t.fViews, value: k.product_views },
-                { label: t.fCart, value: k.in_cart, note: tf(t.cartNote, { pct: pctFmt(atcRate) }) },
-                { label: t.fOrders, value: k.transactions },
+              <FunnelSvg lang={lang} w={COL2 - 24} h={132} stages={[
+                { label: t.fImpr, value: k.product_views },
+                { label: t.fClick, value: k.clicks ?? 0 },
+                { label: t.fCart, value: k.in_cart },
+                { label: t.fSold, value: k.units_sold ?? 0 },
               ]} />
             </View>
           </View>
           <View style={[s.card, { width: COL2, height: 185 }]}>
             <Text style={s.cardTitle}>{t.shareTitle}</Text>
             <Text style={s.cardSub}>{t.shareSub}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-              <DonutSvg share={shareFrac} label={topBrand?.brand || "—"} w={COL2 - 170} h={128} />
-              <View style={{ marginLeft: 10 }}>
-                <Legend color={GOLD} text={`${clip(topBrand?.brand || "—", 10)} — ${idrShort(topSales)}`} />
-                <Legend color="#d7dce6" text={tf(t.legendOther, { v: idrShort(otherSales) })} />
+            {pieRows.length ? (
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <PieSvg size={124} slices={pieRows.map((r) => ({ value: r.value, color: r.color }))} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  {pieRows.map((r, i) => (
+                    <PieLegendRow key={i} color={r.color} name={r.name} pct={pctFmt(pieTotal > 0 ? (r.value / pieTotal) * 100 : 0)} value={idrShort(r.value)} />
+                  ))}
+                </View>
               </View>
-            </View>
+            ) : <Empty w={COL2 - 24} h={128} lang={lang} />}
           </View>
         </View>
         <Footer left={footL} right={footR} />

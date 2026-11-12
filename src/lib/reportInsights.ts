@@ -17,6 +17,7 @@ export type Kpis = {
   sales: number; gmv: number; traffic: number; in_cart: number; orders: number;
   transactions: number; orders_created: number; product_views: number;
   visitor_cart_adds: number; ad_cost: number; roas: number | null;
+  clicks?: number; units_sold?: number; // product funnel (SPOS), absent on older summaries
 };
 export type Dealer = {
   store_name: string; city: string; sales: number; traffic: number;
